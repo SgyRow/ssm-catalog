@@ -36,7 +36,7 @@
     "immer": "^10.1.1",
     "js-cookie": "^3.0.5",
     "kommon": "workspace:*",
-    "pdfjs-dist": "^5.3.93",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-i18next": "^15.6.0",
