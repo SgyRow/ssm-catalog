@@ -53,7 +53,7 @@ COPY auth-server/ui2/ ./
 RUN yarn install && yarn build
 
 # Auth-server Python sources + built UI (Poetry env created in the final stage).
-FROM alpine:3.21 AS auth_server
+FROM alpine:3.24 AS auth_server
 
 WORKDIR /app
 COPY auth-server/poetry.lock auth-server/pyproject.toml auth-server/README.md /app/
