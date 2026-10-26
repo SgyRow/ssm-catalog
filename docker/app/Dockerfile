@@ -64,7 +64,7 @@ COPY --from=auth_ui_build /auth_ui/dist /usr/share/nginx/html
 # ---------------------------------------------------------------------------
 # Stage 3: runtime (nginx + core API + auth-server under supervisord)
 # ---------------------------------------------------------------------------
-FROM python:3.13-alpine AS papermerge_core
+FROM python:3.15-alpine AS papermerge_core
 
 ENV CORE_APP=/core_app
 ENV PAPERMERGE__DATABASE__URL=sqlite:////db/db.sqlite3
