@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: frontend bundle
 # ---------------------------------------------------------------------------
-FROM node:20.19 AS frontend_build
+FROM node:26.12 AS frontend_build
 
 # Apply latest security updates. Retry to tolerate transient mirror failures.
 RUN set -eux; \
@@ -41,7 +41,7 @@ RUN set -eux; \
 # ---------------------------------------------------------------------------
 # Stage 2: auth-server (local sources under auth-server/)
 # ---------------------------------------------------------------------------
-FROM node:24.5-alpine AS auth_ui_build
+FROM node:26.12-alpine AS auth_ui_build
 
 RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
