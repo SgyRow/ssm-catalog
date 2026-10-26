@@ -1,0 +1,1370 @@
+import io
+import logging
+import mimetypes
+import os
+from os.path import getsize
+import uuid
+from typing import Tuple, Sequence
+
+import img2pdf
+import fitz
+from pikepdf import Pdf
+from sqlalchemy import delete, func, insert, select, update, distinct, Select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from papermerge.core.features.document import s3
+from papermerge.core.utils.misc import copy_file, normalize_upload_file_name
+from papermerge.core import schema, orm, constants, tasks
+from papermerge.core.features.document_types.db.api import \
+    document_type_cf_count
+from papermerge.core.types import (
+    OrderEnum,
+    CFVValueColumn,
+    ImagePreviewStatus,
+    OCRStatusEnum,
+)
+from papermerge.core.db.common import get_ancestors, get_node_owner
+from papermerge.core.features.nodes.db.node_titles import (
+    find_node_id_by_title,
+    next_sort_index,
+    revive_trashed_node,
+)
+from papermerge.core.utils.misc import str2date, str2float, float2str
+from papermerge.core.pathlib import (
+    abs_docver_path,
+)
+from papermerge.core.features.document.upload_text import extract_upload_text
+from papermerge.core.features.document.docx_convert import (
+    DocxConversionError,
+    convert_docx_to_pdf,
+    is_docx_upload,
+)
+from papermerge.core.features.document.ordered_document_cfv import \
+    OrderedDocumentCFV
+from papermerge.core import config
+from .selectors import select_doc_cfv, select_docs_by_type
+
+settings = config.get_settings()
+logger = logging.getLogger(__name__)
+
+
+async def load_doc(db_session: AsyncSession, doc_id: uuid.UUID) -> orm.Document:
+    stmt = select(orm.Document).options(
+        selectinload(orm.Document.tags),
+        selectinload(orm.Document.versions).selectinload(orm.DocumentVersion.pages)
+    ).where(orm.Document.id == doc_id)
+
+    result = await db_session.execute(stmt)
+    return result.scalar_one()
+
+
+async def count_docs(session: AsyncSession) -> int:
+    stmt = select(func.count()).select_from(orm.Document)
+
+    result = await session.scalars(stmt)
+
+    return result.one()
+
+
+async def get_doc_cfv(session: AsyncSession, document_id: uuid.UUID) -> list[schema.CFV]:
+    """
+    Fetch document's custom field values for each CF name, even if CFV is NULL
+
+    Example: Say there is one document with ID=123 and document type Grocery.
+    Document type Grocery has 3 custom fields: Shop, Total, Date.
+
+    get_doc_cfv(ID=123) will return one list with 3 items in it:
+
+    1. doc_id=123 cf_name=Shop cf_value=None
+    2. doc_id=123 cf_name=Total cf_value=17.29
+    3. doc_id=123 cf_name=Date cf_value=None
+
+    Notice that item 1 and 3 have cf_value=None, which indicates
+    that there is no value for it in `custom_field_values` table.
+    """
+
+    stmt = select_doc_cfv(document_id)
+    result = []
+    for row in await session.execute(stmt):
+        if row.cf_type == "date":
+            value = str2date(row.cf_value)
+        elif row.cf_type == "yearmonth":
+            value = float2str(row.cf_value)
+        else:
+            value = row.cf_value
+
+        result.append(
+            schema.CFV(
+                document_id=row.doc_id,
+                document_type_id=row.document_type_id,
+                custom_field_id=row.cf_id,
+                name=row.cf_name,
+                type=row.cf_type,
+                extra_data=row.cf_extra_data,
+                custom_field_value_id=row.cfv_id,
+                value=value,
+            )
+        )
+
+    return result
+
+
+async def update_doc_cfv(
+    session: AsyncSession,
+    document_id: uuid.UUID,
+    custom_fields: dict,
+) -> list[schema.CFV]:
+    """
+    Update document's custom field values
+    """
+    items = await get_doc_cfv(session, document_id=document_id)
+    insert_values = []
+    update_values = []
+
+    stmt = (
+        select(orm.CustomField.name)
+        .select_from(orm.CustomFieldValue)
+        .join(orm.CustomField)
+        .where(orm.CustomFieldValue.document_id == document_id)
+    )
+    result = await session.execute(stmt)
+    existing_cf_name = [row[0] for row in result.all()]
+    for item in items:
+        if item.name not in custom_fields.keys():
+            continue
+
+        if item.name not in existing_cf_name:
+            # prepare insert values
+            v = dict(
+                id=uuid.uuid4(),
+                document_id=document_id,
+                field_id=item.custom_field_id,
+            )
+            if item.type.value == "date":
+                v[f"value_{item.type.value}"] = str2date(custom_fields[item.name])
+            elif item.type.value == "yearmonth":
+                v[f"value_{item.type.value}"] = str2float(custom_fields[item.name])
+            else:
+                v[f"value_{item.type.value}"] = custom_fields[item.name]
+            insert_values.append(v)
+        else:
+            # prepare update values
+            v = dict(id=item.custom_field_value_id)
+            if item.type.value == "date":
+                v[f"value_{item.type.value}"] = str2date(custom_fields[item.name])
+            elif item.type.value == "yearmonth":
+                v[f"value_{item.type.value}"] = str2float(custom_fields[item.name])
+            else:
+                v[f"value_{item.type.value}"] = custom_fields[item.name]
+            update_values.append(v)
+
+    if len(insert_values) > 0:
+        await session.execute(insert(orm.CustomFieldValue), insert_values)
+
+    if len(update_values) > 0:
+        await session.execute(update(orm.CustomFieldValue), update_values)
+
+    await session.commit()
+
+    return await get_doc_cfv(session, document_id=document_id)
+
+
+async def update_doc_type(
+    session: AsyncSession,
+    *,
+    document_id: uuid.UUID,
+    document_type_id: uuid.UUID | None,
+):
+    stmt = select(orm.Document).where(
+        orm.Document.id == document_id
+    )
+    result = await session.scalars(stmt)
+    doc = result.one()
+    if doc.document_type_id != document_type_id:
+        # new value for document type
+        doc.document_type_id = document_type_id
+        # -> clear existing CFV
+        del_stmt = delete(orm.CustomFieldValue).where(
+            orm.CustomFieldValue.document_id == document_id
+        )
+        await session.execute(del_stmt)
+
+    await session.commit()
+
+
+async def get_docs_count_by_type(
+    session: AsyncSession,
+    type_id: uuid.UUID,
+    user_id: uuid.UUID | None = None,
+):
+    """Returns number of documents of specific document type"""
+    stmt = select(func.count()).select_from(orm.Document).where(
+        orm.Document.document_type_id == type_id
+    )
+    if user_id is not None:
+        stmt = stmt.where(orm.Document.user_id == user_id)
+
+    result = await session.scalars(stmt)
+    return result.one()
+
+
+async def get_cfv_column_name(db_session: AsyncSession, cf_name: str) -> CFVValueColumn:
+    result = await db_session.execute(
+        select(orm.CustomField.type).where(
+            orm.CustomField.name == cf_name
+        )
+    )
+
+    value = result.scalar()
+
+    match value:
+        case "text":
+            ret = CFVValueColumn.TEXT
+        case "monetary":
+            ret = CFVValueColumn.MONETARY
+        case "date":
+            ret = CFVValueColumn.DATE
+        case "boolean":
+            ret = CFVValueColumn.BOOLEAN
+        case "yearmonth":
+            ret = CFVValueColumn.YEARMONTH
+        case "int":
+            ret = CFVValueColumn.INT
+        case "float":
+            ret = CFVValueColumn.FLOAT
+        case _:
+            raise ValueError("Unexpected custom field type")
+
+    return ret
+
+
+async def get_docs_by_type_no_cf(
+    session: AsyncSession,
+    type_id: uuid.UUID,
+    user_id: uuid.UUID,
+    limit: int,
+    offset: int,
+    order_by: str | None = None,
+    order: OrderEnum = OrderEnum.desc,
+) -> list[schema.DocumentCFV]:
+    """Return all documents of specific type (with their empty custom fields)
+
+    This method works correctly only in case document type does
+    not have custom fields
+    """
+    stmt = (
+        select(orm.Document)
+        .where(
+            orm.Document.document_type_id == type_id,
+            orm.Document.user_id == user_id,
+        )
+        .limit(limit)
+        .offset(offset)
+    )
+
+    results = []
+
+    for doc in (await session.execute(stmt)).scalars():
+        item = schema.DocumentCFV(
+            id=doc.id,
+            title=doc.title,
+            document_type_id=type_id,
+            custom_fields=[]
+        )
+        results.append(item)
+
+    return results
+
+
+async def get_docs_by_type(
+    session: AsyncSession,
+    type_id: uuid.UUID,
+    user_id: uuid.UUID,
+    order_by: str | None = None,
+    order: OrderEnum = OrderEnum.desc,
+    page_number: int = 1,
+    page_size: int = 5,
+) -> list[schema.DocumentCFV]:
+    """
+    Returns list of documents + doc CFv for all documents with of given type
+    """
+    if page_number < 1:
+        raise ValueError(f"page_number must be >= 1; got value={page_number}")
+
+    if page_size < 1:
+        raise ValueError(f"page_size must be >= 1; got value={page_size}")
+
+    cf_count = await document_type_cf_count(session, document_type_id=type_id)
+
+    if cf_count == 0:
+        return await get_docs_by_type_no_cf(
+            session,
+            type_id=type_id,
+            user_id=user_id,
+            order_by=order_by,
+            order=order,
+            limit=page_size,
+            offset=(page_number - 1) * page_size
+        )
+
+    cfv_column_name = None
+
+    if order_by is not None:
+        cfv_column_name = await get_cfv_column_name(session, order_by)
+
+    stmt = select_docs_by_type(
+        document_type_id=type_id,
+        user_id=user_id,
+        order_by=order_by,
+        order=order,
+        cfv_column_name=cfv_column_name,
+        limit=cf_count * page_size,
+        offset=cf_count * (page_number - 1) * page_size
+    )
+
+    ordered_doc_cfvs = OrderedDocumentCFV()
+    counter = 0
+    for row in (await session.execute(stmt)).all():
+        counter += 1
+        entry = DocumentCFVRow(
+            title=row.title,
+            doc_id=row.doc_id,
+            document_type_id=row.document_type_id,
+            cf_name=row.cf_name,
+            cf_type=row.cf_type,
+            cf_value=row.cf_value
+        )
+
+        ordered_doc_cfvs.add(entry)
+
+    return list(ordered_doc_cfvs)
+
+
+async def create_document(
+    db_session: AsyncSession, attrs: schema.NewDocument
+) -> Tuple[schema.Document | None, schema.Error | None]:
+    error = None
+    doc_id = attrs.id or uuid.uuid4()
+
+    owner = await get_node_owner(db_session, node_id=attrs.parent_id)
+
+    trashed_id = await find_node_id_by_title(
+        db_session,
+        parent_id=attrs.parent_id,
+        title=attrs.title,
+        user_id=owner.user_id,
+        group_id=owner.group_id,
+        ctype="document",
+        trashed=True,
+    )
+    if trashed_id is not None:
+        await revive_trashed_node(db_session, trashed_id)
+        stmt = (
+            select(orm.Document)
+            .options(
+                selectinload(orm.Document.tags),
+                selectinload(orm.Document.versions).selectinload(
+                    orm.DocumentVersion.pages
+                ),
+            )
+            .where(orm.Document.id == trashed_id)
+        )
+        doc_with_relations = (await db_session.execute(stmt)).scalar_one()
+        doc_with_relations.owner_name = owner.name
+        await db_session.commit()
+        return schema.Document.model_validate(doc_with_relations), None
+
+    doc = orm.Document(
+        id=doc_id,
+        title=attrs.title,
+        ctype="document",
+        ocr_status=attrs.ocr_status,
+        parent_id=attrs.parent_id,
+        ocr=attrs.ocr,
+        lang=attrs.lang,
+        user_id=owner.user_id,
+        group_id=owner.group_id,
+        sort_index=await next_sort_index(db_session, attrs.parent_id),
+    )
+    doc_ver = orm.DocumentVersion(
+        id=uuid.uuid4(),
+        document_id=doc_id,
+        number=1,
+        file_name=attrs.file_name,
+        size=0,
+        page_count=0,
+        lang=attrs.lang,
+        short_description="Original",
+    )
+    db_session.add(doc)
+
+    try:
+        db_session.add(doc_ver)
+        await db_session.commit()
+    except IntegrityError as e:
+        await db_session.rollback()
+        stre = str(e)
+        # postgres unique integrity error
+        if "unique" in stre and "title" in stre:
+            attr_err = schema.AttrError(
+                name="title", message="Within a folder title must be unique"
+            )
+            error = schema.Error(attrs=[attr_err])
+        # sqlite unique integrity error
+        elif "UNIQUE" in stre and ".title" in stre:
+            attr_err = schema.AttrError(
+                name="title", message="Within a folder title must be unique"
+            )
+            error = schema.Error(attrs=[attr_err])
+        else:
+            error = schema.Error(messages=[stre])
+
+    doc.owner_name = owner.name
+
+    stmt = select(orm.Document).options(
+        selectinload(orm.Document.tags),
+        selectinload(orm.Document.versions).selectinload(orm.DocumentVersion.pages)
+    ).where(orm.Document.id == doc_id)
+
+    result = await db_session.execute(stmt)
+    doc_with_relations = result.scalar_one_or_none()
+    if doc_with_relations:
+        return schema.Document.model_validate(doc_with_relations), error
+
+    attr_err = schema.AttrError(
+        name="title", message="Within a folder title must be unique"
+    )
+    error = schema.Error(attrs=[attr_err])
+    return None, error
+
+
+async def version_bump(
+    db_session: AsyncSession,
+    doc_id: uuid.UUID,
+    user_id: uuid.UUID,
+    page_count: int | None = None,
+    short_description: str | None = None,
+) -> orm.DocumentVersion:
+    """Increment document version"""
+
+    last_ver = await get_last_doc_ver(db_session, doc_id=doc_id)
+    new_page_count = page_count or last_ver.page_count
+    db_new_doc_ver = orm.DocumentVersion(
+        document_id=doc_id,
+        number=last_ver.number + 1,
+        file_name=last_ver.file_name,
+        size=0,
+        page_count=page_count,
+        short_description=short_description,
+        lang=last_ver.lang,
+    )
+
+    db_session.add(db_new_doc_ver)
+
+    for page_number in range(1, new_page_count + 1):
+        db_page = orm.Page(
+            document_version=db_new_doc_ver,
+            number=page_number,
+            page_count=new_page_count,
+            lang=last_ver.lang,
+        )
+        db_session.add(db_page)
+
+    await db_session.commit()
+
+    return db_new_doc_ver
+
+
+async def version_bump_from_pages(
+    db_session: AsyncSession,
+    dst_document_id: uuid.UUID,
+    pages: list[orm.Page],
+) -> [orm.Document | None, schema.Error | None]:
+    """
+    Creates new version for the document `dst-document-id`
+
+    PDF pages in the newly create document version is copied
+    from ``pages``.
+    """
+    first_page = pages[0]
+    page_count = len(pages)
+    error = None
+    stmt = (
+        select(orm.DocumentVersion)
+        .where(
+            orm.DocumentVersion.document_id == dst_document_id,
+            orm.DocumentVersion.size == 0,
+        )
+        .order_by(orm.DocumentVersion.number.desc())
+    )
+    dst_doc = await db_session.get(orm.Document, dst_document_id)
+    dst_document_version = (await db_session.execute(stmt)).scalar()
+
+    if not dst_document_version:
+        dst_document_version = orm.DocumentVersion(
+            document_id=dst_document_id,
+            number=len(dst_doc.versions) + 1,
+            lang=dst_doc.lang,
+        )
+
+    source_pdf = Pdf.open(first_page.document_version.file_path)
+    dst_pdf = Pdf.new()
+
+    for page in pages:
+        pdf_page = source_pdf.pages.p(page.number)
+        dst_pdf.pages.append(pdf_page)
+
+    dst_document_version.file_name = first_page.document_version.file_name
+    dst_document_version.page_count = page_count
+
+    dirname = os.path.dirname(dst_document_version.file_path)
+    os.makedirs(dirname, exist_ok=True)
+
+    dst_pdf.save(dst_document_version.file_path)
+
+    dst_document_version.size = getsize(dst_document_version.file_path)
+
+    for page_number in range(1, page_count + 1):
+        db_page = orm.Page(
+            document_version_id=dst_document_version.id,
+            number=page_number,
+            page_count=page_count,
+            lang=dst_doc.lang,
+        )
+        db_session.add(db_page)
+    try:
+        await db_session.commit()
+    except Exception as e:
+        error = schema.Error(messages=[str(e)])
+    finally:
+        source_pdf.close()
+        dst_pdf.close()
+
+    if error:
+        return None, error
+
+    return dst_doc, None
+
+
+async def update_text_field(db_session: AsyncSession, document_version_id: uuid.UUID, streams):
+    """Update document versions's text field from IO streams.
+
+    Arguments:
+        ``streams`` - a list of IO text streams
+
+    It will update text field of all associated pages first
+    and then concatinate all text field into doc.text field.
+    """
+    text = []
+
+    stmt = (
+        select(orm.Page.id, orm.Page.text, orm.Page.number)
+        .where(orm.Page.document_version_id == document_version_id)
+        .order_by(orm.Page.number)
+    )
+
+    pages = [(row.id, row.text, row.number) for row in await db_session.execute(stmt)]
+
+    for page, stream in zip(pages, streams):
+        if page[1] is None:  # page.text
+            txt = stream.read()
+            sql = update(orm.Page).where(orm.Page.id == page[0]).values(text=txt)
+            await db_session.execute(sql)
+            text.append(txt.strip())
+
+    stripped_text = " ".join(text)
+    stripped_text = stripped_text.strip()
+    if stripped_text:
+        sql = (
+            update(orm.DocumentVersion)
+            .where(orm.DocumentVersion.id == document_version_id)
+            .values(text=stripped_text)
+        )
+        await db_session.execute(sql)
+    await db_session.commit()
+
+
+class UploadStrategy:
+    """
+    Defines how to proceed with uploaded file
+    """
+
+    # INCREMENT - Uploaded file is inserted into the newly created
+    #   document version
+    INCREMENT = 1
+    # MERGE - Uploaded file is merged with last file version
+    #   and inserted into the newly created document version
+    MERGE = 2
+
+
+class FileType:
+    PDF = "pdf"
+    JPEG = "jpeg"
+    PNG = "png"
+    TIFF = "tiff"
+
+
+def file_type(content_type: str) -> str:
+    parts = content_type.split("/")
+    if len(parts) == 2:
+        return parts[1]
+
+    return "octet-stream"
+
+
+IMAGE_MIMES_IMG2PDF = frozenset(
+    {
+        constants.ContentType.IMAGE_JPEG,
+        constants.ContentType.IMAGE_PNG,
+        constants.ContentType.IMAGE_TIFF,
+        "image/jpg",
+    }
+)
+
+
+def normalize_upload_content_type(
+    content_type: str | None, file_name: str | None
+) -> str:
+    if content_type:
+        ct = content_type.split(";")[0].strip().lower()
+        if ct and ct != "application/octet-stream":
+            return ct
+    guessed, _ = mimetypes.guess_type(file_name or "")
+    return (guessed or "application/octet-stream").lower()
+
+
+def get_pdf_page_count(content: io.BytesIO | bytes) -> int:
+    if isinstance(content, bytes):
+        pdf = Pdf.open(io.BytesIO(content))
+    else:
+        pdf = Pdf.open(content)
+    page_count = len(pdf.pages)
+    pdf.close()
+
+    return page_count
+
+
+async def create_next_version(
+    db_session: AsyncSession,
+    doc: orm.Document,
+    file_name,
+    file_size,
+    short_description=None,
+) -> orm.DocumentVersion:
+    stmt = (
+        select(orm.DocumentVersion)
+        .where(
+            orm.DocumentVersion.size == 0,
+            orm.DocumentVersion.document_id == doc.id,
+        )
+        .order_by(orm.DocumentVersion.number.desc())
+    )
+    document_version = (await db_session.execute(stmt)).scalar()
+
+    if not document_version:
+        document_version = orm.DocumentVersion(
+            id=uuid.uuid4(),
+            document_id=doc.id,
+            number=len(doc.versions) + 1,
+            lang=doc.lang,
+        )
+
+    document_version.file_name = file_name
+    document_version.size = file_size
+    document_version.page_count = 0
+
+    if short_description:
+        document_version.short_description = short_description
+
+    db_session.add(document_version)
+
+    return document_version
+
+
+async def upload(
+    db_session: AsyncSession,
+    document_id: uuid.UUID,
+    content: io.BytesIO,
+    size: int,
+    file_name: str,
+    content_type: str | None = None,
+) -> Tuple[schema.Document | None, schema.Error | None]:
+
+    doc = await db_session.get(orm.Document, document_id)
+    orig_ver = None
+    pdf_ver = None
+    blob_ver = None
+
+    safe_file_name = normalize_upload_file_name(file_name)
+    ct = normalize_upload_content_type(content_type, safe_file_name)
+
+    try:
+        if ct == constants.ContentType.APPLICATION_PDF:
+            pdf_ver = await create_next_version(
+                db_session, doc=doc, file_name=safe_file_name, file_size=size
+            )
+            pdf_dst = abs_docver_path(pdf_ver.id, pdf_ver.file_name)
+            await copy_file(src=content, dst=pdf_dst)
+
+            page_count = get_pdf_page_count(content)
+
+            pdf_ver.page_count = page_count
+            for page_number in range(1, page_count + 1):
+                db_page_pdf = orm.Page(
+                    number=page_number,
+                    page_count=page_count,
+                    lang=pdf_ver.lang,
+                    document_version_id=pdf_ver.id,
+                )
+                db_session.add(db_page_pdf)
+            await populate_embedded_pdf_text(
+                db_session=db_session,
+                doc=doc,
+                doc_ver=pdf_ver,
+                pdf_path=str(pdf_dst),
+                page_count=page_count,
+            )
+            db_session.add(pdf_ver)
+
+        elif ct in IMAGE_MIMES_IMG2PDF:
+            try:
+                pdf_content = img2pdf.convert(content)
+            except img2pdf.ImageOpenError as e:
+                return None, schema.Error(messages=[str(e)])
+
+            orig_ver = await create_next_version(
+                db_session, doc=doc, file_name=safe_file_name, file_size=size
+            )
+
+            pdf_ver = await create_next_version(
+                db_session,
+                doc=doc,
+                file_name=f"{safe_file_name}.pdf",
+                file_size=len(pdf_content),
+                short_description=f"{file_type(ct)} -> pdf",
+            )
+            await copy_file(src=content, dst=abs_docver_path(orig_ver.id, orig_ver.file_name))
+
+            await copy_file(src=pdf_content, dst=abs_docver_path(pdf_ver.id, pdf_ver.file_name))
+
+            page_count = get_pdf_page_count(pdf_content)
+            orig_ver.page_count = page_count
+            pdf_ver.page_count = page_count
+
+            for page_number in range(1, page_count + 1):
+                db_page_orig = orm.Page(
+                    number=page_number,
+                    page_count=page_count,
+                    lang=pdf_ver.lang,
+                    document_version_id=orig_ver.id,
+                )
+                db_page_pdf = orm.Page(
+                    number=page_number,
+                    page_count=page_count,
+                    lang=pdf_ver.lang,
+                    document_version_id=pdf_ver.id,
+                )
+                db_session.add_all([db_page_orig, db_page_pdf])
+
+        elif is_docx_upload(content_type=ct, file_name=safe_file_name):
+            raw_content = (
+                content.getvalue() if isinstance(content, io.BytesIO) else content
+            )
+            try:
+                pdf_content = await convert_docx_to_pdf(raw_content, safe_file_name)
+            except DocxConversionError as exc:
+                return None, schema.Error(messages=[str(exc)])
+
+            orig_ver = await create_next_version(
+                db_session,
+                doc=doc,
+                file_name=safe_file_name,
+                file_size=size,
+                short_description=ct,
+            )
+            pdf_ver = await create_next_version(
+                db_session,
+                doc=doc,
+                file_name=f"{safe_file_name}.pdf",
+                file_size=len(pdf_content),
+                short_description="docx -> pdf",
+            )
+            await copy_file(
+                src=content, dst=abs_docver_path(orig_ver.id, orig_ver.file_name)
+            )
+            await copy_file(
+                src=pdf_content,
+                dst=abs_docver_path(pdf_ver.id, pdf_ver.file_name),
+            )
+
+            page_count = get_pdf_page_count(pdf_content)
+            orig_ver.page_count = page_count
+            pdf_ver.page_count = page_count
+
+            extracted_text = extract_upload_text(
+                content=raw_content,
+                file_name=safe_file_name,
+                content_type=ct,
+            )
+
+            for page_number in range(1, page_count + 1):
+                page_text = extracted_text if page_number == 1 else None
+                db_page_orig = orm.Page(
+                    number=page_number,
+                    page_count=page_count,
+                    lang=pdf_ver.lang,
+                    document_version_id=orig_ver.id,
+                    text=page_text,
+                )
+                db_page_pdf = orm.Page(
+                    number=page_number,
+                    page_count=page_count,
+                    lang=pdf_ver.lang,
+                    document_version_id=pdf_ver.id,
+                )
+                db_session.add_all([db_page_orig, db_page_pdf])
+
+            if extracted_text:
+                orig_ver.text = extracted_text
+
+            pdf_dst = abs_docver_path(pdf_ver.id, pdf_ver.file_name)
+            await populate_embedded_pdf_text(
+                db_session=db_session,
+                doc=doc,
+                doc_ver=pdf_ver,
+                pdf_path=str(pdf_dst),
+                page_count=page_count,
+            )
+            db_session.add_all([orig_ver, pdf_ver])
+
+        else:
+            raw_content = content.getvalue() if isinstance(content, io.BytesIO) else content
+            blob_ver = await create_next_version(
+                db_session,
+                doc=doc,
+                file_name=safe_file_name,
+                file_size=size,
+                short_description=ct,
+            )
+            await copy_file(src=content, dst=abs_docver_path(blob_ver.id, blob_ver.file_name))
+            blob_ver.page_count = 1
+            extracted_text = extract_upload_text(
+                content=raw_content,
+                file_name=safe_file_name,
+                content_type=ct,
+            )
+            db_session.add(
+                orm.Page(
+                    number=1,
+                    page_count=1,
+                    lang=blob_ver.lang,
+                    document_version_id=blob_ver.id,
+                    text=extracted_text,
+                )
+            )
+            if extracted_text:
+                blob_ver.text = extracted_text
+
+        await db_session.commit()
+    except Exception as e:
+        await db_session.rollback()
+        return None, schema.Error(messages=[str(e)])
+
+    owner = await get_node_owner(db_session, node_id=doc.id)
+    doc.owner_name = owner.name
+    stmt = select(orm.Document).options(
+        selectinload(orm.Document.tags),
+        selectinload(orm.Document.versions).selectinload(orm.DocumentVersion.pages)
+    ).where(orm.Document.id == doc.id)
+
+    result = await db_session.execute(stmt)
+    doc_with_relations = result.scalar_one()
+    validated_model = schema.Document.model_validate(doc_with_relations)
+
+    if orig_ver:
+        tasks.send_task(
+            constants.S3_WORKER_ADD_DOC_VER,
+            kwargs={"doc_ver_ids": [str(orig_ver.id)]},
+            route_name="s3",
+        )
+
+    if pdf_ver:
+        tasks.send_task(
+            constants.S3_WORKER_ADD_DOC_VER,
+            kwargs={"doc_ver_ids": [str(pdf_ver.id)]},
+            route_name="s3",
+        )
+
+    if blob_ver:
+        tasks.send_task(
+            constants.S3_WORKER_ADD_DOC_VER,
+            kwargs={"doc_ver_ids": [str(blob_ver.id)]},
+            route_name="s3",
+        )
+
+    # Node create triggers indexing before upload; re-index once pages exist.
+    tasks.send_task(
+        constants.INDEX_ADD_NODE,
+        kwargs={"node_id": str(doc.id)},
+        route_name="i3",
+    )
+
+    if await should_schedule_ocr(
+        db_session=db_session,
+        doc=doc,
+        pdf_ver=pdf_ver,
+        blob_ver=blob_ver,
+    ):
+        tasks.send_task(
+            constants.WORKER_OCR_DOCUMENT,
+            kwargs={
+                "document_id": str(doc.id),
+                "lang": settings.papermerge__ocr__multi_lang_codes,
+            },
+            route_name="ocr",
+        )
+
+    return validated_model, None
+
+
+async def should_schedule_ocr(
+    *,
+    db_session: AsyncSession,
+    doc: orm.Document,
+    pdf_ver: orm.DocumentVersion | None,
+    blob_ver: orm.DocumentVersion | None,
+) -> bool:
+    if not settings.papermerge__ocr__enabled:
+        return False
+    if doc.ocr is not True:
+        return False
+    if blob_ver is not None:
+        return False
+    if pdf_ver is None:
+        return False
+
+    latest_ver_stmt = (
+        select(orm.DocumentVersion.id, orm.DocumentVersion.text)
+        .where(orm.DocumentVersion.document_id == doc.id)
+        .order_by(orm.DocumentVersion.number.desc())
+        .limit(1)
+    )
+    latest_ver = (await db_session.execute(latest_ver_stmt)).one_or_none()
+    if latest_ver is None:
+        return True
+
+    doc_ver_id, doc_ver_text = latest_ver
+    if doc_ver_text and doc_ver_text.strip():
+        return False
+
+    pages_stmt = select(func.count()).select_from(orm.Page).where(
+        orm.Page.document_version_id == doc_ver_id,
+        orm.Page.text.is_(None),
+    )
+    missing_page_text_count = (await db_session.execute(pages_stmt)).scalar_one()
+    if missing_page_text_count == 0:
+        return False
+
+    return True
+
+
+async def populate_embedded_pdf_text(
+    *,
+    db_session: AsyncSession,
+    doc: orm.Document,
+    doc_ver: orm.DocumentVersion,
+    pdf_path: str,
+    page_count: int,
+) -> None:
+    extracted_pages: list[str] = []
+    with fitz.open(pdf_path) as pdf_doc:
+        for idx in range(page_count):
+            page_text = (pdf_doc[idx].get_text("text") or "").strip()
+            extracted_pages.append(page_text)
+
+    if not any(extracted_pages):
+        return
+
+    page_rows = (
+        await db_session.execute(
+            select(orm.Page.id, orm.Page.number).where(
+                orm.Page.document_version_id == doc_ver.id
+            )
+        )
+    ).all()
+    page_id_by_number = {row.number: row.id for row in page_rows}
+
+    for page_number, page_text in enumerate(extracted_pages, start=1):
+        if not page_text:
+            continue
+        page_id = page_id_by_number.get(page_number)
+        if page_id is None:
+            continue
+        await db_session.execute(
+            update(orm.Page).where(orm.Page.id == page_id).values(text=page_text)
+        )
+
+    joined_text = " ".join([txt for txt in extracted_pages if txt]).strip()
+    if joined_text:
+        await db_session.execute(
+            update(orm.DocumentVersion)
+            .where(orm.DocumentVersion.id == doc_ver.id)
+            .values(text=joined_text)
+        )
+        await db_session.execute(
+            update(orm.Document)
+            .where(orm.Document.id == doc.id)
+            .values(ocr_status=OCRStatusEnum.success)
+        )
+
+
+async def get_doc(
+    session: AsyncSession,
+    id: uuid.UUID,
+) -> schema.DocumentWithoutVersions:
+    # select(Document) already joins nodes (joined inheritance); do not join Node again.
+    stmt_doc = select(orm.Document).where(
+        orm.Document.id == id,
+        orm.Document.deleted_at.is_(None),
+    )
+    db_doc = (await session.execute(stmt_doc)).scalar_one()
+    breadcrumb = await get_ancestors(session, id)
+    db_doc.breadcrumb = breadcrumb
+
+    owner = await get_node_owner(session, node_id=id)
+    db_doc.owner_name = owner.name
+
+    # colored_tags = session.scalars(colored_tags_stmt).all()
+    # db_doc.tags = [ct.tag for ct in colored_tags]
+
+    model_doc = schema.DocumentWithoutVersions.model_validate(db_doc)
+
+    return model_doc
+
+
+async def get_doc_id_from_doc_ver_id(
+    db_session: AsyncSession,
+    doc_ver_id: uuid.UUID,
+) -> uuid.UUID:
+    stmt = select(orm.DocumentVersion.document_id).where(
+        orm.DocumentVersion.id == doc_ver_id
+    )
+
+    return (await db_session.execute(stmt)).scalar()
+
+
+async def get_doc_versions_list(
+    db_session: AsyncSession,
+    doc_id: uuid.UUID,
+) -> list[schema.DocVerListItem]:
+    stmt = select(
+        orm.DocumentVersion.id,
+        orm.DocumentVersion.number,
+        orm.DocumentVersion.short_description
+    ).where(
+        orm.DocumentVersion.document_id == doc_id
+    ).order_by(orm.DocumentVersion.number.desc())
+
+    db_vers = (await db_session.execute(stmt)).all()
+    vers = [
+        schema.DocVerListItem(
+            id=ver[0],
+            number=ver[1],
+            short_description=ver[2]
+        )
+        for ver in db_vers
+    ]
+
+    return vers
+
+async def get_doc_version_download_url(
+    db_session: AsyncSession,
+    doc_ver_id: uuid.UUID
+) -> schema.DownloadURL:
+    file_server = settings.papermerge__main__file_server
+    if file_server == config.FileServer.LOCAL:
+        url = f"/api/document-versions/{doc_ver_id}/download"
+        return schema.DownloadURL(downloadURL=url)
+
+    stmt = select(orm.DocumentVersion.file_name).where(
+        orm.DocumentVersion.id==doc_ver_id
+    )
+
+    file_name = (await db_session.execute(stmt)).scalar()
+
+    url = s3.doc_ver_signed_url(doc_ver_id, file_name)
+    return schema.DownloadURL(downloadURL=url)
+
+
+async def get_page_document_id(
+    db_session: AsyncSession, page_id: uuid.UUID
+) -> uuid.UUID:
+    stmt = (
+        select(orm.Document.id)
+        .join(orm.DocumentVersion)
+        .join(orm.Page)
+        .where(orm.Page.id == page_id)
+    )
+
+    ret_id = (await db_session.execute(stmt)).scalar()
+    return ret_id
+
+
+async def get_pages_document_id(
+    db_session: AsyncSession, page_ids: list[uuid.UUID]
+) -> uuid.UUID:
+    """Returns document ID whom all page_ids belong to"""
+    stmt = (
+        select(distinct(orm.Document.id))
+        .join(orm.DocumentVersion)
+        .join(orm.Page)
+        .where(orm.Page.id.in_(page_ids))
+    ).limit(1)
+
+    ret_id = (await db_session.execute(stmt)).scalar()
+    return ret_id
+
+
+async def get_page(
+    db_session: AsyncSession, page_id: uuid.UUID
+) -> schema.Page:
+
+    stmt = (
+        select(orm.Page)
+        .join(orm.DocumentVersion)
+        .join(orm.Document)
+        .where(orm.Page.id == page_id)
+    )
+
+    db_page = (await db_session.execute(stmt)).scalar()
+    model = schema.Page.model_validate(db_page)
+
+    return model
+
+
+async def get_doc_ver_pages(db_session: AsyncSession, doc_ver_id: uuid.UUID) -> list[schema.Page]:
+    stmt = (
+        select(orm.Page)
+        .where(orm.Page.document_version_id == doc_ver_id)
+        .order_by("number")
+    )
+
+    db_pages = (await db_session.scalars(stmt)).all()
+    models = [schema.Page.model_validate(db_page) for db_page in db_pages]
+
+    return models
+
+
+async def get_last_doc_ver(
+    db_session: AsyncSession,
+    doc_id: uuid.UUID,  # noqa
+) -> orm.DocumentVersion:
+    """
+    Returns last version of the document
+    identified by doc_id
+    """
+
+    stmt = (
+        select(orm.DocumentVersion).options(
+            selectinload(orm.DocumentVersion.pages)
+        )
+        .join(orm.Document)
+        .where(
+            orm.DocumentVersion.document_id == doc_id,
+        )
+        .order_by(orm.DocumentVersion.number.desc())
+        .limit(1)
+    )
+    return (await db_session.scalars(stmt)).one()
+
+
+async def get_last_doc_ver_preview(
+    db_session: AsyncSession,
+    doc_id: uuid.UUID,
+) -> schema.DocumentVersion:
+    """
+    Returns last document version optimized for preview bootstrap:
+    lightweight page payload (id + number, text omitted).
+    """
+    ver_stmt = (
+        select(
+            orm.DocumentVersion.id,
+            orm.DocumentVersion.number,
+            orm.DocumentVersion.lang,
+            orm.DocumentVersion.file_name,
+            orm.DocumentVersion.size,
+            orm.DocumentVersion.page_count,
+            orm.DocumentVersion.short_description,
+            orm.DocumentVersion.document_id,
+        )
+        .where(orm.DocumentVersion.document_id == doc_id)
+        .order_by(orm.DocumentVersion.number.desc())
+        .limit(1)
+    )
+    ver = (await db_session.execute(ver_stmt)).one()
+
+    pages_stmt = (
+        select(orm.Page.id, orm.Page.number)
+        .where(orm.Page.document_version_id == ver.id)
+        .order_by(orm.Page.number.asc())
+    )
+    pages = [
+        {"id": row.id, "number": row.number, "text": None}
+        for row in (await db_session.execute(pages_stmt)).all()
+    ]
+
+    return schema.DocumentVersion(
+        id=ver.id,
+        number=ver.number,
+        lang=ver.lang,
+        file_name=ver.file_name,
+        size=ver.size,
+        page_count=ver.page_count,
+        short_description=ver.short_description,
+        document_id=ver.document_id,
+        pages=pages,
+    )
+
+
+async def get_doc_ver_download_meta(
+    db_session: AsyncSession,
+    document_version_id: uuid.UUID,
+) -> tuple[uuid.UUID, str]:
+    """
+    Returns `(document_id, file_name)` for download path without loading pages.
+    """
+    stmt = select(
+        orm.DocumentVersion.document_id,
+        orm.DocumentVersion.file_name,
+    ).where(orm.DocumentVersion.id == document_version_id)
+    row = (await db_session.execute(stmt)).one()
+    return row.document_id, row.file_name
+
+
+async def get_first_page(
+    db_session: AsyncSession,
+    doc_ver_id: uuid.UUID,
+) -> orm.Page:
+    """
+    Returns first page of the document version
+    identified by doc_ver_id
+    """
+    stmt = (
+        select(orm.Page)
+        .where(
+            orm.Page.document_version_id == doc_ver_id,
+        )
+        .order_by(orm.Page.number.asc())
+        .limit(1)
+    )
+
+    db_page = (await db_session.scalars(stmt)).one()
+
+    return db_page
+
+
+async def get_doc_ver(
+    db_session: AsyncSession,
+    *,
+    document_version_id: uuid.UUID
+) -> orm.DocumentVersion:
+    """
+    Returns last version of the document
+    identified by doc_id
+    """
+
+    # selectinload is more efficient than joinedload for the one-to-many
+    # DocumentVersion -> Page relationship (avoids cartesian row multiplication).
+    stmt = (
+        select(orm.DocumentVersion)
+        .options(selectinload(orm.DocumentVersion.pages))
+        .where(orm.DocumentVersion.id == document_version_id)
+    )
+    return (await db_session.scalars(stmt)).one()
+
+
+def select_last_doc_ver(document_id: uuid.UUID, user_id: uuid.UUID) -> Select:
+    """Returns a selectable for the last version of the document"""
+    stmt = (
+        select(orm.DocumentVersion.id)
+        .join(orm.Document)
+        .where(
+            orm.DocumentVersion.document_id == document_id,
+            orm.Document.user_id == user_id,
+        )
+        .order_by(orm.DocumentVersion.number.desc())
+        .limit(1)
+    )
+
+    return stmt
+
+
+async def get_last_ver_pages(
+    db_session: AsyncSession, document_id: uuid.UUID, user_id: uuid.UUID
+) -> Sequence[orm.Page]:
+    """Returns all pages of the last version of the document"""
+    subq = select_last_doc_ver(document_id=document_id, user_id=user_id).subquery()
+
+    stmt = (
+        select(orm.Page)
+        .where(orm.Page.document_version_id == subq.c.id)
+        .order_by(orm.Page.number)
+    )
+
+    return (await db_session.execute(stmt)).scalars().all()
+
+
+async def get_docs_thumbnail_img_status(
+    db_session: AsyncSession,
+    doc_ids: list[uuid.UUID]
+) -> Tuple[list[schema.DocumentPreviewImageStatus], list[uuid.UUID]]:
+    """Gets image preview statuses for given docIDs
+
+    Response is a tuple. First item of the tuple is list of
+    statuses and second item of the tuple is the list of document
+    IDs for which image preview field has value NULL i.e. was not considered yet
+    or maybe was reseted.
+    """
+    fserver = settings.papermerge__main__file_server
+
+    stmt = select(
+        orm.Document.id.label("doc_id"),
+        orm.Document.preview_status
+    ).select_from(orm.Document).where(
+        orm.Document.id.in_(doc_ids)
+    )
+
+    doc_ids_not_yet_considered_for_preview = []
+    items = []
+    if fserver == config.FileServer.S3:
+        for row in await db_session.execute(stmt):
+            url = None
+            if row.preview_status == ImagePreviewStatus.ready:
+                # image URL is returned if only and only if image
+                # preview is ready (generated and uploaded to S3)
+                if fserver == config.FileServer.S3:
+                    # Real world CDN setup
+                    url = s3.doc_thumbnail_signed_url(row.doc_id)
+
+            if row.preview_status is None:
+                doc_ids_not_yet_considered_for_preview.append(row.doc_id)
+
+            item = schema.DocumentPreviewImageStatus(
+                doc_id=row.doc_id,
+                status=row.preview_status,
+                preview_image_url=url
+            )
+            items.append(item)
+    else:
+        # Non-CDN setup
+        for row in await db_session.execute(stmt):
+            item = schema.DocumentPreviewImageStatus(
+                doc_id=row.doc_id,
+                status=ImagePreviewStatus.ready,
+                preview_image_url=f"/api/thumbnails/{row.doc_id}"
+            )
+            items.append(item)
+
+    return items, doc_ids_not_yet_considered_for_preview

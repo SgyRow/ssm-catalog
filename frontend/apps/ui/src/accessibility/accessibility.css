@@ -1,0 +1,130 @@
+/*
+ * High-contrast accessibility mode (GOST R 52872-2019 / WCAG 2.1 AAA).
+ * Activated via data-accessibility="true" on <html>.
+ */
+
+[data-accessibility="true"] {
+  --a11y-focus-width: 3px;
+  --a11y-focus-offset: 2px;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  text-size-adjust: 100%;
+}
+
+[data-accessibility="true"][data-mantine-color-scheme="light"] {
+  --a11y-body: #ffffff;
+  --a11y-text: #000000;
+  --a11y-link: #0000cc;
+  --a11y-border: #000000;
+  --a11y-focus: #0000ff;
+  --a11y-header-bg: #000000;
+  --a11y-header-text: #ffffff;
+}
+
+[data-accessibility="true"][data-mantine-color-scheme="dark"] {
+  --a11y-body: #000000;
+  --a11y-text: #ffffff;
+  --a11y-link: #ffff00;
+  --a11y-border: #ffffff;
+  --a11y-focus: #ffff00;
+  --a11y-header-bg: #ffffff;
+  --a11y-header-text: #000000;
+}
+
+[data-accessibility="true"] body,
+[data-accessibility="true"] .mantine-AppShell-main {
+  background-color: var(--a11y-body) !important;
+  color: var(--a11y-text) !important;
+}
+
+[data-accessibility="true"] .top-header {
+  background-color: var(--a11y-header-bg) !important;
+  color: var(--a11y-header-text) !important;
+  border-bottom: 3px solid var(--a11y-border);
+}
+
+[data-accessibility="true"] .navbar,
+[data-accessibility="true"] .navbar-bg-color {
+  background-color: var(--a11y-body) !important;
+  border-right: 2px solid var(--a11y-border);
+}
+
+[data-accessibility="true"] .navbar a {
+  color: var(--a11y-text) !important;
+  font-weight: 600;
+}
+
+[data-accessibility="true"] .navbar > a.active,
+[data-accessibility="true"] .navbar > a.active:hover {
+  background-color: var(--a11y-text) !important;
+  color: var(--a11y-body) !important;
+  outline: 2px solid var(--a11y-border);
+}
+
+[data-accessibility="true"]
+  a:not(.mantine-Menu-item):not(.mantine-Button-root) {
+  color: var(--a11y-link) !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+
+[data-accessibility="true"]
+  a:not(.mantine-Menu-item):not(.mantine-Button-root):hover {
+  color: var(--a11y-text) !important;
+}
+
+[data-accessibility="true"] *:focus-visible {
+  outline: var(--a11y-focus-width) solid var(--a11y-focus) !important;
+  outline-offset: var(--a11y-focus-offset) !important;
+}
+
+[data-accessibility="true"] .mantine-Input-input,
+[data-accessibility="true"] .mantine-TextInput-input,
+[data-accessibility="true"] .mantine-Select-input,
+[data-accessibility="true"] .mantine-Textarea-input {
+  border: 2px solid var(--a11y-border) !important;
+  color: var(--a11y-text) !important;
+  background-color: var(--a11y-body) !important;
+  min-height: 3rem;
+  font-size: 1.125rem !important;
+}
+
+[data-accessibility="true"] .mantine-Table-tr {
+  border-bottom: 1px solid var(--a11y-border);
+}
+
+[data-accessibility="true"] .mantine-Table-th {
+  border-bottom: 2px solid var(--a11y-border);
+}
+
+[data-accessibility="true"] .mantine-Paper-root,
+[data-accessibility="true"] .mantine-Card-root,
+[data-accessibility="true"] .mantine-Modal-content {
+  border: 2px solid var(--a11y-border) !important;
+}
+
+[data-accessibility="true"] .mantine-Button-root,
+[data-accessibility="true"] .mantine-ActionIcon-root {
+  border: 2px solid var(--a11y-border);
+}
+
+[data-accessibility="true"] .mantine-Badge-root {
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: 1px solid var(--a11y-border);
+}
+
+[data-accessibility="true"] .mantine-Switch-track {
+  border: 2px solid var(--a11y-border) !important;
+}
+
+[data-accessibility="true"] .mantine-Text-root,
+[data-accessibility="true"] .mantine-Title-root,
+[data-accessibility="true"] .mantine-Menu-item {
+  font-weight: 500;
+}
+
+[data-accessibility="true"] img:not([alt]),
+[data-accessibility="true"] img[alt=""] {
+  outline: 3px dashed var(--a11y-focus);
+}

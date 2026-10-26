@@ -1,0 +1,22 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.toolbar {
+  flex-shrink: 0;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.footer {
+  flex-shrink: 0;
+  padding-top: var(--mantine-spacing-sm);
+}

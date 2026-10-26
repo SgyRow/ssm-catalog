@@ -1,0 +1,41 @@
+%node {
+  padding: 0.3rem;
+  position: relative;
+  margin-top: 0.2rem;
+
+  &:hover {
+    background-color: #8ed2fe66;
+    outline: 1px solid #6fc5ff;
+  }
+
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    width: 8rem;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+  }
+
+  a {
+    color: light-dark(var(--mantine-color-pmg-9), var(--mantine-color-pmg-2));
+  }
+}
+
+.reorder {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.reorderDragging {
+  cursor: grabbing;
+  opacity: 0.45;
+  z-index: 2;
+  pointer-events: none;
+}

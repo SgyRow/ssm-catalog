@@ -1,0 +1,35 @@
+name: Build Frontend
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - 'papermerge/**'
+      - 'frontend/apps/ui/**'
+      - '.github/workflows/frontend-build.yml'
+
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - name: Install latest Yarn
+        run: corepack enable
+      - name: Activate latest Yarn
+        run: yarn set version 4.9.2
+      - name: Install Node.js dependencies
+        run: yarn install --immutable
+      - name: Run yarn build UI
+        run: yarn workspace ui build
+      - name: Install Playwright Chromium
+        run: yarn workspace ui exec playwright install chromium
+      - name: SelectablePdfPage DOM probe (Playwright)
+        run: yarn workspace ui test:e2e-dom

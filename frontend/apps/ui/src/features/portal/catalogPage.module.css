@@ -1,0 +1,26 @@
+.page {
+  box-sizing: border-box;
+  align-items: stretch;
+  /* Fill AppShell.Main: header offset + main top margin (0.5rem). */
+  height: calc(100dvh - var(--app-shell-header-offset, 60px) - 0.5rem);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.header {
+  flex-shrink: 0;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}

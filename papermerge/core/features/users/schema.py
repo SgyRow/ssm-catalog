@@ -1,0 +1,150 @@
+import uuid
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+)
+
+from papermerge.core.features.groups.schema import Group
+from papermerge.core.features.roles.schema import Role
+
+
+def user_display_name(first_name: str | None, last_name: str | None, username: str) -> str:
+    full = " ".join(filter(None, [first_name, last_name])).strip()
+    return full if full else username
+
+
+class User(BaseModel):
+    id: UUID | str
+    username: str
+    email: str
+    first_name: str | None = None
+    last_name: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    home_folder_id: UUID | None
+    inbox_folder_id: UUID | None
+    is_superuser: bool = False
+    is_active: bool = False
+    scopes: list[str] = []
+
+    @field_validator("scopes")
+    @classmethod
+    def sorted_scopes(cls, v: list[str], info: ValidationInfo):
+        return sorted(v)
+
+    @field_serializer("scopes", when_used="json")
+    def serialize_sorted_scopes(v: list[str]):
+        return sorted(v)
+
+    # Config
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserDetails(BaseModel):
+    id: UUID | str
+    username: str
+    email: str
+    first_name: str | None = None
+    last_name: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    home_folder_id: UUID | None
+    inbox_folder_id: UUID | None
+    is_superuser: bool
+    is_active: bool
+    scopes: list[str] = []
+    groups: list[Group] = []
+    roles: list[Role] = []
+
+    # Config
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": uuid.uuid4(),
+                    "username": "socrates",
+                    "email": "socrates@truth.dom",
+                    "home_folder_id": uuid.uuid4(),
+                    "inbox_folder_id": uuid.uuid4(),
+                    "scopes": ["node.create", "node.view", "node.delete", "node.move"],
+                    "groups": [
+                        {"id": 1, "name": "Admin"},
+                        {"id": 2, "name": "Archiver"},
+                    ],
+                    "created_at": "2024-03-15T06:38:58.197883Z",
+                    "updated_at": "2024-03-15T06:38:58.210525Z",
+                }
+            ]
+        }
+    }
+
+
+class CreateUser(BaseModel):
+    username: str
+    email: str
+    first_name: str | None = None
+    last_name: str | None = None
+    password: str
+    is_superuser: bool
+    is_active: bool
+    role_ids: list[UUID]
+    group_ids: list[UUID]
+
+    # Config
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UpdateUser(BaseModel):
+    username: str | None = None
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    password: str | None = None
+    is_superuser: bool | None = None
+    is_active: bool | None = None
+    scopes: list[str] | None = None
+    group_ids: list[UUID] | None = None
+    role_ids: list[UUID] | None = None
+
+
+class UpdateUserProfile(BaseModel):
+    email: str
+    first_name: str | None = None
+    last_name: str | None = None
+
+
+class ChangeUserPassword(BaseModel):
+    userId: str
+    password: str
+
+
+class ChangeOwnPassword(BaseModel):
+    current_password: str
+    password: str
+
+
+class UserHome(BaseModel):
+    group_name: str
+    group_id: uuid.UUID
+    home_id: uuid.UUID
+
+
+class UserHomes(BaseModel):
+    homes: list[UserHome]
+
+
+class UserInbox(BaseModel):
+    group_name: str
+    group_id: uuid.UUID
+    inbox_id: uuid.UUID
+
+
+class UserInboxes(BaseModel):
+    inboxes: list[UserInbox]

@@ -1,0 +1,42 @@
+# Git / local env
+.git
+.env
+.env.*
+
+# Python artefacts
+*.egg-info
+*.pyc
+*.pyo
+.eggs
+.pytest-cache
+__pycache__
+build
+dist
+tmp
+
+# Uploaded / generated media (not part of the image)
+media/
+
+# Frontend — dependencies and build output are produced inside the image
+frontend/**/node_modules
+frontend/**/dist
+frontend/.yarn/unplugged
+frontend/.yarn/*.gz
+frontend/.yarn/sdks/
+frontend/.pnp.cjs
+frontend/.pnp.loader.mjs
+frontend/.vite
+frontend/**/.env.development.local
+
+# Auth-server UI — same rule: build inside the image only
+auth-server/ui2/node_modules
+auth-server/ui2/dist
+auth-server/ui2/.yarn/unplugged
+auth-server/ui2/.yarn/*.gz
+auth-server/ui2/.yarn/sdks/
+auth-server/ui2/.pnp.cjs
+auth-server/ui2/.pnp.loader.mjs
+auth-server/ui2/.vscode
+auth-server/ui2/.env.development.local
+# Runtime config is overwritten in entrypoint at container start; the stub
+# file must still be present in the build context (index.html imports it).

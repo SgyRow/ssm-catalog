@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".", // relative to apps/ui
+    "jsx": "react-jsx",
+    "types": ["react"],
+    "paths": {
+      "@/*": ["src/*"],
+      "hooks": ["../../packages/hooks/src"],
+      "viewer": ["../../packages/viewer/src"],
+      "commander": ["../../packages/commander/src"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    {"path": "./tsconfig.node.json"},
+    {"path": "../../packages/hooks"},
+    {"path": "../../packages/viewer"},
+    {"path": "../../packages/commander"}
+  ]
+}

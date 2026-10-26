@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "auth-server"
+version = "1.1.5"
+description = "Papermerge auth server"
+authors = ["Eugen Ciur <eugen@papermerge.com>"]
+readme = "README.md"
+packages = [{include = "auth_server"}]
+
+[tool.poetry.dependencies]
+python = "^3.13"
+fastapi = {extras = ["standard"], version = "^0.116"}
+sqlalchemy = "^2.0.42"
+passlib = "^1.7.4"
+python-multipart = "^0.0.20"
+rich = "^14.1.0"
+httpx = "^0.28"
+pyyaml = "^6.0.1"
+pydantic-settings = "^2.10"
+ldap3 = "^2.9.1"
+typer = "^0.16.0"
+psycopg2 = { version = "^2.9", optional = true}
+mysqlclient = {version = "^2.2", optional = true}
+pyjwt = "^2.9.0"
+
+[tool.poetry.extras]
+pg = ["psycopg2"]
+mysql = ["mysqlclient"]
+
+[tool.poetry.scripts]
+auth-cli='auth_server.cli.cli:app'
+create_db='auth_server.cli.create_db:cli'
+ldap='auth_server.cli.ldap:app'
+
+[tool.taskipy.tasks]
+server = "fastapi dev auth_server/main.py --port 4010"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.4.1"
+pytest-env = "^1.1.5"
+
+[tool.poetry.group.dev.dependencies]
+taskipy = "^1.14"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

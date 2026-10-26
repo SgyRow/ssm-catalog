@@ -1,0 +1,25 @@
+.thumbnailList {
+  display: block;
+  height: 100%;
+  min-width: 150px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: #3d3b3b;
+  color: white;
+  padding: 0.5rem 1rem;
+  img {
+    padding: 0rem 1rem 0rem 1rem;
+    width: 150px;
+  }
+}
+
+.thumbnailList:over {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.thumbnailListLoader {
+  position: sticky;
+  bottom: 0rem;
+  left: 0rem;
+}

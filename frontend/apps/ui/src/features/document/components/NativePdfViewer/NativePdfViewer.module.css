@@ -1,0 +1,18 @@
+.root {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: light-dark(
+    var(--mantine-color-body),
+    var(--mantine-color-dark-7)
+  );
+}
+
+.frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+}

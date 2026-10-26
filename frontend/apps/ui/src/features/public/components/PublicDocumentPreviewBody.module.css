@@ -1,0 +1,59 @@
+.scrollPane {
+  width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--mantine-color-body);
+}
+
+.docxScrollPane {
+  padding: var(--mantine-spacing-md);
+  box-sizing: border-box;
+}
+
+.imageWrap {
+  display: flex;
+  justify-content: center;
+  padding: var(--mantine-spacing-md);
+  box-sizing: border-box;
+}
+
+.standaloneImage {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(75vh - 2rem);
+  margin: 0 auto;
+}
+
+.mediaWrap {
+  display: flex;
+  justify-content: center;
+  padding: var(--mantine-spacing-md);
+  box-sizing: border-box;
+}
+
+.videoStandalone {
+  width: 100%;
+  max-width: min(960px, 100%);
+  height: auto;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.audioStandalone {
+  width: 100%;
+  max-width: 560px;
+}
+
+.htmlIframe {
+  width: 100%;
+  min-height: min(70vh, 720px);
+  border: 1px solid light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-body);
+}
+
+.frame {
+  width: 100%;
+  border: 1px solid #ccc;
+}

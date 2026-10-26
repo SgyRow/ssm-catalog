@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "apps/ui/src/**/*",
+    "apps/ui/e2e/**/*.ts",
+    "apps/ui/e2e/dom-probe/**/*.tsx",
+    "apps/ui/playwright.config.ts",
+    "packages/**/*"
+    // add all your source folders here
+  ]
+}

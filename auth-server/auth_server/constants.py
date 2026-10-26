@@ -1,0 +1,5 @@
+INBOX_TITLE = "inbox"
+HOME_TITLE = "home"
+CTYPE_FOLDER = "folder"
+PENDING_EMAIL_DOMAIN = "registration.pending"
+DEFAULT_REGISTRATION_ROLE = "employee"

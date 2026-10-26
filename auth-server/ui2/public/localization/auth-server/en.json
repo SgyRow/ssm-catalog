@@ -1,0 +1,21 @@
+{
+  "username": "Username",
+  "password": "Password",
+  "your password": "Your password",
+  "signin": "Sign in",
+  "confirm password": "Confirm password",
+  "register": "Register",
+  "create account": "Create account",
+  "already have account": "Already have an account? Sign in",
+  "name": "Name",
+  "last name": "Last name",
+  "email": "Email",
+  "continue": "Continue",
+  "complete your profile": "Complete your profile",
+  "passwords do not match": "Passwords do not match",
+  "Passwords do not match": "Passwords do not match",
+  "Username already taken": "Username already taken",
+  "Email already in use": "Email already in use",
+  "registration failed": "Registration failed",
+  "profile update failed": "Profile update failed"
+}

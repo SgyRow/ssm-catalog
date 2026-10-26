@@ -1,0 +1,25 @@
+.zoom {
+  background-color: hsla(0, 0%, 90%, 0.78);
+  color: #2f2f2f;
+  width: fit-content;
+  max-width: calc(100% - 2rem);
+  position: relative;
+  z-index: 20;
+  padding: 0.4rem 0.55rem;
+  margin: 0 auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
+  pointer-events: auto;
+}
+
+.pageInput {
+  width: 5rem;
+}
+
+.pageTotal {
+  min-width: 3rem;
+}
+
+.zoomControl {
+  cursor: pointer;
+}

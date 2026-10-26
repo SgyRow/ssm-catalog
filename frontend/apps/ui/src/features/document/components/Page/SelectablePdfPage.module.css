@@ -1,0 +1,120 @@
+/* Align with viewer `Page`: centered block in the page list. */
+.pageWrap {
+  display: block;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.root {
+  display: block;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * Block + full width: inline-block shrink-to-fits to content; with `.inner { width: 100% }`
+ * that can collapse to ~0px so ResizeObserver never reaches innerWidth >= 8 and the canvas
+ * never mounts while the outer `.root` still shows width/max-width 100%.
+ */
+.scaled {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  text-align: left;
+}
+
+.inner {
+  position: relative;
+  width: 100%;
+  /* Mirrors pdf.js viewer `.page` so TextLayer calc()s resolve (see --total-scale-factor in TS). */
+  --user-unit: 1;
+}
+
+/* Fills the same width slot as the canvas while gate is "on" but width is not yet measured. */
+.measureSkeleton {
+  display: block;
+  width: 100%;
+}
+
+.canvasLayer {
+  display: block;
+  position: relative;
+  z-index: 0;
+  /* Hit targets go to the text layer above (same as pdf.js viewer canvasWrapper). */
+  pointer-events: none;
+}
+
+/* Minimal text-layer styling (pdf.js viewer CSS is not shipped in pdfjs-dist). */
+.textLayer {
+  color-scheme: only light;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: clip;
+  line-height: 1;
+  opacity: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+
+  /*
+   * pdf.js v5 text layer computes glyph geometry via CSS custom properties
+   * that are consumed by these vars/rules (mirrors upstream text_layer_builder.css).
+   */
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x))
+    scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer span[role="img"] {
+  user-select: none;
+  cursor: default;
+}
+
+.textLayer ::selection {
+  background: color-mix(in srgb, AccentColor, transparent 75%);
+}
+
+.textLayer br::selection {
+  background: transparent;
+}
+
+/* pdf.js sets data-main-rotation on the text layer container via setLayerDimensions. */
+.textLayer[data-main-rotation="90"] {
+  transform: rotate(90deg) translateY(-100%);
+}
+
+.textLayer[data-main-rotation="180"] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+
+.textLayer[data-main-rotation="270"] {
+  transform: rotate(270deg) translateX(-100%);
+}

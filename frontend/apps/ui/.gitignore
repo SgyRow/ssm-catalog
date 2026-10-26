@@ -1,0 +1,12 @@
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+tsconfig.tsbuildinfo
+tsconfig.node.tsbuildinfo
+node_modules/
+dist/
+vite.config.js
+vite.config.d.ts
+/test-results/
+/playwright-report/
+/blob-report/

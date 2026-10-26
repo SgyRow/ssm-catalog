@@ -1,0 +1,37 @@
+version: 2
+updates:
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directories:
+      - "/docker/app"
+      - "/docker/indexworker"
+      - "/docker/ops"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: "/auth-server/ui2"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directories:
+      - "/"
+      - "/auth-server"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

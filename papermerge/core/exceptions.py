@@ -1,0 +1,25 @@
+from fastapi import HTTPException
+
+
+class HTTP401Unauthorized(HTTPException):
+    def __init__(self, detail: str = "Not Authenticated"):
+        super().__init__(status_code=401, detail=detail)
+
+
+
+class HTTP403Forbidden(HTTPException):
+    def __init__(self, detail: str = "Access Forbidden"):
+        super().__init__(status_code=403, detail=detail)
+
+
+class HTTP404NotFound(HTTPException):
+    def __init__(self, detail: str = "Not Found"):
+        super().__init__(status_code=404, detail=detail)
+
+
+class InvalidDateFormat(Exception):
+    pass
+
+
+class EntityNotFound(Exception):
+    pass

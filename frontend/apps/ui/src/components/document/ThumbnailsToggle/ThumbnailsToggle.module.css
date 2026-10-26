@@ -1,0 +1,7 @@
+.thumbnailsToggle {
+  background-color: #666;
+  color: #dadada;
+  button:focus {
+    outline: none;
+  }
+}

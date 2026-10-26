@@ -1,0 +1,15 @@
+{
+  "name": "Papermerge DMS UI",
+  "packageManager": "yarn@4.9.2",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "prettier": "^3.6.2"
+  }
+}

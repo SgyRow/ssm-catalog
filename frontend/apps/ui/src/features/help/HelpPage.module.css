@@ -1,0 +1,98 @@
+.page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 5rem);
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--mantine-spacing-md);
+}
+
+.pageHeader {
+  flex-shrink: 0;
+}
+
+.pageBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tabsRoot {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tabsPanel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: var(--mantine-spacing-md);
+}
+
+.panel {
+  display: flex;
+  flex: 1;
+  gap: var(--mantine-spacing-md);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.toc {
+  border-right: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  flex: 0 0 14rem;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: var(--mantine-spacing-xs);
+}
+
+.tocLink {
+  display: block;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  width: 100%;
+  word-break: break-word;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.section {
+  scroll-margin-top: var(--mantine-spacing-sm);
+}
+
+.itemText {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 48em) {
+  .panel {
+    flex-direction: column;
+  }
+
+  .toc {
+    border-bottom: 1px solid
+      light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+    border-right: none;
+    flex: 0 0 auto;
+    max-height: 11rem;
+    padding-bottom: var(--mantine-spacing-xs);
+  }
+}

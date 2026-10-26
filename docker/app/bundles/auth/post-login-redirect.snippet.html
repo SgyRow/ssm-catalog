@@ -1,0 +1,70 @@
+    <script id="post-login-redirect">
+(function () {
+  var COOKIE = "access_token";
+
+  function hasToken() {
+    return document.cookie.split(";").some(function (c) {
+      return c.trim().indexOf(COOKIE + "=") === 0;
+    });
+  }
+
+  function clearToken() {
+    var paths = ["/", "/home"];
+    for (var i = 0; i < paths.length; i++) {
+      document.cookie = COOKIE + "=; Max-Age=0; path=" + paths[i];
+    }
+  }
+
+  function isLoginEntry(path) {
+    return path === "/login" || path.indexOf("/login/") === 0
+      || path === "/signin" || path.indexOf("/signin/") === 0;
+  }
+
+  function isRegister(path) {
+    return path === "/register" || path.indexOf("/register/") === 0;
+  }
+
+  var path = window.location.pathname;
+  // Nginx serves this login SPA on the original URL when /verify rejects the
+  // request (expired JWT still sits in a session cookie). Reloading here
+  // fetches the same SPA again and loops. Drop that cookie and stay.
+  var rejectedCookie = hasToken() && !isLoginEntry(path);
+  if (rejectedCookie) {
+    clearToken();
+    if (hasToken()) {
+      return;
+    }
+  }
+
+  // Registration sets the cookie on step 1; do not jump to /home yet.
+  if (isRegister(path)) {
+    return;
+  }
+
+  function enterApp() {
+    if (!hasToken()) {
+      return false;
+    }
+    if (path === "/home" || path.indexOf("/home/") === 0) {
+      window.location.reload();
+      return true;
+    }
+    window.location.replace("/home");
+    return true;
+  }
+
+  // Cookie already present on /login: try the app once.
+  // A rejected cookie on any other URL was cleared above; wait for a new login.
+  if (!rejectedCookie && enterApp()) {
+    return;
+  }
+
+  var attempts = 0;
+  var timer = setInterval(function () {
+    attempts += 1;
+    if (enterApp() || attempts > 40) {
+      clearInterval(timer);
+    }
+  }, 250);
+})();
+    </script>

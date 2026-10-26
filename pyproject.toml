@@ -1,0 +1,127 @@
+[project]
+name = "papermerge"
+version = "0.2.4"
+description = "Open source document management system for digital archives"
+authors = [
+    { name = "Eugen Ciur", email = "eugen@papermerge.com" }
+]
+maintainers = [
+    { name = "Eugen Ciur", email = "eugen@papermerge.com" }
+]
+license = "Apache-2.0"
+readme = "README.md"
+classifiers = [
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3"
+]
+keywords = [
+    "PDF",
+    "OCR",
+    "optical character recognition",
+    "PDF/A",
+    "scanning",
+    "dms",
+    "document-management",
+    "paperless",
+    "archives"
+]
+requires-python = ">=3.13,<4"
+dependencies = [
+    "redis (>=5.2, <6)",
+    "celery[gevent,redis] (>=5.2)",
+    "pyyaml (>=6.0)",
+    "python-magic  (>=0.4)",
+    "uritemplate (>=4.1.1)",
+    "pdf2image (>=1.16.0)",
+    "pymupdf (>=1.24.0)",
+    "uvicorn (>=0.32)",
+    "python-jose (>=3.3.0)",
+    "salinic (>=0.6.0)",
+    "img2pdf >=0.5.1",
+    "passlib >=1.7.4",
+    "sqlalchemy >=2.0",
+    "typer >=0.13",
+    "rich >=13",
+    "pytz >=2024.1",
+    "pydantic-settings >=2",
+    "alembic >=1.13.3",
+    "fastapi[standard] >=0.115",
+    "taskipy >=1.14",
+    "asyncpg (>=0.30.0,<0.31.0)",
+    "aiosqlite (>=0.20,<1)",
+    "aiofiles (>=24.1.0,<25.0.0)",
+    "imageio-ffmpeg (>=0.5.0)",
+    "pillow (>=10.0)"
+]
+
+[project.urls]
+Homepage = "https://www.papermerge.com/"
+Documentation = "https://docs.papermerge.io/"
+Tracker = "https://github.com/ciur/papermerge/issues"
+Source = "https://github.com/papermerge/papermerge-core"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["papermerge*"]
+
+
+[project.optional-dependencies]
+mysql = ["mysqlclient (>=2.2)"]
+pg = ["psycopg2-binary (>=2.9.2)"]
+databases = ["mysqlclient", "psycopg2"]
+cloud = ["botocore (>=1.35)", "boto3 (>=1.35)", "cryptography (>=43)"]
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.1.2"
+pytest-asyncio = "^0.21.0"
+
+[tool.taskipy.settings]
+use_vars = true
+
+[tool.taskipy.variables]
+env_vars = "PAPERMERGE__MAIN__API_PREFIX=''"
+
+[tool.taskipy.tasks]
+test = { cmd = "{env_vars} pytest", cwd = "." }
+# run following commands from docker/dev only
+worker = "celery -A config worker -c 5"
+server = "fastapi dev papermerge/app.py"
+migrate = "alembic upgrade head"
+
+[project.scripts]
+paper-cli = "papermerge.cli:main"
+docs = 'papermerge.core.cli.docs:app'
+sign_url = 'papermerge.core.cli.cf_sign_url:app'
+
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+"select" = [
+    "F", # pyflakes
+    "I001", # isort
+    "UP", # pyupgrade
+]
+"ignore" = [
+    "UP007"
+]
+
+
+[build-system]
+requires = ["setuptools >= 61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# This makes it possible to run pytests from any folder
+# e.g.
+# $ cd papermerge/core/features/nodes/tests
+# $ pytest test_common.py
+[tool.pytest.ini_options]
+testpaths = ["papermerge/core/features/"]
+asyncio_mode = "auto"

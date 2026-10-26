@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Главная</title>
+  <style>
+    :root {
+      --pmg-0: #e5f4ff;
+      --pmg-9: #0043b5;
+      --pmg-8: #004ecc;
+      --ink: #212529;
+      --muted: #868e96;
+      --line: #dee2e6;
+      --nav: #f9f9f9;
+      --page: #f8f9fa;
+      --card: #fff;
+      --accent: #7474ff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: Inter, "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--page);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+    }
+    a { color: var(--pmg-9); text-decoration: none; }
+    a:hover { color: var(--pmg-8); }
+    .jumps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    .jump {
+      background: #fff; border: 1px solid var(--line); border-radius: 8px;
+      padding: 12px 14px; display: flex; gap: 10px; align-items: center; color: inherit;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    .jump:hover { border-color: #9bc2ff; color: inherit; }
+    .jump b { display: block; font-size: 14px; }
+    .jump span { color: var(--muted); font-size: 12px; }
+    .jump .mark {
+      width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center;
+      background: #e7f1ff; color: var(--pmg-9); flex: none;
+    }
+    .stack { display: flex; flex-direction: column; gap: 16px; }
+    nav.side a.services { margin-top: auto; }
+    header.top {
+      height: 60px;
+      background: var(--pmg-9);
+      color: var(--pmg-0);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+    .icon-btn {
+      width: 34px; height: 34px; border: 0; border-radius: 8px;
+      background: transparent; color: inherit; display: grid; place-items: center; cursor: pointer;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,.12); }
+    .search {
+      flex: 1; max-width: 560px;
+      background: #fff; color: var(--ink);
+      border-radius: 8px; height: 36px;
+      display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      font-size: 14px;
+    }
+    .search input {
+      border: 0; outline: 0; width: 100%; font: inherit; background: transparent;
+    }
+    .header-tools { display: flex; align-items: center; gap: 4px; }
+    .user-chip { font-size: 13px; padding: 0 8px; white-space: nowrap; }
+    .shell { display: grid; grid-template-columns: 248px 1fr; min-height: 0; }
+    nav.side {
+      background: var(--nav);
+      border-right: 1px solid var(--line);
+      display: flex; flex-direction: column; padding-top: 12px;
+    }
+    nav.side a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; color: var(--pmg-9); font-size: 15px;
+    }
+    nav.side a:hover { background: #eef3fb; color: var(--pmg-8); }
+    nav.side a.active { background: var(--pmg-9); color: #fff; }
+    nav.side a svg { flex: none; }
+    .ver { text-align: center; color: var(--muted); font-size: 13px; padding: 12px; }
+    main { padding: 16px 20px 28px; overflow: auto; }
+    .page-head { margin: 0 0 14px; }
+    .page-head h1 { margin: 0; font-size: 22px; font-weight: 650; }
+    .alerts {
+      background: #fff;
+      border: 1px solid #9bc2ff;
+      border-left: 4px solid var(--pmg-9);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      margin-bottom: 0;
+    }
+    .alerts-h {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 14px 8px;
+    }
+    .alerts-h h2 {
+      margin: 0; font-size: 15px; font-weight: 650;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .badge {
+      background: var(--pmg-9); color: #fff; border-radius: 999px;
+      font-size: 12px; font-weight: 650; padding: 1px 8px; line-height: 18px;
+    }
+    .bell-wrap { position: relative; display: grid; place-items: center; }
+    .bell-count {
+      position: absolute; top: 2px; right: 0;
+      min-width: 16px; height: 16px; padding: 0 4px;
+      border-radius: 999px; background: #fa5252; color: #fff;
+      font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+    }
+    .alert-list { display: grid; grid-template-columns: 1fr; }
+    .alert {
+      display: grid; grid-template-columns: 8px 1fr; gap: 10px; align-items: start;
+      padding: 10px 14px 12px; color: inherit; border-top: 1px solid #e7f1ff;
+    }
+    .alert:hover { background: #f4f9ff; }
+    .alert .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pmg-9); margin-top: 6px; }
+    .alert b { display: block; font-size: 14px; font-weight: 650; }
+    .alert span { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+    .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      overflow: hidden;
+    }
+    .card-h {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 14px 16px; border-bottom: 1px solid var(--line);
+      border-top: 3px solid var(--accent);
+    }
+    .card-h h2 {
+      margin: 0; font-size: 16px; font-weight: 650;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .more { font-size: 13px; font-weight: 550; white-space: nowrap; }
+    .news { padding: 0; }
+    .news article { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .news article:last-child { border-bottom: 0; }
+    .news h3 { margin: 0 0 4px; font-size: 15px; font-weight: 650; }
+    .meta { color: var(--muted); font-size: 12.5px; margin-bottom: 6px; }
+    .news p { margin: 0; font-size: 13.5px; line-height: 1.45; color: #343a40; }
+    .clip { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 13px; }
+    .row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 14px;
+    }
+    .row:last-child { border-bottom: 0; }
+    .row:hover { background: #f8f9fa; }
+    .row .grow { flex: 1; min-width: 0; }
+    .row .sub { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .ico {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: grid; place-items: center; flex: none;
+      background: #e7f1ff; color: var(--pmg-9);
+    }
+    .ico.doc { background: #fff4e6; color: #e8590c; }
+    .star { color: #fab005; flex: none; }
+    @media (max-width: 1100px) {
+      .cols, .jumps { grid-template-columns: 1fr; }
+      .shell { grid-template-columns: 1fr; }
+      nav.side { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <button class="icon-btn" aria-label="Меню" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      Электронная библиотека
+    </div>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#868e96" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input placeholder="Поиск по документам" />
+    </div>
+    <div class="header-tools">
+      <button class="icon-btn" type="button" aria-label="Справка">?</button>
+      <button class="icon-btn bell-wrap" type="button" aria-label="Уведомления, 2 новых">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+        <span class="bell-count">2</span>
+      </button>
+      <span class="user-chip">Иванова А. С.</span>
+    </div>
+  </header>
+  <div class="shell">
+    <nav class="side">
+      <a class="active" href="home-v1-columns.html">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg>
+        Главная
+      </a>
+      <a href="#">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Библиотека
+      </a>
+      <a href="#">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/><circle cx="19" cy="18" r="2"/></svg>
+        Лента
+      </a>
+      <a href="#">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm8 1a2.5 2.5 0 1 0-2.5-2.5A2.5 2.5 0 0 0 16 12zM2 20a6 6 0 0 1 12 0M14 20a5 5 0 0 1 8 0"/></svg>
+        Категории граждан
+      </a>
+      <a href="#">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h9a2 2 0 0 1 2 2v14l-6.5-3L4 20V6a2 2 0 0 1 2-2z"/></svg>
+        Избранное
+      </a>
+      <a class="services" href="#">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Сервисы
+      </a>
+      <div class="ver">Версия 0.2.4</div>
+    </nav>
+    <main>
+      <div class="page-head">
+        <h1>Главная</h1>
+      </div>
+      <div class="jumps">
+        <a class="jump" href="#">
+          <span class="mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+          <span><b>Меры соц. поддержки</b><span>Библиотека · папка мер</span></span>
+        </a>
+        <a class="jump" href="#">
+          <span class="mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm8 1a2.5 2.5 0 1 0-2.5-2.5A2.5 2.5 0 0 0 16 12z"/></svg></span>
+          <span><b>Категории</b><span>Категории граждан</span></span>
+        </a>
+        <a class="jump" href="#">
+          <span class="mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8 11h6"/></svg></span>
+          <span><b>Расширенный поиск</b><span>Отдельный раздел позже</span></span>
+        </a>
+        <a class="jump" href="#">
+          <span class="mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></span>
+          <span><b>Справочник</b><span>Отдельный раздел позже</span></span>
+        </a>
+      </div>
+      <div class="cols">
+        <section class="card">
+          <div class="card-h">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+              Лента
+            </h2>
+            <a class="more" href="#">Все записи</a>
+          </div>
+          <div class="news">
+            <article>
+              <h3>Изменён график приёма в октябре</h3>
+              <div class="meta">24.10.2026, 09:40 · Автор: Соколова Е. В.</div>
+              <p>С 27 октября приём по пособиям на детей ведётся до 16:00. Суббота, 31 октября — неприёмный день.</p>
+            </article>
+            <article>
+              <h3>Обновлены памятки по ежемесячным выплатам</h3>
+              <div class="meta">22.10.2026, 14:15 · Автор: Разуваев С. А.</div>
+              <p>В каталоге заменены памятки за 2025 год. Старые редакции перенесены в архивную папку.</p>
+              <a class="clip" href="#">Памятка — ежемесячное пособие</a>
+            </article>
+            <article>
+              <h3>Новые бланки заявлений</h3>
+              <div class="meta">18.10.2026, 11:05 · Автор: Соколов М. А.</div>
+              <p>В разделе «Нормативные документы» появились актуальные формы. Прежние бланки помечены как недействующие.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-h">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              Библиотека
+            </h2>
+            <a class="more" href="#">Открыть каталог</a>
+          </div>
+          <a class="row" href="#">
+            <span class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="grow">Пособия и выплаты<span class="sub">12 документов</span></span>
+          </a>
+          <a class="row" href="#">
+            <span class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="grow">Меры социальной поддержки<span class="sub">8 документов</span></span>
+          </a>
+          <a class="row" href="#">
+            <span class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="grow">Нормативные документы<span class="sub">21 документ</span></span>
+          </a>
+          <a class="row" href="#">
+            <span class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="grow">Методические материалы<span class="sub">6 документов</span></span>
+          </a>
+          <a class="row" href="#">
+            <span class="ico doc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v6h6"/></svg></span>
+            <span class="grow">Регламент приёма документов<span class="sub">PDF · обновлён 20.10.2026</span></span>
+          </a>
+        </section>
+
+        <div class="stack">
+        <section class="alerts" aria-label="Уведомления">
+          <div class="alerts-h">
+            <h2>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+              Уведомления
+              <span class="badge">2 новых</span>
+            </h2>
+            <a class="more" href="#">В ленту</a>
+          </div>
+          <div class="alert-list">
+            <a class="alert" href="#">
+              <span class="dot"></span>
+              <span>
+                <b>Новость в ленте</b>
+                <span>Изменён график приёма в октябре · Соколова Е. В. · 24.10.2026, 09:40</span>
+              </span>
+            </a>
+            <a class="alert" href="#">
+              <span class="dot"></span>
+              <span>
+                <b>Новость в ленте</b>
+                <span>Обновлены памятки по выплатам · Разуваев С. А. · 22.10.2026, 14:15</span>
+              </span>
+            </a>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-h">
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h9a2 2 0 0 1 2 2v14l-6.5-3L4 20V6a2 2 0 0 1 2-2z"/></svg>
+              Избранное
+            </h2>
+            <a class="more" href="#">Все избранные</a>
+          </div>
+          <a class="row" href="#">
+            <svg class="star" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 16.8 6.6 19.8l1-6.1L3.2 9.4l6.1-.9z"/></svg>
+            <span class="grow">Памятка: ежемесячное пособие на ребёнка<span class="sub">Документ · Пособия и выплаты</span></span>
+          </a>
+          <a class="row" href="#">
+            <svg class="star" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 16.8 6.6 19.8l1-6.1L3.2 9.4l6.1-.9z"/></svg>
+            <span class="grow">Порядок назначения компенсации ЖКУ<span class="sub">Документ · Меры социальной поддержки</span></span>
+          </a>
+          <a class="row" href="#">
+            <svg class="star" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 16.8 6.6 19.8l1-6.1L3.2 9.4l6.1-.9z"/></svg>
+            <span class="grow">Регламент приёма документов<span class="sub">Документ · Нормативные документы</span></span>
+          </a>
+          <a class="row" href="#">
+            <svg class="star" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 16.8 6.6 19.8l1-6.1L3.2 9.4l6.1-.9z"/></svg>
+            <span class="grow">Семьи с детьми<span class="sub">Папка · 4 документа</span></span>
+          </a>
+        </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

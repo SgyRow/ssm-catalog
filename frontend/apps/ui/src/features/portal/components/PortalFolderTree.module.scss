@@ -1,0 +1,84 @@
+.sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-right: 0.5rem;
+  border-right: 1px solid var(--mantine-color-default-border);
+}
+
+.title {
+  flex-shrink: 0;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+
+  &:hover {
+    background-color: var(--mantine-color-default-hover);
+  }
+}
+
+.tree {
+  padding-bottom: 0.5rem;
+}
+
+.row {
+  min-width: 0;
+}
+
+.chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--mantine-color-dimmed);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: var(--mantine-radius-sm);
+  padding: 2px 4px;
+
+  &:hover {
+    background-color: var(--mantine-color-default-hover);
+  }
+}
+
+.folderIcon {
+  flex-shrink: 0;
+  color: var(--mantine-color-yellow-7);
+}
+
+.fileIcon {
+  flex-shrink: 0;
+  color: var(--mantine-color-dimmed);
+}
+
+.placeholder {
+  display: block;
+  height: 0;
+  width: 0;
+  overflow: hidden;
+  position: absolute;
+}

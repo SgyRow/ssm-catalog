@@ -1,0 +1,17 @@
+export type TagsListColumnName =
+  | "name"
+  | "pinned"
+  | "description"
+  | "ID"
+  | "group_name"
+export type TagsSortByInput =
+  | "name"
+  | "-name"
+  | "pinned"
+  | "-pinned"
+  | "description"
+  | "-description"
+  | "ID"
+  | "-ID"
+  | "group_name"
+  | "-group_name"

@@ -1,0 +1,289 @@
+# Production-oriented Compose stack.
+# Log rotation, resource limits, health checks, Redis persistence, and
+# scheduled backups — tunables in .env (see .env.dev).
+# Default limits sum to ~4.1 GB RAM (fits Docker Desktop with a 4–6 GB VM).
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+    max-file: ${DOCKER_LOG_MAX_FILE:-5}
+    compress: "true"
+
+x-common: &common
+  restart: unless-stopped
+  logging: *default-logging
+  init: true
+
+services:
+  db:
+    <<: *common
+    image: postgres:16.1
+    environment:
+      # Container wall clock / logs: UTC+10. Session TimeZone for
+      # TIMESTAMP WITHOUT TIME ZONE writes must stay UTC so func.now()
+      # matches app-side _utc_naive_now(); the UI displays Asia/Vladivostok.
+      TZ: ${TZ:-Asia/Vladivostok}
+      PGTZ: ${PGTZ:-UTC}
+      POSTGRES_USER: ${POSTGRES_USER:-papermerge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-papermerge}
+      POSTGRES_DB: ${POSTGRES_DB:-papermerge}
+    volumes:
+      - pgdata:/var/lib/postgresql/data/
+    ports:
+      - "127.0.0.1:5432:5432"
+    shm_size: 256mb
+    stop_grace_period: 30s
+    healthcheck:
+      test: pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "${DB_CPU_LIMIT:-1}"
+          memory: "${DB_MEM_LIMIT:-768M}"
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  redis:
+    <<: *common
+    image: redis:7.2-alpine
+    environment:
+      TZ: ${TZ:-Asia/Vladivostok}
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-192mb}
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - "900 1"
+      - --save
+      - "300 10"
+    volumes:
+      - redisdata:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "${REDIS_CPU_LIMIT:-0.25}"
+          memory: "${REDIS_MEM_LIMIT:-256M}"
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # Monolithic Papermerge container: nginx + core API + auth-server under
+  # supervisord. On first boot the entrypoint runs migrations, syncs
+  # permissions, creates the admin superuser, seeds default roles
+  # (admin / moderator / employee) and assigns the admin role to the superuser —
+  # everything is idempotent.
+  app:
+    <<: *common
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+      # Attestation export can crash BuildKit on Docker Desktop (Windows)
+      # with "rpc error: Unavailable ... EOF" after a long multi-stage build.
+      provenance: false
+      sbom: false
+    ports:
+      - "${APP_PORT:-12000}:80"
+    environment:
+      TZ: ${TZ:-Asia/Vladivostok}
+      PAPERMERGE__MAIN__TIMEZONE: ${TZ:-Asia/Vladivostok}
+      PAPERMERGE__SECURITY__SECRET_KEY: ${SECRET_KEY:-change-me-to-a-random-secret}
+      PAPERMERGE__MAIN__API_PREFIX: /api
+      PAPERMERGE__DATABASE__URL: postgresql://${POSTGRES_USER:-papermerge}:${POSTGRES_PASSWORD:-papermerge}@db:5432/${POSTGRES_DB:-papermerge}
+      PAPERMERGE__MAIN__MEDIA_ROOT: /var/media/pmg
+      PAPERMERGE__REDIS__URL: redis://redis:6379/0
+      PAPERMERGE__OCR__ENABLED: "false"
+      PAPERMERGE__MAIN__APP_TITLE: ${APP_TITLE:-Хабаровский центр социальной поддержки населения}
+      PAPERMERGE__AUTH__BRAND_TITLE: ${AUTH_BRAND_TITLE:-${APP_TITLE:-Хабаровский центр социальной поддержки населения}}
+      PAPERMERGE__AUTH__LOGIN_SUBTITLE: ${AUTH_LOGIN_SUBTITLE:-Электронная библиотека}
+      PAPERMERGE__AUTH__USERNAME: ${ADMIN_USERNAME:-admin}
+      PAPERMERGE__AUTH__EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      PAPERMERGE__AUTH__PASSWORD: ${ADMIN_PASSWORD:-admin}
+      # Always use the compose service name — do not pass host .env value
+      # (127.0.0.1 works only on the host, e.g. run-dev-native.bat).
+      PAPERMERGE__SEARCH__URL: solr://solr:8983/papermerge
+      PAPERMERGE__MAIN__GOTENBERG_URL: http://gotenberg:3000
+    volumes:
+      - ./media:/var/media/pmg
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/api/probe/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "${APP_CPU_LIMIT:-1}"
+          memory: "${APP_MEM_LIMIT:-1G}"
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  gotenberg:
+    <<: *common
+    image: gotenberg/gotenberg:8
+    environment:
+      TZ: ${TZ:-Asia/Vladivostok}
+    ports:
+      - "127.0.0.1:3000:3000"
+    command:
+      - "gotenberg"
+      # LibreOffice cold start on Docker Desktop (Windows) often exceeds the
+      # 20s default; without a higher limit the first DOCX upload returns 503.
+      - "--api-timeout=300s"
+      - "--libreoffice-start-timeout=120s"
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "${GOTENBERG_CPU_LIMIT:-0.5}"
+          memory: "${GOTENBERG_MEM_LIMIT:-512M}"
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  solr:
+    <<: *common
+    # Solr image already ships tini; do not wrap it again.
+    init: false
+    image: solr:9.7
+    environment:
+      TZ: ${TZ:-Asia/Vladivostok}
+      SOLR_JAVA_MEM: ${SOLR_JAVA_MEM:--Xms256m -Xmx768m}
+    ports:
+      - "127.0.0.1:8983:8983"
+    volumes:
+      - solrdata:/var/solr
+    stop_grace_period: 30s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    # Do not mark the container unhealthy: on Linux Solr can take minutes to
+    # bind :8983, and index_worker used to abort the whole `compose up`.
+    healthcheck:
+      disable: true
+    command:
+      - solr-precreate
+      - papermerge
+
+  index_worker:
+    <<: *common
+    build:
+      context: .
+      dockerfile: docker/indexworker/Dockerfile
+      provenance: false
+      sbom: false
+    environment:
+      TZ: ${TZ:-Asia/Vladivostok}
+      PAPERMERGE__MAIN__TIMEZONE: ${TZ:-Asia/Vladivostok}
+      PAPERMERGE__DATABASE__URL: postgresql://${POSTGRES_USER:-papermerge}:${POSTGRES_PASSWORD:-papermerge}@db:5432/${POSTGRES_DB:-papermerge}
+      PAPERMERGE__REDIS__URL: redis://redis:6379/0
+      PAPERMERGE__SEARCH__URL: solr://solr:8983/papermerge
+    stop_grace_period: 30s
+    command:
+      - poetry
+      - run
+      - celery
+      - -A
+      - papermerge.celery_app
+      - worker
+      - -Q
+      - i3
+      - -c
+      - "${INDEX_WORKER_CONCURRENCY:-1}"
+      - --loglevel=info
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f '[c]elery' >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      solr:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "${INDEX_WORKER_CPU_LIMIT:-0.5}"
+          memory: "${INDEX_WORKER_MEM_LIMIT:-512M}"
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  # Scheduled PostgreSQL (+ optional media) backups with automatic retention.
+  backup:
+    <<: *common
+    build:
+      context: .
+      dockerfile: docker/ops/Dockerfile
+    environment:
+      TZ: ${TZ:-Asia/Vladivostok}
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-papermerge}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-papermerge}
+      PGDATABASE: ${POSTGRES_DB:-papermerge}
+      BACKUP_SCHEDULE_CRON: ${BACKUP_SCHEDULE_CRON:-0 3 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_MEDIA: ${BACKUP_MEDIA:-false}
+      BACKUP_MEDIA_RETENTION_DAYS: ${BACKUP_MEDIA_RETENTION_DAYS:-30}
+      BACKUP_RUN_ON_START: ${BACKUP_RUN_ON_START:-false}
+    volumes:
+      - ./backups/postgres:/backups/postgres
+      - ./backups/media:/backups/media
+      - ./media:/media:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+
+volumes:
+  pgdata:
+  redisdata:
+  solrdata:

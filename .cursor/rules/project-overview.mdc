@@ -1,0 +1,208 @@
+---
+description: High-level map of the Papermerge DMS repository — deployment mode, code layout, bootstrapping rules, and non-obvious pitfalls. Read before reasoning about changes.
+alwaysApply: true
+---
+
+# Papermerge DMS — project overview
+
+This rule is the cheat-sheet for this repo. It deliberately covers the
+things you cannot deduce from a single file: deployment shape, cross-
+module contracts, and recurring footguns.
+
+## Deployment shape (single, canonical)
+
+- **One** compose file: [docker-compose.yml](mdc:docker-compose.yml).
+  Services: `db` (Postgres 16), `redis`, `app`, `solr`, `index_worker`.
+- **One** env file: [.env.dev](mdc:.env.dev) is the committed reference;
+  developers `cp .env.dev .env` before `docker compose up`. `.env` is
+  git-ignored. Everything else (standalone dev compose, native-auth
+  compose, hybrid mode, Keycloak/remote-user headers) has been removed.
+- **Monolithic app image** at [docker/app/Dockerfile](mdc:docker/app/Dockerfile):
+  one container runs nginx + core API (FastAPI) + auth-server under
+  supervisord. The frontend is built inside that Dockerfile (node 20.19
+  stage) and served as static assets by the same nginx.
+- Persisted storage: named volumes `pgdata`, `redisdata`, `solrdata` plus a bind mount
+  `./media -> /var/media/pmg` shared by `app` (native backend on the host
+  uses the same path for document files/previews).
+- `db` and `redis` publish localhost-only ports (`127.0.0.1:5432`,
+  `127.0.0.1:6379`) for native backend development without exposing them
+  on external interfaces.
+
+### First-boot bootstrap (idempotent)
+
+[docker/app/entrypoint.sh](mdc:docker/app/entrypoint.sh) in `server`
+mode runs `exec_init` on every container start. The sequence is:
+
+1. `alembic` migrations.
+2. `paper-cli perms sync` — mirror scopes declared in code into the
+   `permissions` table.
+3. `auth-cli users create --superuser` — reads `PAPERMERGE__AUTH__{USERNAME,EMAIL,PASSWORD}`
+   env vars. Tolerates "user already exists".
+4. `paper-cli roles create-admin --exists-ok` + `paper-cli roles seed-test-roles`
+   to create built-in roles `admin`, `worker`, `modder`.
+5. `paper-cli users assign-role <admin_user> admin` — attaches the
+   `admin` role to the superuser. This command lives in
+   [papermerge/core/features/users/cli/cli.py](mdc:papermerge/core/features/users/cli/cli.py)
+   and is a no-op if the assignment already exists.
+6. `paper-cli portal init` — ensures the legal portal exists: `legal_portal`
+   group, root folder, and `portal_settings` row (idempotent).
+7. `paper-cli index-schema apply` — only when `PAPERMERGE__SEARCH__URL`
+   is set.
+
+Every step must remain idempotent. When you add new bootstrap work,
+put it inside an `exec_*` function in the entrypoint, invoke it from
+`exec_init`, and make sure re-runs don't fail or duplicate.
+
+## Code layout
+
+### Backend (`papermerge/`)
+
+- [papermerge/app.py](mdc:papermerge/app.py) — FastAPI app factory, router registration.
+- [papermerge/celery_app.py](mdc:papermerge/celery_app.py) — celery entry point and queue routing. Queues: `ocr`, `i3`, `s3`, `s3preview`, `path_tmpl` (queue name can be prefixed via `PAPERMERGE__MAIN__PREFIX`).
+- [papermerge/cli.py](mdc:papermerge/cli.py) — root `paper-cli` Typer app.
+- [papermerge/core/config.py](mdc:papermerge/core/config.py) — `pydantic-settings` object. All runtime tuning comes through `PAPERMERGE__*` env vars (case-insensitive). New config knobs go here.
+- [papermerge/core/orm.py](mdc:papermerge/core/orm.py) — re-exports feature ORMs. Always import models via `from papermerge.core import orm`.
+- [papermerge/core/alembic/](mdc:papermerge/core/alembic/) — migrations.
+- [papermerge/core/features/<feature>/](mdc:papermerge/core/features/)
+  — every feature is a self-contained module with typical subdirs:
+  `db/` (SQLAlchemy ORM + `api.py` db layer), `router*.py` (FastAPI),
+  `schema.py` (pydantic), `cli/` (Typer sub-app), `tests/`.
+  Current features: `auth`, `custom_fields`, `document`,
+  `document_types`, `groups`, `library_ts`, `liveness_probe`, `nodes`,
+  `page_mngm`, `portal`, `roles`, `shared_nodes` (legacy sharing DB/API
+  helpers; HTTP routes removed), `tags`, `tasks`, `users`.
+- [papermerge/core/features/auth/scopes.py](mdc:papermerge/core/features/auth/scopes.py) is the single source of truth for permission scope identifiers. Running `paper-cli perms sync` is required after any change here.
+- [papermerge/search/](mdc:papermerge/search/) — optional full-text search (Tantivy/Meili/etc. via URL in `PAPERMERGE__SEARCH__URL`).
+
+### Frontend (`frontend/`)
+
+- Yarn workspaces. Apps live under `frontend/apps/`; shared packages
+  under `frontend/packages/`.
+- The production app is `frontend/apps/ui/` (Vite + React + Mantine +
+  Redux Toolkit). Feature slices mirror the backend:
+  `frontend/apps/ui/src/features/<feature>/{components,store,types}.ts`.
+- PDF rendering stack (OCR text-selection lives here):
+  - [frontend/apps/ui/src/features/document/components/Page/SelectablePdfPage.tsx](mdc:frontend/apps/ui/src/features/document/components/Page/SelectablePdfPage.tsx)
+    renders a canvas + pdf.js `TextLayer` when the buffer for the
+    current docVer is available. It subscribes to
+    `fileManager.subscribeDocVerBuffer` and upgrades from the raster
+    fallback to the canvas/text layer as soon as the buffer arrives.
+  - [frontend/apps/ui/src/features/document/pdf/selectablePdf.ts](mdc:frontend/apps/ui/src/features/document/pdf/selectablePdf.ts)
+    caches `PDFDocumentProxy` instances keyed by `docVerId + bufferRev`.
+  - [frontend/apps/ui/src/features/files/fileManager.ts](mdc:frontend/apps/ui/src/features/files/fileManager.ts)
+    is the in-memory buffer registry. **Dedup rule:** `store()` removes
+    an existing entry only when `docVerID` (when provided) matches, or
+    when `nodeID` (when provided) matches; entries whose identifiers are
+    both `undefined` never collide with each other. Violating this
+    rule reintroduces the "opening one document wipes another's buffer"
+    regression.
+  - [frontend/apps/ui/src/features/document/hooks/useEnsureDocVerBuffer.ts](mdc:frontend/apps/ui/src/features/document/hooks/useEnsureDocVerBuffer.ts)
+    is the single race-safe loader for a docVer buffer. Both
+    [Viewer.tsx](mdc:frontend/apps/ui/src/features/document/components/Viewer.tsx)
+    and [SharedViewer.tsx](mdc:frontend/apps/ui/src/features/shared_nodes/components/SharedViewer/SharedViewer.tsx)
+    call it independently of preview generation so that direct/returning/
+    share-link opens still end up with a selectable text layer.
+    `useGeneratePreviews` and the `generatePreviews` thunk both reuse
+    `ensureDocVerBuffer` — do not add another `getDocLastVersion` call
+    path next to it.
+  - Upload flow ([frontend/apps/ui/src/features/files/filesSlice.ts](mdc:frontend/apps/ui/src/features/files/filesSlice.ts))
+    stores the uploaded `ArrayBuffer` first by `nodeID`, then patches in
+    the newest `docVerID` from the `/upload` response via
+    `fileManager.update(nodeID, {docVerID})`. This means a freshly
+    uploaded document already has a selectable text layer on first open
+    (no extra download round-trip). Preserve this two-step pattern when
+    editing the upload flow.
+- PDF worker asset: [frontend/apps/ui/src/utils/pdf.ts](mdc:frontend/apps/ui/src/utils/pdf.ts)
+  serves `pdf.worker.min.mjs` in dev and a stable `/pdf.worker.min.js`
+  path in prod (the nginx bundled in the `app` image exposes both).
+
+## Conventions & contracts
+
+### Adding a permission scope
+
+1. Declare the scope in `papermerge/core/features/auth/scopes.py`.
+2. Use the scope name in router `Security(...)`/permission checks.
+3. After `alembic upgrade head`, run `paper-cli perms sync`. The
+   container entrypoint does this automatically on every boot.
+
+### Adding a migration
+
+1. `poetry run alembic -c alembic.ini revision --autogenerate -m "message"`.
+2. Review the generated file under `papermerge/core/alembic/versions/`.
+3. `poetry run task migrate` (or rely on entrypoint on next docker up).
+
+### Adding a CLI command
+
+- Per-feature CLI lives under `papermerge/core/features/<feature>/cli/cli.py`
+  and is mounted in [papermerge/cli.py](mdc:papermerge/cli.py). Follow the
+  existing Typer sub-app pattern; wrap async functions with the
+  `@async_command` decorator from `papermerge/core/utils/cli.py`.
+- Use `AsyncSessionLocal()` from `papermerge/core/db/engine.py` for DB
+  access; always commit explicitly (sessions do not autocommit).
+
+### Adding a new feature module
+
+Mirror the existing layout: `db/orm.py`, `db/api.py`, `router*.py`,
+`schema.py`, optional `cli/`, `tests/`. Re-export ORM classes via
+`papermerge/core/orm.py` so the rest of the codebase picks them up by
+the uniform `orm.Foo` path.
+
+## Pitfalls
+
+- **`pydantic-settings` env casing**: variables are lower-case in
+  Python (`papermerge__database__url`) but upper-case in env
+  (`PAPERMERGE__DATABASE__URL`). Double underscores are the separator.
+- **Auth-server and core share the same DB**. The `users` table is
+  owned by the auth-server image; changes to the user schema may need
+  a compatible auth-server version.
+- **Roles vs permissions vs scopes**: scopes live in code, permissions
+  are DB rows populated from scopes, roles bundle permissions. Users
+  receive roles; the UI and API check *scopes* at enforcement time.
+- **`fileManager` is local-only**: it does not persist across reloads.
+  Viewers must call `useEnsureDocVerBuffer(docVer)` to make sure the
+  buffer is present — direct opens and share-link opens otherwise fall
+  back to raster without a selectable text layer. Do not bypass this
+  hook or stop subscribing in `SelectablePdfPage`.
+- **`docker/app/entrypoint.sh` must be LF + no BOM**: the Dockerfile
+  normalises both (`sed -i '1s/^\xEF\xBB\xBF//'` followed by
+  `sed -i 's/\r$//'`) so Windows-edited scripts still execute. PowerShell
+  `Set-Content -Encoding utf8` writes a BOM and triggers `exec format error`
+  at container start; use `utf8NoBOM` or the .NET `UTF8Encoding $false`
+  constructor when rewriting these scripts. New scripts belong in
+  `docker/app/scripts/`. The repo-level [.gitattributes](mdc:.gitattributes)
+  also enforces `eol=lf` for `*.sh`, `Dockerfile`, `*.yml`, `*.conf`, and
+  `.env*` so Git itself doesn't reintroduce CRLF on Windows clones.
+- **Runtime configs (auth-server + UI)**: `roco` has been removed entirely.
+  Both SPAs' `papermerge-runtime-config.js` are emitted inline by shell
+  heredocs in `docker/app/entrypoint.sh::render_runtime_configs`
+  (auth-server defaults mirror the old `roco` behaviour; UI exposes
+  `timezone` from `PAPERMERGE__MAIN__TIMEZONE`, default `Asia/Vladivostok`).
+  The script-tag injection into each SPA's
+  `index.html` matches on `</title>` (NOT on the literal word
+  "Papermerge") so that branded/customised titles still work.
+- **Timezone (UTC+10)**: every compose service sets `TZ=Asia/Vladivostok`.
+  Postgres `PGTZ` must stay `UTC`, and the app asyncpg engine must force
+  `server_settings.timezone=UTC` — otherwise the session inherits the
+  container TZ and `func.now()` into `TIMESTAMP WITHOUT TIME ZONE` stores
+  local wall clock while the UI treats naive values as UTC (+10h skew).
+  The UI always formats via `formatApiDateTime` with
+  `timeZone: Asia/Vladivostok` (never the browser's local zone).
+- **`PAPERMERGE__AUTH__PASSWORD` / `USERNAME` / `EMAIL`** are the env
+  names the auth-server CLI reads for the `--superuser` flag. The
+  compose file maps `ADMIN_*` from `.env` onto these. Don't rename one
+  side without updating the other.
+- **Native dev helper**: [run-dev-native.bat](mdc:run-dev-native.bat)
+  starts backend+frontend on non-docker ports and sets all required env
+  vars in spawned shells. Keep `set "VAR=value"` quoting in that script;
+  plain `set VAR=value` can accidentally include trailing spaces before
+  command separators and break DB URLs (e.g. `papermerge `).
+- **Auth bypass is dev-only**: backend supports
+  `PAPERMERGE__DEV__AUTH_BYPASS_ENABLED=true` with
+  `PAPERMERGE__DEV__AUTH_BYPASS_USERNAME` (default `admin`) for local
+  debugging without tokens. Never enable it in production environments.
+- **Do not reintroduce** `docker-compose.dev.yml`,
+  `docker-compose.native-auth.yml`, `.env.example`,
+  `.env.native-auth.example`, nor the `docker/hybrid/`,
+  `docker/native-auth/`, `docker/frontend/`, `docker/__*__obsolete/`
+  folders. They were intentionally removed. Extend the single compose
+  and the single env file instead.

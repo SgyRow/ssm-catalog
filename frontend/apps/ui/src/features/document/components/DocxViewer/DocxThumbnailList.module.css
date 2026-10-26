@@ -1,0 +1,41 @@
+.thumb {
+  width: 150px;
+  min-height: 120px;
+  margin: 0 1rem 0.75rem 1rem;
+  padding: 0.5rem;
+  border-radius: var(--mantine-radius-sm);
+  background: light-dark(#f8f9fa, var(--mantine-color-dark-5));
+  color: var(--mantine-color-dark-7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+}
+
+.previewImg {
+  max-width: 100%;
+  max-height: 88px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: var(--mantine-radius-xs);
+  background: light-dark(#fff, var(--mantine-color-dark-7));
+}
+
+.pageLabel {
+  line-height: 1.2;
+}
+
+.thumb:hover {
+  border-color: light-dark(#adb5bd, var(--mantine-color-dark-2));
+}
+
+.thumb[data-active] {
+  border-color: #7474ff;
+  box-shadow: 0 0 0 1px #7474ff;
+}

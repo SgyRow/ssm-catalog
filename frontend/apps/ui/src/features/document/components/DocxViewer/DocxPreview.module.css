@@ -1,0 +1,55 @@
+.docxViewerRoot {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.docxViewerRoot :global(.pageListRoot) {
+  background-color: light-dark(
+    var(--mantine-color-body),
+    var(--mantine-color-dark-7)
+  );
+  color: light-dark(var(--mantine-color-dark-8), var(--mantine-color-gray-2));
+}
+
+.docxViewerRoot :global(.pages) {
+  padding: var(--mantine-spacing-md);
+}
+
+.docxPane {
+  composes: textStandalone from "../Page/TextStandalonePreview.module.css";
+  overflow: hidden;
+}
+
+.docxHost {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.docxLoader {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.docxFrame {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  border: none;
+  background: transparent;
+}
+
+.docxPageSlot {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+}
