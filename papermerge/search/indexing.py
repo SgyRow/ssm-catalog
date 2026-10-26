@@ -3,7 +3,7 @@ import uuid
 
 from salinic import IndexRW, create_engine
 
-from papermerge.core import dbapi, schema
+from papermerge.core import schema
 from papermerge.core.config import get_settings
 from papermerge.core.db.engine import AsyncSessionLocal
 from papermerge.search.page_text import resolve_page_search_text
@@ -33,6 +33,8 @@ def get_index_rw() -> IndexRW:
 async def build_index_items(
     db_session, node_ids: list[uuid.UUID]
 ) -> list[SearchIndex]:
+    from papermerge.core import dbapi
+
     nodes = await dbapi.get_nodes(db_session, node_ids=node_ids)
     items: list[SearchIndex] = []
 
@@ -74,6 +76,8 @@ async def build_index_items(
 async def build_index_items_for_page(
     db_session, page_id: uuid.UUID
 ) -> SearchIndex | None:
+    from papermerge.core import dbapi
+
     page = await dbapi.get_page(db_session, page_id)
     doc_ver = await dbapi.get_doc_ver(
         db_session, document_version_id=page.document_version_id
@@ -104,6 +108,8 @@ async def resolve_index_ids(
     db_session, node_ids: list[uuid.UUID]
 ) -> list[str]:
     """Map node UUIDs to search-index primary keys (folder id or page ids)."""
+    from papermerge.core import dbapi
+
     index_ids: list[str] = []
     nodes = await dbapi.get_nodes(db_session, node_ids=node_ids)
 
@@ -165,6 +171,8 @@ async def remove_index_items(item_ids: list[uuid.UUID]) -> None:
 
 
 async def update_index(add_ver_id: uuid.UUID, remove_ver_id: uuid.UUID) -> None:
+    from papermerge.core import dbapi
+
     add_page_ids: list[uuid.UUID] = []
     remove_page_ids: list[uuid.UUID] = []
 
