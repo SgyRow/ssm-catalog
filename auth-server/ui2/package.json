@@ -20,7 +20,7 @@
   "dependencies": {
     "@mantine/core": "^8.2.4",
     "@mantine/form": "^8.2.4",
-    "@mantine/hooks": "^8.2.4",
+    "@mantine/hooks": "^9.7.3",
     "i18next": "^25.3.4",
     "i18next-browser-languagedetector": "^8.2.0",
     "i18next-chained-backend": "^4.6.2",
