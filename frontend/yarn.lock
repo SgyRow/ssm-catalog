@@ -2894,10 +2894,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"js-cookie@npm:^3.0.5":
-  version: 3.0.5
-  resolution: "js-cookie@npm:3.0.5"
-  checksum: 10c0/04a0e560407b4489daac3a63e231d35f4e86f78bff9d792011391b49c59f721b513411cd75714c418049c8dc9750b20fcddad1ca5a2ca616c3aca4874cce5b3a
+"js-cookie@npm:^3.0.8":
+  version: 3.0.8
+  resolution: "js-cookie@npm:3.0.8"
+  checksum: 10c0/421912a4a55535bda32b3059835864e1182c3af5b4516df00a060edc1fa5a53d38bb8d5a91d5d305e396206f4fd11e829f17850aa5aa8164118c04d8ebf1ff5d
   languageName: node
   linkType: hard
 
@@ -4261,7 +4261,7 @@ __metadata:
     i18next-localstorage-backend: "npm:^4.2.0"
     i18next-xhr-backend: "npm:^3.2.2"
     immer: "npm:^10.1.1"
-    js-cookie: "npm:^3.0.5"
+    js-cookie: "npm:^3.0.8"
     kommon: "workspace:*"
     pdfjs-dist: "npm:^5.3.93"
     prettier: "npm:^3.6.2"
