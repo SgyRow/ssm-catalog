@@ -12,7 +12,7 @@ fastapi = {extras = ["standard"], version = "^0.116"}
 sqlalchemy = "^2.0.42"
 passlib = "^1.7.4"
 python-multipart = "^0.0.20"
-rich = "^14.1.0"
+rich = ">=14.1,<16.0"
 httpx = "^0.28"
 pyyaml = "^6.0.1"
 pydantic-settings = "^2.10"
