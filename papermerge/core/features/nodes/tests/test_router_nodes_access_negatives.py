@@ -1,21 +1,16 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from papermerge.core.tests.types import AuthTestClient
-
-
-async def test_get_node(
-    auth_api_client: AuthTestClient, make_user, make_folder, make_document, db_session: AsyncSession
-):
+async def test_get_node(login_as, make_user, make_folder, make_document):
     """
     User A should not have access to user B's private nodes
     """
+    user_a = await make_user("user_a", is_superuser=False)
     user_b = await make_user("user_b", is_superuser=False)
     user_b_folder = await make_folder(
         "user_b_private_folder", user=user_b, parent=user_b.home_folder
     )
     await make_document("user_b_private_doc", user=user_b, parent=user_b_folder)
 
-    # Act
-    response = await auth_api_client.get(f"/nodes/{user_b_folder.id}")
+    user_a_api_client = await login_as(user_a)
+    response = await user_a_api_client.get(f"/nodes/{user_b_folder.id}")
 
     assert response.status_code == 403
 
@@ -26,7 +21,7 @@ async def test_post_node(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder = await make_folder(
         "folder_a", parent=user_a.home_folder, user=user_a
     )
@@ -50,7 +45,7 @@ async def test_update_node(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder = await make_folder(
         "folder_a", parent=user_a.home_folder, user=user_a
     )
@@ -76,7 +71,7 @@ async def test_delete_node(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder_1 = await make_folder(
         "folder_a_1", parent=user_a.home_folder, user=user_a
     )
@@ -103,7 +98,7 @@ async def test_get_node_details(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder_1 = await make_folder(
         "folder_a_1", parent=user_a.home_folder, user=user_a
     )
@@ -117,7 +112,8 @@ async def test_get_node_details(login_as, make_user, make_folder):
         f"/nodes/?node_ids={user_a_private_folder_1.id}&node_ids={user_a_private_folder_2.id}",
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 200, response.json()
+    assert response.json() == []
 
 
 async def test_move_node(login_as, make_user, make_folder, make_document):
@@ -126,7 +122,7 @@ async def test_move_node(login_as, make_user, make_folder, make_document):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder_src = await make_folder(
         "folder_src", parent=user_a.home_folder, user=user_a
     )
@@ -156,7 +152,7 @@ async def test_assign_node_tags(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder = await make_folder(
         "folder", parent=user_a.home_folder, user=user_a
     )
@@ -179,7 +175,7 @@ async def test_update_node_tags(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder = await make_folder(
         "folder", parent=user_a.home_folder, user=user_a
     )
@@ -202,7 +198,7 @@ async def test_get_node_tags(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder = await make_folder(
         "folder", parent=user_a.home_folder, user=user_a
     )
@@ -223,7 +219,7 @@ async def test_remove_node_tags(login_as, make_user, make_folder):
     """
 
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     user_a_private_folder = await make_folder(
         "folder", parent=user_a.home_folder, user=user_a
     )

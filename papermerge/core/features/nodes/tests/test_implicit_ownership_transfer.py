@@ -99,7 +99,7 @@ async def test_move_document_one_doc_from_group_to_private(
     assert response.status_code == 200, response.json()
 
     returned_doc = schema.Document(**response.json())
-    assert returned_doc.owner_name == "john"
+    assert returned_doc.owner_name == "john_first john_last"
 
 
 async def test_move_nested_nodes_from_private_to_group(
@@ -127,7 +127,7 @@ async def test_move_nested_nodes_from_private_to_group(
     assert response.status_code == 200, response.json()
 
     returned_doc = schema.Document(**response.json())
-    assert returned_doc.owner_name == "john"
+    assert returned_doc.owner_name == "john_first john_last"
 
     response = await client.post("/nodes/move", json=payload)
     assert response.status_code == 200, response.json()
@@ -173,4 +173,4 @@ async def test_move_nested_nodes_from_group_to_private(
     assert response.status_code == 200, response.json()
 
     returned_doc = schema.Document(**response.json())
-    assert returned_doc.owner_name == "john"
+    assert returned_doc.owner_name == "john_first john_last"

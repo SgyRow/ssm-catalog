@@ -43,6 +43,7 @@ from papermerge.core.features.document.docx_convert import (
 )
 from papermerge.core.features.document.ordered_document_cfv import \
     OrderedDocumentCFV
+from papermerge.core.features.document.schema import DocumentCFVRow
 from papermerge.core import config
 from .selectors import select_doc_cfv, select_docs_by_type
 
@@ -398,10 +399,10 @@ async def create_document(
         lang=attrs.lang,
         short_description="Original",
     )
+    doc.versions.append(doc_ver)
     db_session.add(doc)
 
     try:
-        db_session.add(doc_ver)
         await db_session.commit()
     except IntegrityError as e:
         await db_session.rollback()

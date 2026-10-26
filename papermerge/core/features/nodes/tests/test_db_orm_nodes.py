@@ -8,7 +8,23 @@ from sqlalchemy.orm import selectinload
 from papermerge.core import orm, schema
 from papermerge.core.features.nodes.db import api as dbapi
 from papermerge.core.features.document.db import api as docs_dbapi
+from papermerge.core.features.tags import schema as tags_schema
+from papermerge.core.features.tags.db import api as tags_dbapi
 from papermerge.core.db import common as common_dbapi
+
+
+async def ensure_catalog_tags(db_session: AsyncSession, user: orm.User, names: list[str]) -> None:
+    for name in names:
+        existing = await tags_dbapi.find_catalog_tag_by_name(
+            db_session, user_id=user.id, name=name
+        )
+        if existing is not None:
+            continue
+        _, error = await tags_dbapi.create_tag(
+            db_session,
+            tags_schema.CreateTag(name=name, user_id=user.id),
+        )
+        assert error is None, error
 
 
 async def test_get_descendants(make_folder, make_document, db_session: AsyncSession, user):
@@ -139,14 +155,15 @@ async def test_delete_document_which_has_custom_fields(
     # Assert
     assert error is None, error.model_dump()
     doc_count_after = (await db_session.execute(
-        select(func.count(orm.Document.id)).where(orm.Document.title == "receipt-1.pdf")
+        select(func.count(orm.Document.id)).where(
+            orm.Document.title == "receipt-1.pdf",
+            orm.Document.deleted_at.is_not(None),
+        )
     )).scalar()
     cfv_count = (await db_session.execute(select(func.count(orm.CustomFieldValue.id)))).scalar()
 
-    # document was deleted
-    assert doc_count_after == 0
-    # its custom fields must be deleted as well
-    assert cfv_count == 0
+    assert doc_count_after == 1
+    assert cfv_count == 3
 
 
 async def test_delete_recursively_documents_which_has_custom_fields(
@@ -199,15 +216,14 @@ async def test_delete_recursively_documents_which_has_custom_fields(
     assert error is None, error.model_dump()
     doc_count_after = (await db_session.execute(
         select(func.count(orm.Document.id)).where(
-            orm.Document.title.in_(["receipt-1.pdf", "receipt-2.pdf"])
+            orm.Document.title.in_(["receipt-1.pdf", "receipt-2.pdf"]),
+            orm.Document.deleted_at.is_not(None),
         )
     )).scalar()
     cfv_count = (await db_session.execute(select(func.count(orm.CustomFieldValue.id)))).scalar()
 
-    # document was deleted
-    assert doc_count_after == 0
-    # its custom fields must be deleted as well
-    assert cfv_count == 0
+    assert doc_count_after == 2
+    assert cfv_count == 6
 
 
 async def test_delete_folder_recursively_with_its_content(
@@ -239,17 +255,19 @@ async def test_delete_folder_recursively_with_its_content(
 
     doc_count_after = (await db_session.execute(
         select(func.count(orm.Document.id)).where(
-            orm.Document.title.in_(["doc-1.pdf", "doc-2.pdf"])
+            orm.Document.title.in_(["doc-1.pdf", "doc-2.pdf"]),
+            orm.Document.deleted_at.is_not(None),
         )
     )).scalar()
 
-    assert doc_count_after == 0
+    assert doc_count_after == 2
 
 
 async def test_get_node_tags_node_is_a_document(db_session: AsyncSession, make_document, user):
     """test for `get_node_tags`"""
     # arrange
     doc = await make_document(title="some.pdf", user=user, parent=user.home_folder)
+    await ensure_catalog_tags(db_session, user, ["tag1", "tag2"])
 
     await dbapi.assign_node_tags(
         db_session,
@@ -269,6 +287,7 @@ async def test_get_node_tags_node_is_a_folder(db_session: AsyncSession, make_fol
     """test for `get_node_tags`"""
     # arrange
     folder = await make_folder(title="My Folder", user=user, parent=user.home_folder)
+    await ensure_catalog_tags(db_session, user, ["tag1", "tag2"])
 
     await dbapi.assign_node_tags(
         db_session,

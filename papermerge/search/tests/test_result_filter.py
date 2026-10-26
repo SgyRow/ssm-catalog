@@ -2,8 +2,6 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from papermerge.search.result_filter import (
     _item_node_id,
     deduplicate_document_pages,
@@ -67,7 +65,6 @@ def test_deduplicate_document_pages_preserves_folder_hits():
     assert len(out) == 1
 
 
-@pytest.mark.asyncio
 async def test_filter_deleted_drops_soft_deleted_nodes():
     alive_doc = str(uuid.uuid4())
     deleted_doc = str(uuid.uuid4())

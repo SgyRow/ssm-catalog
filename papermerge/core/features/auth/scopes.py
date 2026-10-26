@@ -132,6 +132,16 @@ class Scopes:
     CITIZEN_CATEGORY_UPDATE = "citizen_category.update"
     CITIZEN_CATEGORY_DELETE = "citizen_category.delete"
 
+    # Custom fields and document types (catalog metadata).
+    CUSTOM_FIELD_CREATE = "custom_field.create"
+    CUSTOM_FIELD_VIEW = "custom_field.view"
+    CUSTOM_FIELD_UPDATE = "custom_field.update"
+    CUSTOM_FIELD_DELETE = "custom_field.delete"
+    DOCUMENT_TYPE_CREATE = "document_type.create"
+    DOCUMENT_TYPE_VIEW = "document_type.view"
+    DOCUMENT_TYPE_UPDATE = "document_type.update"
+    DOCUMENT_TYPE_DELETE = "document_type.delete"
+
     # Comment permissions (document library / collaboration).
     # Users may always edit/delete their own comments; update/delete scopes
     # grant moderation over other users' comments.

@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from papermerge.core.features.users.router import router as usr_router
 from papermerge.core.features.tags.router import router as tags_router
+from papermerge.core.features.custom_fields.router import router as custom_fields_router
+from papermerge.core.features.document_types.router import router as document_types_router
 from papermerge.core.features.groups.router import router as groups_router
 from papermerge.core.features.roles.router import router as roles_router
 from papermerge.core.features.nodes.router import router as nodes_router
@@ -103,6 +105,8 @@ app.include_router(document_versions_router, prefix=prefix)
 app.include_router(pages_router, prefix=prefix)
 app.include_router(usr_router, prefix=prefix)
 app.include_router(tags_router, prefix=prefix)
+app.include_router(custom_fields_router, prefix=prefix)
+app.include_router(document_types_router, prefix=prefix)
 app.include_router(groups_router, prefix=prefix)
 app.include_router(roles_router, prefix=prefix)
 app.include_router(probe_router, prefix=prefix)

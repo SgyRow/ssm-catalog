@@ -22,7 +22,6 @@ class Node(Base):
         back_populates="nodes",
         primaryjoin="User.id == Node.user_id",
         remote_side=User.id,
-        cascade="delete"
     )
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey(
@@ -38,7 +37,6 @@ class Node(Base):
         back_populates="nodes",
         primaryjoin="Group.id == Node.group_id",
         remote_side="Group.id",
-        cascade="delete",
     )
     group_id: Mapped[UUID] = mapped_column(
         ForeignKey(

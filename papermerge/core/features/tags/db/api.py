@@ -225,6 +225,8 @@ async def get_tags(
             or (tag.description and needle in tag.description.lower())
         ]
 
+    if not order_by:
+        order_by = "name"
     reverse = order_by.startswith("-")
     col = order_by.lstrip("-")
     if col in ("name", "ID"):

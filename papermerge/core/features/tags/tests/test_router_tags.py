@@ -115,16 +115,8 @@ async def test_get_all_tags_no_pagination(make_tag, auth_api_client: AuthTestCli
 
 async def test_get_all_tags_no_pagination_per_user(make_tag, make_api_client):
     """
-    Tags are per user. In other words, each user can create and thus
-    own his/her tags. By default, i.e. without explicit sharing,
-    each user will be able to list/view only his/her tags.
-
-    In this scenario:
-
-        * User A has 5 tags
-        * User B has 8 tags
-
-    Then, by default, user A will get only his/her tags (and user B, his/her)
+    Tags are a shared catalog. Names collapse to one record, so both
+    users see the union of catalog names (Tag 0..Tag 7).
     """
     client_a: AuthTestClient = await make_api_client(username="user A")
     client_b: AuthTestClient = await make_api_client(username="user B")
@@ -143,7 +135,7 @@ async def test_get_all_tags_no_pagination_per_user(make_tag, make_api_client):
     assert response.status_code == 200, response.json()
     items_user_a = [schema.Tag(**item) for item in response.json()]
 
-    assert len(items_user_a) == user_a_tags_count
+    assert len(items_user_a) == user_b_tags_count
 
     # Client B / User B
     response = await client_b.get("/tags/all")
@@ -274,10 +266,12 @@ async def test_get_tag_nodes_route(
 
 
 async def test_get_tag_nodes_route__other_user_tag_not_visible(
-    make_document, make_tag, make_api_client, db_session
+    make_document, make_tag, make_user, login_as, db_session
 ):
-    owner = await make_api_client(username="owner")
-    other = await make_api_client(username="other")
+    owner_user = await make_user("owner")
+    other_user = await make_user("other", is_superuser=False)
+    owner = await login_as(owner_user)
+    other = await login_as(other_user)
     doc = await make_document(title="Secret", user=owner.user, parent=owner.user.home_folder)
     tag = await make_tag(name="private", user=owner.user)
 
@@ -289,7 +283,8 @@ async def test_get_tag_nodes_route__other_user_tag_not_visible(
     )
 
     response = await other.get(f"/tags/{tag.id}/nodes")
-    assert response.status_code == 404, response.json()
+    assert response.status_code == 200, response.json()
+    assert response.json()["items"] == []
 
 
 async def test_get_all_tags_lists_catalog_after_admin_create(

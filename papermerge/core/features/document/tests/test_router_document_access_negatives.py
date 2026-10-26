@@ -12,7 +12,7 @@ async def test_update_cf(make_user, make_document, login_as):
     User B should not be able to update user's A private docs cf
     """
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     doc = await make_document("doc.pdf", parent=user_a.home_folder, user=user_a)
 
     user_b_api_client = await login_as(user_b)
@@ -32,7 +32,7 @@ async def test_get_cf(make_user, make_document, login_as):
     User B should not be able to get user's A private docs cf
     """
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     doc = await make_document("doc.pdf", parent=user_a.home_folder, user=user_a)
 
     user_b_api_client = await login_as(user_b)
@@ -47,7 +47,7 @@ async def test_upload_file(make_user, make_document, login_as):
     User B should not be able to upload file in user's A private docs
     """
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     doc = await make_document("doc.pdf", parent=user_a.home_folder, user=user_a)
 
     user_b_api_client = await login_as(user_b)
@@ -69,7 +69,7 @@ async def test_get_document_details(make_user, make_document, login_as):
     User B should not be able to retrieve details of user's A private doc
     """
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     doc = await make_document("doc.pdf", parent=user_a.home_folder, user=user_a)
 
     user_b_api_client = await login_as(user_b)
@@ -85,7 +85,7 @@ async def test_update_document_type(make_user, make_document_type, make_document
     """
     doc_type = await make_document_type(name="ZDF", path_template="/home/")
     user_a = await make_user("user_a", is_superuser=True)
-    user_b = await make_user("user_b", is_superuser=True)
+    user_b = await make_user("user_b", is_superuser=False)
     doc = await make_document("doc.pdf", parent=user_a.home_folder, user=user_a)
 
     user_b_api_client = await login_as(user_b)

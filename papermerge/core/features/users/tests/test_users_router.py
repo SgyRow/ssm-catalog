@@ -40,7 +40,7 @@ async def test_update_current_user_profile(
 
     assert response.status_code == 200, response.json()
     payload = schema.UserDetails(**response.json())
-    assert payload.id == user.id
+    assert str(payload.id) == str(user.id)
     assert payload.email == "new@example.com"
     assert payload.first_name == "Ada"
     assert payload.last_name == "Lovelace"

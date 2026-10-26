@@ -152,6 +152,7 @@ class DocumentVersion(BaseModel):
     size: int = 0
     page_count: int = 0
     short_description: str | None = None
+    text: str | None = None
     document_id: UUID
     download_url: DownloadUrl = None
     pages: list[PageWithText] | None = Field(default_factory=list)

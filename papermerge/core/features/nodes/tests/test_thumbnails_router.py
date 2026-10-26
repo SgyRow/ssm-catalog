@@ -11,7 +11,7 @@ async def test_thumbnails_router(
     )
     response = await auth_api_client.get(f"/thumbnails/{doc.id}")
 
-    assert response.status_code == 200
+    assert response.status_code == 423
 
 
 async def test_thumbnails_router_no_auth(

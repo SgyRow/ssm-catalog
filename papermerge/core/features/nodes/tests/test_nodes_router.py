@@ -5,8 +5,24 @@ from sqlalchemy import select, func
 
 from papermerge.core.features.document.db import api as doc_dbapi
 from papermerge.core.features.nodes.db import api as nodes_dbapi
+from papermerge.core.features.tags import schema as tags_schema
+from papermerge.core.features.tags.db import api as tags_dbapi
 from papermerge.core import orm, schema
 from papermerge.core.tests.types import AuthTestClient
+
+
+async def ensure_catalog_tags(db_session: AsyncSession, user: orm.User, names: list[str]) -> None:
+    for name in names:
+        existing = await tags_dbapi.find_catalog_tag_by_name(
+            db_session, user_id=user.id, name=name
+        )
+        if existing is not None:
+            continue
+        _, error = await tags_dbapi.create_tag(
+            db_session,
+            tags_schema.CreateTag(name=name, user_id=user.id),
+        )
+        assert error is None, error
 
 
 async def test_get_node_details(auth_api_client: AuthTestClient, make_document):
@@ -311,6 +327,7 @@ async def test_assign_tags_to_non_tagged_folder(
         user=auth_api_client.user,
         parent=auth_api_client.user.inbox_folder,
     )
+    await ensure_catalog_tags(db_session, auth_api_client.user, ["paid", "important"])
     payload = ["paid", "important"]
 
     response = await auth_api_client.post(f"/nodes/{receipts.id}/tags", json=payload)
@@ -352,6 +369,7 @@ async def test_assign_tags_to_tagged_folder(
     """
     u = auth_api_client.user
     receipts = await make_folder(title="Receipts", user=u, parent=u.inbox_folder)
+    await ensure_catalog_tags(db_session, u, ["important", "unpaid", "paid"])
 
     await nodes_dbapi.assign_node_tags(
         db_session, node_id=receipts.id, tags=["important", "unpaid"], user_id=u.id
@@ -399,6 +417,7 @@ async def test_assign_tags_to_document(
     """
     u = auth_api_client.user
     d1 = await make_document(title="invoice.pdf", user=u, parent=u.home_folder)
+    await ensure_catalog_tags(db_session, u, ["important", "unpaid", "xyz"])
 
     await nodes_dbapi.assign_node_tags(
         db_session, node_id=d1.id, tags=["important", "unpaid"], user_id=u.id
@@ -444,6 +463,7 @@ async def test_append_tags_to_folder(
     """
     u = auth_api_client.user
     receipts = await make_folder(title="Receipts", user=u, parent=u.inbox_folder)
+    await ensure_catalog_tags(db_session, u, ["important", "paid"])
     await nodes_dbapi.assign_node_tags(
         db_session, node_id=receipts.id, tags=["important"], user_id=u.id
     )
@@ -483,6 +503,9 @@ async def test_remove_tags_from_folder(
     """
     u = auth_api_client.user
     receipts = await make_folder(title="Receipts", user=u, parent=u.inbox_folder)
+    await ensure_catalog_tags(
+        db_session, u, ["important", "paid", "receipt", "bakery"]
+    )
     await nodes_dbapi.assign_node_tags(
         db_session,
         node_id=receipts.id,
@@ -522,6 +545,9 @@ async def test_home_with_two_tagged_nodes(
     folder = await make_folder(title="folder", user=u, parent=u.home_folder)
     doc = await make_document(title="doc.pdf", user=u, parent=u.home_folder)
     home = u.home_folder
+    await ensure_catalog_tags(
+        db_session, u, ["folder_a", "folder_b", "doc_a", "doc_b"]
+    )
 
     await nodes_dbapi.assign_node_tags(
         db_session, node_id=folder.id, tags=["folder_a", "folder_b"], user_id=u.id
@@ -576,10 +602,12 @@ async def test_delete_nodes_one_folder(
 
     assert response.status_code == 200, response.json()
 
+    db_session.expire_all()
     stmt = select(orm.Folder).where(orm.Folder.id == folder.id)
     found = (await db_session.execute(stmt)).scalar()
 
-    assert found is None
+    assert found is not None
+    assert found.deleted_at is not None
 
 
 async def test_delete_nodes_multiple_nodes(
@@ -593,10 +621,12 @@ async def test_delete_nodes_multiple_nodes(
 
     assert response.status_code == 200, response.json()
 
+    db_session.expire_all()
     stmt = select(orm.Node).where(orm.Node.id.in_([folder.id, doc.id]))
-    found = (await db_session.execute(stmt)).scalar()
+    found = (await db_session.execute(stmt)).scalars().all()
 
-    assert found is None
+    assert len(found) == 2
+    assert all(node.deleted_at is not None for node in found)
 
 
 async def test_delete_nodes_with_descendants(
@@ -617,15 +647,18 @@ async def test_delete_nodes_with_descendants(
 
     assert response.status_code == 200, response.json()
 
+    db_session.expire_all()
     stmt = select(orm.Node).where(orm.Node.id.in_([doc1.id, doc2.id, nested_folder.id]))
-    found = (await db_session.execute(stmt)).scalar()
+    found = (await db_session.execute(stmt)).scalars().all()
 
-    assert found is None
+    assert len(found) == 3
+    assert all(node.deleted_at is not None for node in found)
 
 
 async def test_delete_tagged_folder(make_folder, db_session: AsyncSession, user, auth_api_client):
     # Create tagged folder
     folder = await make_folder(title="My Documents", user=user, parent=user.home_folder)
+    await ensure_catalog_tags(db_session, user, ["tag1", "tag2"])
 
     await nodes_dbapi.assign_node_tags(
         db_session,
@@ -639,10 +672,12 @@ async def test_delete_tagged_folder(make_folder, db_session: AsyncSession, user,
     assert response.status_code == 200, response.json()
 
     # Confirm folder is deleted
+    db_session.expire_all()
     folder_stmt = select(orm.Folder).where(orm.Folder.id == folder.id)
     folder_result = await db_session.execute(folder_stmt)
     deleted_folder = folder_result.scalar_one_or_none()
-    assert deleted_folder is None
+    assert deleted_folder is not None
+    assert deleted_folder.deleted_at is not None
 
     # Confirm tags still exist
     for tag_name in ("tag1", "tag2"):
@@ -655,6 +690,7 @@ async def test_delete_tagged_folder(make_folder, db_session: AsyncSession, user,
 async def test_delete_tagged_document(make_document, db_session: AsyncSession, user, auth_api_client):
     # Create a document
     doc = await make_document(title="My Contract.pdf", user=user, parent=user.home_folder)
+    await ensure_catalog_tags(db_session, user, ["tag1", "tag2"])
 
     # Assign tags
     await nodes_dbapi.assign_node_tags(
@@ -669,10 +705,12 @@ async def test_delete_tagged_document(make_document, db_session: AsyncSession, u
     assert response.status_code == 200, response.json()
 
     # Check that the document no longer exists
+    db_session.expire_all()
     stmt_doc = select(orm.Document).where(orm.Document.id == doc.id)
     result_doc = await db_session.execute(stmt_doc)
     deleted_doc = result_doc.scalar_one_or_none()
-    assert deleted_doc is None
+    assert deleted_doc is not None
+    assert deleted_doc.deleted_at is not None
 
     # Check that both tags still exist
     for tag_name in ("tag1", "tag2"):
@@ -686,6 +724,7 @@ async def test_get_node_tags_router_when_node_is_folder(
     make_folder, db_session: AsyncSession, user, auth_api_client
 ):
     folder = await make_folder(title="My Folder", user=user, parent=user.home_folder)
+    await ensure_catalog_tags(db_session, user, ["tag1", "tag2"])
 
     await nodes_dbapi.assign_node_tags(
         db_session,
@@ -706,6 +745,7 @@ async def test_get_node_tags_router_when_node_is_document(
     make_document, db_session: AsyncSession, user, auth_api_client
 ):
     node = await make_document(title="doc.pdf", user=user, parent=user.home_folder)
+    await ensure_catalog_tags(db_session, user, ["tag1", "tag2"])
 
     await nodes_dbapi.assign_node_tags(
         db_session,

@@ -29,7 +29,7 @@ async def test_document_version_download_request_non_existing_resource(auth_api_
     response = await auth_api_client.get(
         f"/document-versions/{non_existing_resource_id}/download"
     )
-    assert response.status_code == 403
+    assert response.status_code == 404
 
 
 async def test_document_version_details_request_non_existing_resource(auth_api_client):
