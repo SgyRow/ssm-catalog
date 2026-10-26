@@ -17,7 +17,7 @@ httpx = "^0.28"
 pyyaml = "^6.0.1"
 pydantic-settings = "^2.10"
 ldap3 = "^2.9.1"
-typer = "^0.16.0"
+typer = ">=0.16,<0.28"
 psycopg2 = { version = "^2.9", optional = true}
 mysqlclient = {version = "^2.2", optional = true}
 pyjwt = "^2.9.0"
