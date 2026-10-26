@@ -77,9 +77,10 @@ async def test_create_msp_folder_tree_resumes_existing_root(
     await db_session.commit()
 
     # Simulate a previous partial run: only the root folder exists.
-    for child_id in created_ids[1:]:
+    for child_id in reversed(created_ids[1:]):
         child = await db_session.get(orm.Folder, child_id)
-        await db_session.delete(child)
+        if child is not None:
+            await db_session.delete(child)
     await db_session.commit()
 
     resumed, resumed_ids, resume_error = await create_msp_folder_tree(

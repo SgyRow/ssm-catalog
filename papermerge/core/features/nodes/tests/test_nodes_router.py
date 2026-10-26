@@ -602,12 +602,12 @@ async def test_delete_nodes_one_folder(
 
     assert response.status_code == 200, response.json()
 
-    db_session.expire_all()
-    stmt = select(orm.Folder).where(orm.Folder.id == folder.id)
-    found = (await db_session.execute(stmt)).scalar()
-
-    assert found is not None
-    assert found.deleted_at is not None
+    trashed = await db_session.scalar(
+        select(func.count())
+        .select_from(orm.Node)
+        .where(orm.Node.id == folder.id, orm.Node.deleted_at.is_not(None))
+    )
+    assert trashed == 1
 
 
 async def test_delete_nodes_multiple_nodes(
@@ -621,12 +621,15 @@ async def test_delete_nodes_multiple_nodes(
 
     assert response.status_code == 200, response.json()
 
-    db_session.expire_all()
-    stmt = select(orm.Node).where(orm.Node.id.in_([folder.id, doc.id]))
-    found = (await db_session.execute(stmt)).scalars().all()
-
-    assert len(found) == 2
-    assert all(node.deleted_at is not None for node in found)
+    trashed = await db_session.scalar(
+        select(func.count())
+        .select_from(orm.Node)
+        .where(
+            orm.Node.id.in_([folder.id, doc.id]),
+            orm.Node.deleted_at.is_not(None),
+        )
+    )
+    assert trashed == 2
 
 
 async def test_delete_nodes_with_descendants(
@@ -647,12 +650,15 @@ async def test_delete_nodes_with_descendants(
 
     assert response.status_code == 200, response.json()
 
-    db_session.expire_all()
-    stmt = select(orm.Node).where(orm.Node.id.in_([doc1.id, doc2.id, nested_folder.id]))
-    found = (await db_session.execute(stmt)).scalars().all()
-
-    assert len(found) == 3
-    assert all(node.deleted_at is not None for node in found)
+    trashed = await db_session.scalar(
+        select(func.count())
+        .select_from(orm.Node)
+        .where(
+            orm.Node.id.in_([doc1.id, doc2.id, nested_folder.id, topmost.id]),
+            orm.Node.deleted_at.is_not(None),
+        )
+    )
+    assert trashed == 4
 
 
 async def test_delete_tagged_folder(make_folder, db_session: AsyncSession, user, auth_api_client):
@@ -672,12 +678,12 @@ async def test_delete_tagged_folder(make_folder, db_session: AsyncSession, user,
     assert response.status_code == 200, response.json()
 
     # Confirm folder is deleted
-    db_session.expire_all()
-    folder_stmt = select(orm.Folder).where(orm.Folder.id == folder.id)
-    folder_result = await db_session.execute(folder_stmt)
-    deleted_folder = folder_result.scalar_one_or_none()
-    assert deleted_folder is not None
-    assert deleted_folder.deleted_at is not None
+    trashed = await db_session.scalar(
+        select(func.count())
+        .select_from(orm.Node)
+        .where(orm.Node.id == folder.id, orm.Node.deleted_at.is_not(None))
+    )
+    assert trashed == 1
 
     # Confirm tags still exist
     for tag_name in ("tag1", "tag2"):
@@ -705,12 +711,12 @@ async def test_delete_tagged_document(make_document, db_session: AsyncSession, u
     assert response.status_code == 200, response.json()
 
     # Check that the document no longer exists
-    db_session.expire_all()
-    stmt_doc = select(orm.Document).where(orm.Document.id == doc.id)
-    result_doc = await db_session.execute(stmt_doc)
-    deleted_doc = result_doc.scalar_one_or_none()
-    assert deleted_doc is not None
-    assert deleted_doc.deleted_at is not None
+    trashed = await db_session.scalar(
+        select(func.count())
+        .select_from(orm.Node)
+        .where(orm.Node.id == doc.id, orm.Node.deleted_at.is_not(None))
+    )
+    assert trashed == 1
 
     # Check that both tags still exist
     for tag_name in ("tag1", "tag2"):

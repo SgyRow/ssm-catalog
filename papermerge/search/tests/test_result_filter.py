@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -65,7 +66,7 @@ def test_deduplicate_document_pages_preserves_folder_hits():
     assert len(out) == 1
 
 
-async def test_filter_deleted_drops_soft_deleted_nodes():
+def test_filter_deleted_drops_soft_deleted_nodes():
     alive_doc = str(uuid.uuid4())
     deleted_doc = str(uuid.uuid4())
     results = SimpleNamespace(
@@ -93,7 +94,7 @@ async def test_filter_deleted_drops_soft_deleted_nodes():
         )
     )
 
-    out = await filter_deleted_search_results(session, results)
+    out = asyncio.run(filter_deleted_search_results(session, results))
     assert out is results
     assert len(results.items) == 1
     assert _item_node_id(results.items[0]) == alive_doc
