@@ -8,7 +8,7 @@ packages = [{include = "auth_server"}]
 
 [tool.poetry.dependencies]
 python = "^3.13"
-fastapi = {extras = ["standard"], version = "^0.116"}
+fastapi = {extras = ["standard"], version = ">=0.116,<0.162"}
 sqlalchemy = "^2.0.42"
 passlib = "^1.7.4"
 python-multipart = "^0.0.20"
