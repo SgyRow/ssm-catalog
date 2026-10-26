@@ -44,7 +44,10 @@ class Document(Node):
         ForeignKey("document_types.id", name="documents_document_type_id_fkey", ondelete="SET NULL"), nullable=True
     )
     versions: Mapped[list["DocumentVersion"]] = relationship(
-        back_populates="document", lazy="selectin"
+        back_populates="document",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     __mapper_args__ = {
@@ -61,14 +64,20 @@ class DocumentVersion(Base):
     document_id: Mapped[UUID] = mapped_column(
         ForeignKey("documents.node_id", ondelete="CASCADE")
     )
-    document: Mapped[Document] = relationship(back_populates="versions")
+    document: Mapped[Document] = relationship(
+        back_populates="versions",
+        passive_deletes=True,
+    )
     lang: Mapped[str] = mapped_column(default="deu")
     text: Mapped[str] = mapped_column(nullable=True)
     size: Mapped[int] = mapped_column(default=0)
     page_count: Mapped[int] = mapped_column(default=0)
     short_description: Mapped[str] = mapped_column(nullable=True)
     pages: Mapped[list["Page"]] = relationship(
-        back_populates="document_version", lazy="select"
+        back_populates="document_version",
+        lazy="select",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     @property
@@ -90,6 +99,9 @@ class Page(Base):
     document_version_id: Mapped[UUID] = mapped_column(
         ForeignKey("document_versions.id", ondelete="CASCADE")
     )
-    document_version: Mapped[DocumentVersion] = relationship(back_populates="pages")
+    document_version: Mapped[DocumentVersion] = relationship(
+        back_populates="pages",
+        passive_deletes=True,
+    )
     def __repr__(self):
         return f"Page(id={self.id}, number={self.number})"

@@ -402,19 +402,7 @@ async def create_document(
     db_session.add(doc)
 
     try:
-        await db_session.flush()
-        await db_session.execute(
-            insert(orm.DocumentVersion).values(
-                id=doc_ver.id,
-                document_id=doc.id,
-                number=doc_ver.number,
-                file_name=doc_ver.file_name,
-                size=doc_ver.size,
-                page_count=doc_ver.page_count,
-                lang=doc_ver.lang,
-                short_description=doc_ver.short_description,
-            )
-        )
+        db_session.add(doc_ver)
         await db_session.commit()
     except IntegrityError as e:
         await db_session.rollback()
@@ -435,8 +423,6 @@ async def create_document(
             error = schema.Error(messages=[stre])
 
     doc.owner_name = owner.name
-    if error is None:
-        db_session.expire(doc)
 
     stmt = select(orm.Document).options(
         selectinload(orm.Document.tags),
