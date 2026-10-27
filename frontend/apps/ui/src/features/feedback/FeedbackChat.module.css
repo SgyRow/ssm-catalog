@@ -6,7 +6,9 @@
 }
 
 .fill {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 .messages {
@@ -36,11 +38,18 @@
   word-break: break-word;
 }
 
+.metaRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .meta {
   display: block;
   font-size: 11px;
   opacity: 0.75;
-  margin-bottom: 4px;
 }
 
 .mine {

@@ -12,6 +12,7 @@ from papermerge.core.features.library_ts.db import settings_api as library_setti
 from papermerge.core.db import common as db_common
 from papermerge.core.features.auth import scopes
 from papermerge.core.features.library_ts.db import orm as lib_orm
+from papermerge.core.features.users.schema import user_display_name
 from papermerge.core.pathlib import abs_page_txt_path
 
 logger = logging.getLogger(__name__)
@@ -557,6 +558,71 @@ async def mark_feedback_wish_notifications_read(
             if data.get("wish_id") != str(wish_id):
                 continue
         row.read_at = now
+
+
+async def delete_feedback_message_notifications(
+    db_session: AsyncSession, thread_id: UUID
+) -> None:
+    await db_session.execute(
+        delete(lib_orm.UserNotification).where(
+            lib_orm.UserNotification.kind == FEEDBACK_MESSAGE_KIND,
+            lib_orm.UserNotification.payload.contains(str(thread_id)),
+        )
+    )
+
+
+_NOTIFICATION_NAME_KEYS = ("username", "author_username")
+
+
+async def notification_payloads_with_display_names(
+    db_session: AsyncSession, payloads: list[str | None]
+) -> list[str | None]:
+    """Show the user's full name in stored notification text when it is set."""
+    parsed: list[dict | None] = []
+    logins: set[str] = set()
+    for raw in payloads:
+        data: dict | None = None
+        if raw:
+            try:
+                loaded = json.loads(raw)
+            except json.JSONDecodeError:
+                loaded = None
+            if isinstance(loaded, dict):
+                data = loaded
+                for key in _NOTIFICATION_NAME_KEYS:
+                    value = loaded.get(key)
+                    if isinstance(value, str) and value.strip():
+                        logins.add(value.strip())
+        parsed.append(data)
+    if not logins:
+        return list(payloads)
+    rows = (
+        await db_session.execute(
+            select(orm.User.username, orm.User.first_name, orm.User.last_name).where(
+                orm.User.username.in_(logins)
+            )
+        )
+    ).all()
+    names = {
+        username: user_display_name(first_name, last_name, username)
+        for username, first_name, last_name in rows
+    }
+    out: list[str | None] = []
+    for raw, data in zip(payloads, parsed, strict=True):
+        if data is None:
+            out.append(raw)
+            continue
+        changed = False
+        for key in _NOTIFICATION_NAME_KEYS:
+            value = data.get(key)
+            if not isinstance(value, str):
+                continue
+            shown = names.get(value.strip())
+            if shown and shown != value:
+                data[key] = shown
+                changed = True
+        out.append(json.dumps(data, ensure_ascii=False) if changed else raw)
+    return out
 
 
 async def mark_feedback_notifications_read(

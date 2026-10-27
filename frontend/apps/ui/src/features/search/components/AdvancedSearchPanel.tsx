@@ -1,11 +1,12 @@
 import {useGetCitizenCategoriesQuery} from "@/features/citizen_categories/citizenCategoriesApiSlice"
 import type {AdvancedSearchArgs, MaterialKind} from "@/features/search/advancedApiSlice"
 import {useGetTagsQuery} from "@/features/tags/apiSlice"
+import classes from "@/features/search/AdvancedSearch.module.css"
 import {
   Button,
-  Group,
   MultiSelect,
   Select,
+  SimpleGrid,
   Stack,
   TextInput
 } from "@mantine/core"
@@ -94,9 +95,10 @@ export default function AdvancedSearchPanel({
   }
 
   return (
-    <Stack gap="sm">
-      <Group grow preventGrowOverflow={false} wrap="wrap" align="flex-end">
+    <div className={classes.panel}>
+      <Stack gap="sm">
         <TextInput
+          size="sm"
           label={t("search.filter.name")}
           value={title}
           onChange={e => setTitle(e.currentTarget.value)}
@@ -104,57 +106,64 @@ export default function AdvancedSearchPanel({
             if (e.key === "Enter") submit()
           }}
         />
-        <Select
-          label={t("search.filter.entity_type")}
-          value={entityType}
-          allowDeselect={false}
-          data={[
-            {value: "all", label: t("search.filter.all")},
-            {value: "folder", label: t("search.filter.folders")},
-            {value: "document", label: t("search.filter.documents")}
-          ]}
-          onChange={setEntityType}
-        />
+        <SimpleGrid cols={2} spacing="sm">
+          <Select
+            size="sm"
+            label={t("search.filter.entity_type")}
+            value={entityType}
+            allowDeselect={false}
+            data={[
+              {value: "all", label: t("search.filter.all")},
+              {value: "folder", label: t("search.filter.folders")},
+              {value: "document", label: t("search.filter.documents")}
+            ]}
+            onChange={setEntityType}
+          />
+          <MultiSelect
+            size="sm"
+            label={t("search.filter.kind")}
+            data={kindOptions}
+            value={kinds}
+            onChange={setKinds}
+            searchable
+          />
+        </SimpleGrid>
+        <SimpleGrid cols={2} spacing="sm">
+          <DatePickerInput
+            size="sm"
+            label={t("search.filter.created_from")}
+            value={createdFrom}
+            onChange={setCreatedFrom}
+            valueFormat="DD.MM.YYYY"
+            clearable
+          />
+          <DatePickerInput
+            size="sm"
+            label={t("search.filter.created_to")}
+            value={createdTo}
+            onChange={setCreatedTo}
+            valueFormat="DD.MM.YYYY"
+            clearable
+          />
+          <DatePickerInput
+            size="sm"
+            label={t("search.filter.updated_from")}
+            value={updatedFrom}
+            onChange={setUpdatedFrom}
+            valueFormat="DD.MM.YYYY"
+            clearable
+          />
+          <DatePickerInput
+            size="sm"
+            label={t("search.filter.updated_to")}
+            value={updatedTo}
+            onChange={setUpdatedTo}
+            valueFormat="DD.MM.YYYY"
+            clearable
+          />
+        </SimpleGrid>
         <MultiSelect
-          label={t("search.filter.kind")}
-          data={kindOptions}
-          value={kinds}
-          onChange={setKinds}
-          searchable
-        />
-      </Group>
-      <Group grow preventGrowOverflow={false} wrap="wrap">
-        <DatePickerInput
-          label={t("search.filter.created_from")}
-          value={createdFrom}
-          onChange={setCreatedFrom}
-          valueFormat="DD.MM.YYYY"
-          clearable
-        />
-        <DatePickerInput
-          label={t("search.filter.created_to")}
-          value={createdTo}
-          onChange={setCreatedTo}
-          valueFormat="DD.MM.YYYY"
-          clearable
-        />
-        <DatePickerInput
-          label={t("search.filter.updated_from")}
-          value={updatedFrom}
-          onChange={setUpdatedFrom}
-          valueFormat="DD.MM.YYYY"
-          clearable
-        />
-        <DatePickerInput
-          label={t("search.filter.updated_to")}
-          value={updatedTo}
-          onChange={setUpdatedTo}
-          valueFormat="DD.MM.YYYY"
-          clearable
-        />
-      </Group>
-      <Group grow preventGrowOverflow={false} wrap="wrap" align="flex-end">
-        <MultiSelect
+          size="sm"
           label={t("search.filter.categories")}
           data={categoryOptions}
           value={categoryIds}
@@ -162,20 +171,24 @@ export default function AdvancedSearchPanel({
           searchable
         />
         <MultiSelect
+          size="sm"
           label={t("search.filter.tags")}
           data={tagOptions}
           value={tagIds}
           onChange={setTagIds}
           searchable
         />
+      </Stack>
+      <div className={classes.submit}>
         <Button
+          fullWidth
           leftSection={<IconSearch size={16} />}
           onClick={submit}
           loading={searching}
         >
           {t("search.advanced_submit")}
         </Button>
-      </Group>
-    </Stack>
+      </div>
+    </div>
   )
 }

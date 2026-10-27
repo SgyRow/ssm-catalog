@@ -1,6 +1,8 @@
 import classes from "@/features/feedback/FeedbackInbox.module.css"
 import FeedbackThreadView from "@/features/feedback/components/FeedbackThreadView"
 import {
+  useDeleteFeedbackMessageMutation,
+  useDeleteFeedbackThreadMutation,
   useGetFeedbackThreadQuery,
   useGetFeedbackThreadsQuery,
   useGetFeedbackWishQuery,
@@ -11,7 +13,10 @@ import {FEEDBACK_MANAGE} from "@/scopes"
 import {selectCurrentUser} from "@/slices/currentUser"
 import type {UserDetails} from "@/types"
 import {formatApiDateTimeCompact} from "@/utils/formatDateTime"
-import {Badge, Loader, Tabs, Text, Title} from "@mantine/core"
+import {Badge, Button, Group, Loader, Modal, Tabs, Text, Title} from "@mantine/core"
+import {notifications} from "@mantine/notifications"
+import {IconTrash} from "@tabler/icons-react"
+import {useState} from "react"
 import {useTranslation} from "react-i18next"
 import {useSelector} from "react-redux"
 import {useSearchParams} from "react-router-dom"
@@ -47,6 +52,13 @@ export default function FeedbackInboxPage() {
     skip: !canManage || !selectedWishId
   })
   const [reply, {isLoading: sending}] = useReplyFeedbackThreadMutation()
+  const [deleteMessage, {isLoading: deletingMessage}] =
+    useDeleteFeedbackMessageMutation()
+  const [deleteThread, {isLoading: deletingThread}] =
+    useDeleteFeedbackThreadMutation()
+  const [pendingDelete, setPendingDelete] = useState<
+    {kind: "thread"; id: string} | {kind: "message"; id: string} | null
+  >(null)
 
   if (!user) {
     return <Loader />
@@ -183,16 +195,39 @@ export default function FeedbackInboxPage() {
           </div>
           <div className={classes.chat}>
             {selectedThreadId && detail ? (
-              <FeedbackThreadView
-                messages={detail.messages}
-                mineIsStaff
-                fill
-                sending={sending}
-                emptyHint={t("feedback.empty")}
-                onSend={async body => {
-                  await reply({threadId: selectedThreadId, body}).unwrap()
-                }}
-              />
+              <>
+                <Group
+                  className={classes.chatHead}
+                  justify="space-between"
+                  wrap="nowrap"
+                >
+                  <Text fw={650}>{detail.username}</Text>
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    size="compact-sm"
+                    leftSection={<IconTrash size={14} />}
+                    onClick={() =>
+                      setPendingDelete({kind: "thread", id: selectedThreadId})
+                    }
+                  >
+                    {t("feedback.delete_chat")}
+                  </Button>
+                </Group>
+                <FeedbackThreadView
+                  messages={detail.messages}
+                  mineIsStaff
+                  fill
+                  sending={sending}
+                  emptyHint={t("feedback.empty")}
+                  onSend={async body => {
+                    await reply({threadId: selectedThreadId, body}).unwrap()
+                  }}
+                  onDeleteMessage={messageId =>
+                    setPendingDelete({kind: "message", id: messageId})
+                  }
+                />
+              </>
             ) : (
               <Text c="dimmed" p="md">
                 {t("feedback.inbox_pick")}
@@ -201,6 +236,70 @@ export default function FeedbackInboxPage() {
           </div>
         </div>
       )}
+      <Modal
+        opened={pendingDelete !== null}
+        onClose={() => {
+          if (!deletingMessage && !deletingThread) {
+            setPendingDelete(null)
+          }
+        }}
+        title={
+          pendingDelete?.kind === "thread"
+            ? t("feedback.delete_chat")
+            : t("feedback.delete_message")
+        }
+      >
+        <Text>
+          {pendingDelete?.kind === "thread"
+            ? t("feedback.delete_chat_confirm")
+            : t("feedback.delete_message_confirm")}
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button
+            variant="default"
+            onClick={() => setPendingDelete(null)}
+            disabled={deletingMessage || deletingThread}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            color="red"
+            loading={deletingMessage || deletingThread}
+            onClick={() => {
+              if (!pendingDelete) {
+                return
+              }
+              const task =
+                pendingDelete.kind === "thread"
+                  ? deleteThread(pendingDelete.id).unwrap()
+                  : selectedThreadId
+                    ? deleteMessage({
+                        threadId: selectedThreadId,
+                        messageId: pendingDelete.id
+                      }).unwrap()
+                    : Promise.resolve()
+              void task
+                .then(() => {
+                  if (
+                    pendingDelete.kind === "thread" &&
+                    selectedThreadId === pendingDelete.id
+                  ) {
+                    setParams(new URLSearchParams(), {replace: true})
+                  }
+                  setPendingDelete(null)
+                })
+                .catch(() => {
+                  notifications.show({
+                    message: t("feedback.delete_error"),
+                    color: "red"
+                  })
+                })
+            }}
+          >
+            {t("common.delete")}
+          </Button>
+        </Group>
+      </Modal>
     </div>
   )
 }

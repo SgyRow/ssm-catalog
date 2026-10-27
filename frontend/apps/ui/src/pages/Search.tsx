@@ -1,4 +1,5 @@
 import {useAppSelector} from "@/app/hooks"
+import Pagination from "@/components/Pagination"
 import {
   useLazyAdvancedSearchQuery,
   type AdvancedSearchArgs
@@ -8,6 +9,8 @@ import AdvancedSearchResults from "@/features/search/components/AdvancedSearchRe
 import SearchResults from "@/features/search/components/SearchResults"
 import {
   mainPanelSwitchedToSearchResults,
+  searchResultsLastPageSizeUpdated,
+  selectSearchLastPageSize,
   selectSearchPageHeight
 } from "@/features/ui/uiSlice"
 import {Button, Group, Text, Title} from "@mantine/core"
@@ -25,8 +28,14 @@ export default function SearchPage() {
   const query = params.get("q") ?? ""
   const wantAdvanced = params.get("advanced") === "1"
   const pageHeight = useAppSelector(selectSearchPageHeight)
+  const lastPageSize = useAppSelector(selectSearchLastPageSize)
   const [expanded, setExpanded] = useState(wantAdvanced)
   const [advancedActive, setAdvancedActive] = useState(false)
+  const [advancedArgs, setAdvancedArgs] = useState<AdvancedSearchArgs | null>(
+    null
+  )
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(lastPageSize)
   const [runAdvanced, {data, isFetching}] = useLazyAdvancedSearchQuery()
 
   useEffect(() => {
@@ -60,7 +69,29 @@ export default function SearchPage() {
 
   const onAdvancedSearch = (args: AdvancedSearchArgs) => {
     setAdvancedActive(true)
-    void runAdvanced(args)
+    setPage(1)
+    setAdvancedArgs(args)
+  }
+
+  useEffect(() => {
+    if (!advancedActive || !advancedArgs) {
+      return
+    }
+    void runAdvanced({
+      ...advancedArgs,
+      page_number: page,
+      page_size: pageSize
+    })
+  }, [advancedActive, advancedArgs, page, pageSize, runAdvanced])
+
+  const onPageSizeChange = (value: string | null) => {
+    if (!value) {
+      return
+    }
+    const nextSize = parseInt(value)
+    dispatch(searchResultsLastPageSizeUpdated(nextSize))
+    setPageSize(nextSize)
+    setPage(1)
   }
 
   return (
@@ -86,26 +117,48 @@ export default function SearchPage() {
           {t("search.advanced_title")}
         </Button>
       </Group>
-      {expanded ? (
-        <div className={classes.advanced}>
-          <AdvancedSearchPanel
-            initialTitle={query}
-            searching={isFetching}
-            onSearch={onAdvancedSearch}
-          />
+      <div className={expanded ? classes.bodyAdvanced : classes.body}>
+        {expanded ? (
+          <aside className={classes.advanced}>
+            <AdvancedSearchPanel
+              initialTitle={query}
+              searching={isFetching}
+              onSearch={onAdvancedSearch}
+            />
+          </aside>
+        ) : null}
+        <div className={classes.results}>
+          {advancedActive ? (
+            <>
+              <div className={classes.resultsScroll}>
+                <AdvancedSearchResults
+                  items={data?.items ?? []}
+                  loading={isFetching}
+                />
+              </div>
+              {data && data.items.length > 0 ? (
+                <div className={classes.resultsFooter}>
+                  <Pagination
+                    pagination={{
+                      pageNumber: page,
+                      pageSize: pageSize,
+                      numPages: data.num_pages
+                    }}
+                    onPageNumberChange={setPage}
+                    onPageSizeChange={onPageSizeChange}
+                    lastPageSize={lastPageSize}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : query ? (
+            <div className={classes.resultsFill}>
+              <SearchResults />
+            </div>
+          ) : (
+            <Text c="dimmed">{t("search.quick_hint")}</Text>
+          )}
         </div>
-      ) : null}
-      <div className={classes.results}>
-        {advancedActive ? (
-          <AdvancedSearchResults
-            items={data?.items ?? []}
-            loading={isFetching}
-          />
-        ) : query ? (
-          <SearchResults />
-        ) : (
-          <Text c="dimmed">{t("search.quick_hint")}</Text>
-        )}
       </div>
     </div>
   )

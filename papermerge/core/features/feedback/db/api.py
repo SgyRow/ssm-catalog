@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from papermerge.core.features.feedback.db import orm as fb_orm
 from papermerge.core.features.users.db.orm import User
+from papermerge.core.features.users.schema import user_display_name
 
 PREVIEW_LEN = 160
 
@@ -16,6 +17,14 @@ def _preview(body: str) -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _shown_name(
+    username: str | None, first_name: str | None, last_name: str | None
+) -> str | None:
+    if not username:
+        return None
+    return user_display_name(first_name, last_name, username)
 
 
 async def get_thread_by_user(
@@ -56,13 +65,20 @@ async def list_messages(
     db_session: AsyncSession, thread_id: UUID
 ) -> list[tuple[fb_orm.FeedbackMessage, str | None]]:
     stmt = (
-        select(fb_orm.FeedbackMessage, User.username)
+        select(
+            fb_orm.FeedbackMessage,
+            User.username,
+            User.first_name,
+            User.last_name,
+        )
         .outerjoin(User, User.id == fb_orm.FeedbackMessage.author_id)
         .where(fb_orm.FeedbackMessage.thread_id == thread_id)
         .order_by(fb_orm.FeedbackMessage.created_at.asc())
     )
     rows = (await db_session.execute(stmt)).all()
-    return [(row[0], row[1]) for row in rows]
+    return [
+        (row[0], _shown_name(row[1], row[2], row[3])) for row in rows
+    ]
 
 
 async def add_message(
@@ -105,7 +121,12 @@ async def list_threads(
     db_session: AsyncSession,
 ) -> list[tuple[fb_orm.FeedbackThread, str]]:
     stmt = (
-        select(fb_orm.FeedbackThread, User.username)
+        select(
+            fb_orm.FeedbackThread,
+            User.username,
+            User.first_name,
+            User.last_name,
+        )
         .join(User, User.id == fb_orm.FeedbackThread.user_id)
         .order_by(
             fb_orm.FeedbackThread.unread_for_staff.desc(),
@@ -113,7 +134,69 @@ async def list_threads(
         )
     )
     rows = (await db_session.execute(stmt)).all()
-    return [(row[0], row[1]) for row in rows]
+    return [
+        (row[0], _shown_name(row[1], row[2], row[3]) or row[1]) for row in rows
+    ]
+
+
+async def delete_message(
+    db_session: AsyncSession,
+    thread: fb_orm.FeedbackThread,
+    message_id: UUID,
+) -> bool:
+    message = await db_session.get(fb_orm.FeedbackMessage, message_id)
+    if message is None or message.thread_id != thread.id:
+        return False
+    recent_ids = list(
+        (
+            await db_session.scalars(
+                select(fb_orm.FeedbackMessage.id)
+                .where(fb_orm.FeedbackMessage.thread_id == thread.id)
+                .order_by(fb_orm.FeedbackMessage.created_at.desc())
+            )
+        ).all()
+    )
+    in_user_unread = (
+        message.from_staff
+        and thread.unread_for_user > 0
+        and message.id in recent_ids[: thread.unread_for_user]
+    )
+    in_staff_unread = (
+        not message.from_staff
+        and thread.unread_for_staff > 0
+        and message.id in recent_ids[: thread.unread_for_staff]
+    )
+    await db_session.delete(message)
+    await db_session.flush()
+    latest = (
+        await db_session.execute(
+            select(fb_orm.FeedbackMessage)
+            .where(fb_orm.FeedbackMessage.thread_id == thread.id)
+            .order_by(fb_orm.FeedbackMessage.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if latest is None:
+        thread.last_preview = ""
+        thread.unread_for_staff = 0
+        thread.unread_for_user = 0
+    else:
+        thread.last_preview = _preview(latest.body)
+        thread.last_message_at = latest.created_at
+        if in_user_unread:
+            thread.unread_for_user = max(0, thread.unread_for_user - 1)
+        if in_staff_unread:
+            thread.unread_for_staff = max(0, thread.unread_for_staff - 1)
+    return True
+
+
+async def delete_thread(db_session: AsyncSession, thread_id: UUID) -> bool:
+    thread = await get_thread(db_session, thread_id)
+    if thread is None:
+        return False
+    await db_session.delete(thread)
+    await db_session.flush()
+    return True
 
 
 async def user_unread(db_session: AsyncSession, user_id: UUID) -> int:
@@ -170,7 +253,12 @@ async def list_wishes(
     db_session: AsyncSession,
 ) -> list[tuple[fb_orm.FeedbackWish, str | None]]:
     stmt = (
-        select(fb_orm.FeedbackWish, User.username)
+        select(
+            fb_orm.FeedbackWish,
+            User.username,
+            User.first_name,
+            User.last_name,
+        )
         .outerjoin(User, User.id == fb_orm.FeedbackWish.author_id)
         .order_by(
             fb_orm.FeedbackWish.read_at.asc().nulls_first(),
@@ -178,9 +266,14 @@ async def list_wishes(
         )
     )
     rows = (await db_session.execute(stmt)).all()
-    return [(row[0], row[1]) for row in rows]
+    return [(row[0], _shown_name(row[1], row[2], row[3])) for row in rows]
 
 
-async def username_by_id(db_session: AsyncSession, user_id: UUID) -> str | None:
-    stmt = select(User.username).where(User.id == user_id)
-    return (await db_session.execute(stmt)).scalar_one_or_none()
+async def display_name_by_id(db_session: AsyncSession, user_id: UUID) -> str | None:
+    stmt = select(User.username, User.first_name, User.last_name).where(
+        User.id == user_id
+    )
+    row = (await db_session.execute(stmt)).one_or_none()
+    if row is None:
+        return None
+    return _shown_name(row[0], row[1], row[2])

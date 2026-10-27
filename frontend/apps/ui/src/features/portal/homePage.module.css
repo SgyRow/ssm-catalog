@@ -123,6 +123,17 @@
   white-space: nowrap;
 }
 
+button.more {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mantine-color-anchor);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
 .newsArticle {
   padding: 14px 16px;
   border-bottom: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));

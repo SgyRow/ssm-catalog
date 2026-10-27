@@ -1,3 +1,4 @@
+import {openNotificationsMenu} from "@/components/Header/notificationsMenuControl"
 import classes from "@/features/portal/homePage.module.css"
 import {
   useGetLibraryFavoritesQuery,
@@ -308,11 +309,13 @@ export default function PortalHomePage() {
                       </span>
                     ) : null}
                   </h2>
-                  {canViewFeed ? (
-                    <Link className={classes.more} to="/portal/feed">
-                      {t("home.news_all")}
-                    </Link>
-                  ) : null}
+                  <button
+                    type="button"
+                    className={classes.more}
+                    onClick={() => openNotificationsMenu()}
+                  >
+                    {t("home.alerts_all")}
+                  </button>
                 </div>
                 {alertRows.length === 0 ? (
                   <div className={classes.empty}>

@@ -16,6 +16,7 @@ from papermerge.core.features.portal.policy import require_portal_view_if_under_
 from papermerge.core.routers.params import CommonQueryParams
 from papermerge.core.types import PaginatedResponse
 from papermerge.core.features.library_ts.db import api as lib_ts_api
+from papermerge.core.features.users.schema import user_display_name
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
@@ -155,7 +156,9 @@ async def create_portal_feed_item(
         news_id=row["id"],
         title=row["title"],
         author_id=user.id,
-        author_username=row["author_username"],
+        author_username=user_display_name(
+            user.first_name, user.last_name, user.username
+        ),
     )
     await db_session.commit()
     return portal_schema.PortalNewsOut(**row)
