@@ -3,6 +3,7 @@ import {Group, Text, useMantineTheme} from "@mantine/core"
 import {ColorSchemeToggle} from "@/components/ColorSchemeToggle/ColorSchemeToggle"
 import classes from "./Header.module.css"
 
+import FeedbackButton from "./FeedbackButton"
 import HelpButton from "./HelpButton"
 import Search from "./Search"
 import SidebarToggle from "./SidebarToggle"
@@ -35,6 +36,7 @@ function Header() {
         </Group>
         <Group>
           <HelpButton />
+          <FeedbackButton />
           <NotificationsMenu />
           <ColorSchemeToggle />
           <UserMenu />

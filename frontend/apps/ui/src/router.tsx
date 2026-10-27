@@ -3,9 +3,12 @@ import {createBrowserRouter, Navigate} from "react-router-dom"
 import App from "@/app/App.tsx"
 import Folder, {loader as folderLoader} from "@/pages/Folder"
 
+import FeedbackInboxPage from "@/features/feedback/pages/FeedbackInboxPage"
+import HandbookArticlePage from "@/features/handbook/pages/HandbookArticlePage"
+import HandbookPage from "@/features/handbook/pages/HandbookPage"
 import PortalFeedPage from "@/features/portal/pages/PortalFeedPage"
 import PortalFolderPage from "@/features/portal/pages/PortalFolderPage"
-import PortalHomeRedirect from "@/features/portal/pages/PortalHomeRedirect"
+import PortalHomePage from "@/features/portal/pages/PortalHomePage"
 import {RoleDetails, RolesList} from "@/features/roles/pages"
 import {TagDetails, TagsList} from "@/features/tags/pages"
 import {UserDetails, UsersList} from "@/features/users/pages"
@@ -90,7 +93,7 @@ const router = createBrowserRouter([
       },
       {
         path: "/portal",
-        element: <PortalHomeRedirect />
+        element: <PortalHomePage />
       },
       {
         path: "/portal/folder/:folderId",
@@ -99,6 +102,18 @@ const router = createBrowserRouter([
       {
         path: "/portal/feed",
         element: <PortalFeedPage />
+      },
+      {
+        path: "/feedback",
+        element: <FeedbackInboxPage />
+      },
+      {
+        path: "/handbook",
+        element: <HandbookPage />
+      },
+      {
+        path: "/handbook/:articleId",
+        element: <HandbookArticlePage />
       },
       {
         path: "/citizen-categories",

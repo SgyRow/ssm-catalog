@@ -11,6 +11,8 @@ from .features.portal.db.orm import PortalNews, PortalNewsAttachment, PortalSett
 from .features.citizen_categories.db.orm import CitizenCategory, CitizenCategoryFolder
 from .features.nodes.db.visibility_orm import NodeVisibility, NodeVisibilityRole
 from .features.library_ts.db.settings_orm import LibrarySettings
+from .features.handbook.db.orm import HandbookArticle, HandbookAsset
+from .features.feedback.db.orm import FeedbackMessage, FeedbackThread, FeedbackWish
 
 __all__ = [
     'User',
@@ -39,4 +41,9 @@ __all__ = [
     'LibrarySettings',
     'CitizenCategory',
     'CitizenCategoryFolder',
+    'HandbookArticle',
+    'HandbookAsset',
+    'FeedbackThread',
+    'FeedbackMessage',
+    'FeedbackWish',
 ]

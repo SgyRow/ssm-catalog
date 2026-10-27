@@ -352,6 +352,16 @@ function getPermissionTree(txt?: I18NPermissionTree) {
       ]
     },
     {
+      value: "feedback",
+      label: txt?.feedback || "Feedback",
+      children: [
+        {
+          value: "feedback.manage",
+          label: txt?.feedback_manage || "Reply to user chats"
+        }
+      ]
+    },
+    {
       value: "user",
       label: txt?.users || "Users",
       children: [

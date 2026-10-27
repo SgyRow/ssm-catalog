@@ -7,6 +7,7 @@ export const COMMANDER_VIEW = "commander.view"
 export const PORTAL_VIEW = "portal.view"
 export const PORTAL_FEED_VIEW = "portal.feed.view"
 export const PORTAL_FEED_MANAGE = "portal.feed.manage"
+export const FEEDBACK_MANAGE = "feedback.manage"
 export const PORTAL_SECTION_CREATE = "portal.section.create"
 export const PORTAL_SECTION_UPDATE = "portal.section.update"
 export const PORTAL_SECTION_DELETE = "portal.section.delete"
@@ -214,6 +215,7 @@ export const ALL_PERMS = [
   PORTAL_VIEW,
   PORTAL_FEED_VIEW,
   PORTAL_FEED_MANAGE,
+  FEEDBACK_MANAGE,
   PORTAL_SECTION_CREATE,
   PORTAL_SECTION_UPDATE,
   PORTAL_SECTION_DELETE,

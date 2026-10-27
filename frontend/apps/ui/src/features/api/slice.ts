@@ -1,3 +1,4 @@
+import {DEV_USER_HEADER, readDevUsername} from "@/features/auth/devSession"
 import {getBaseURL} from "@/utils"
 import {createApi, fetchBaseQuery} from "@reduxjs/toolkit/query/react"
 
@@ -20,6 +21,11 @@ const baseQuery = fetchBaseQuery({
 
     if (token) {
       headers.set("authorization", `Bearer ${token}`)
+    }
+
+    const devUser = readDevUsername()
+    if (devUser) {
+      headers.set(DEV_USER_HEADER, devUser)
     }
 
     headers.set("Content-Type", "application/json")
@@ -60,7 +66,9 @@ export const apiSlice = createApi({
     "DocumentFullVersions",
     "CitizenCategory",
     "CitizenCategoryFolders",
-    "FolderCitizenCategories"
+    "FolderCitizenCategories",
+    "Handbook",
+    "Feedback"
   ],
   endpoints: _ => ({})
 })

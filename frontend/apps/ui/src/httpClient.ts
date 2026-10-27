@@ -1,4 +1,5 @@
 import type {DocumentVersion} from "@/features/document/types"
+import {DEV_USER_HEADER, readDevUsername} from "@/features/auth/devSession"
 import {getBaseURL, getDefaultHeaders} from "@/utils"
 
 import axios from "axios"
@@ -23,6 +24,11 @@ client.interceptors.request.use(config => {
   const authHeaders = getDefaultHeaders()
   if (authHeaders.Authorization) {
     config.headers.Authorization = authHeaders.Authorization
+  }
+
+  const devUser = readDevUsername()
+  if (devUser) {
+    config.headers[DEV_USER_HEADER] = devUser
   }
 
   return config

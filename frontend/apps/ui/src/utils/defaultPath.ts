@@ -5,7 +5,7 @@ import {
   canManageTags
 } from "@/scopes"
 
-/** First screen after login — portal home when the user may browse the catalog. */
+/** First screen after login — portal home dashboard when the user may browse the catalog. */
 export function resolveDefaultPath(scopes: string[]): string {
   if (scopes.includes(PORTAL_VIEW)) {
     return "/portal"

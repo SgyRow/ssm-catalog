@@ -49,6 +49,8 @@ export interface I18NPermissionTree {
   citizen_category_delete?: string
   /** File manager (commander) permission group title */
   commander?: string
+  feedback?: string
+  feedback_manage?: string
 }
 
 export interface I18NCollapseButton {

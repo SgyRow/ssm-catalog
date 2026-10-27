@@ -6,7 +6,7 @@ import XHR from "i18next-xhr-backend"
 import {initReactI18next} from "react-i18next"
 
 /** Bump when UI translation JSON changes so clients skip stale HTTP/local caches. */
-const I18N_BUNDLE_REVISION = "2025062902"
+const I18N_BUNDLE_REVISION = "2026102702"
 const localizationPath = `/localization/{{lng}}/{{ns}}.json?v=${I18N_BUNDLE_REVISION}`
 
 /** UI language is fixed to Russian; re-enable LanguageDetector + LanguageMenu to restore switching. */

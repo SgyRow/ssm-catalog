@@ -43,3 +43,20 @@ export function formatApiDateTime(value: string | Date): string {
     hour12: false
   })
 }
+
+/** Same as `formatApiDateTime`, without seconds. */
+export function formatApiDateTimeCompact(value: string | Date): string {
+  const date = parseApiDateTime(value)
+  if (Number.isNaN(date.getTime())) {
+    return ""
+  }
+  return date.toLocaleString("ru-RU", {
+    timeZone: resolveAppTimezone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  })
+}

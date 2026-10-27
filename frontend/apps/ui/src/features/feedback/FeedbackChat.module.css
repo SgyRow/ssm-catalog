@@ -1,0 +1,64 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: min(520px, calc(100dvh - 8rem));
+  min-height: 280px;
+}
+
+.fill {
+  height: 100%;
+}
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty {
+  margin: auto;
+  text-align: center;
+  max-width: 28rem;
+}
+
+.bubble {
+  max-width: 82%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.meta {
+  display: block;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+
+.mine {
+  align-self: flex-end;
+  background: light-dark(var(--mantine-color-pmg-9), var(--mantine-color-pmg-8));
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.theirs {
+  align-self: flex-start;
+  background: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-5));
+  border-bottom-left-radius: 4px;
+}
+
+.composer {
+  flex-shrink: 0;
+  padding-top: 8px;
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+}

@@ -142,6 +142,8 @@ class Scopes:
     DOCUMENT_TYPE_UPDATE = "document_type.update"
     DOCUMENT_TYPE_DELETE = "document_type.delete"
 
+    FEEDBACK_MANAGE = "feedback.manage"
+
     # Comment permissions (document library / collaboration).
     # Users may always edit/delete their own comments; update/delete scopes
     # grant moderation over other users' comments.
