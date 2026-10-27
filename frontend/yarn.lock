@@ -684,15 +684,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@mantine/form@npm:^8.1.3":
-  version: 8.1.3
-  resolution: "@mantine/form@npm:8.1.3"
+"@mantine/form@npm:^9.7.3":
+  version: 9.7.3
+  resolution: "@mantine/form@npm:9.7.3"
   dependencies:
+    "@standard-schema/spec": "npm:^1.1.0"
     fast-deep-equal: "npm:^3.1.3"
     klona: "npm:^2.0.6"
   peerDependencies:
-    react: ^18.x || ^19.x
-  checksum: 10c0/08e7c67bae04abd9aea41936ab34f435bac6090de6dcc9437bdba9c2cb6f903d89f55931d1e8205242a6d0e5e0ac62d9bb32c3960f80e4d4bae66df6e6e748f3
+    react: ^19.2.0
+  checksum: 10c0/f80a613dff420d395524be4c25bd2e5f5a6c4a55ca70fa4c2638d14ceb9159eeb426433c525e64ec83ab939b2eeaa1e7f97c5fd84250f510e60360dce024db1c
   languageName: node
   linkType: hard
 
@@ -1222,6 +1223,13 @@ __metadata:
   version: 1.0.0
   resolution: "@standard-schema/spec@npm:1.0.0"
   checksum: 10c0/a1ab9a8bdc09b5b47aa8365d0e0ec40cc2df6437be02853696a0e377321653b0d3ac6f079a8c67d5ddbe9821025584b1fb71d9cc041a6666a96f1fadf2ece15f
+  languageName: node
+  linkType: hard
+
+"@standard-schema/spec@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "@standard-schema/spec@npm:1.1.0"
+  checksum: 10c0/d90f55acde4b2deb983529c87e8025fa693de1a5e8b49ecc6eb84d1fd96328add0e03d7d551442156c7432fd78165b2c26ff561b970a9a881f046abb78d6a526
   languageName: node
   linkType: hard
 
@@ -4257,7 +4265,7 @@ __metadata:
   dependencies:
     "@mantine/core": "npm:^8.1.3"
     "@mantine/dates": "npm:^8.1.3"
-    "@mantine/form": "npm:^8.1.3"
+    "@mantine/form": "npm:^9.7.3"
     "@mantine/hooks": "npm:^8.1.3"
     "@mantine/notifications": "npm:^8.1.3"
     "@playwright/test": "npm:^1.51.1"
