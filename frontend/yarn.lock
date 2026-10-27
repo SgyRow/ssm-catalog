@@ -176,10 +176,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/runtime@npm:^7.20.13, @babel/runtime@npm:^7.22.15, @babel/runtime@npm:^7.23.2, @babel/runtime@npm:^7.27.6, @babel/runtime@npm:^7.5.5, @babel/runtime@npm:^7.8.7":
+"@babel/runtime@npm:^7.20.13, @babel/runtime@npm:^7.23.2, @babel/runtime@npm:^7.27.6, @babel/runtime@npm:^7.5.5, @babel/runtime@npm:^7.8.7":
   version: 7.27.6
   resolution: "@babel/runtime@npm:7.27.6"
   checksum: 10c0/89726be83f356f511dcdb74d3ea4d873a5f0cf0017d4530cb53aa27380c01ca102d573eff8b8b77815e624b1f8c24e7f0311834ad4fb632c90a770fda00bd4c8
+  languageName: node
+  linkType: hard
+
+"@babel/runtime@npm:^7.28.4":
+  version: 7.29.10
+  resolution: "@babel/runtime@npm:7.29.10"
+  checksum: 10c0/32f975da8e9c2cae6b33e1a477f8fe8bbff6722c982b5ce35f99affaf3a7a1b612c8272b43afa0e51d3000928d6f3ba38f9296301115db5640264907c027b0cd
   languageName: node
   linkType: hard
 
@@ -2711,12 +2718,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"i18next-localstorage-backend@npm:^4.2.0":
-  version: 4.2.0
-  resolution: "i18next-localstorage-backend@npm:4.2.0"
+"i18next-localstorage-backend@npm:^4.3.2":
+  version: 4.3.2
+  resolution: "i18next-localstorage-backend@npm:4.3.2"
   dependencies:
-    "@babel/runtime": "npm:^7.22.15"
-  checksum: 10c0/b19b4c8b23f8b84cf4e7ba90086fdb60c75b211431e2ee9df07aee77f8f622470b87ee0c1ede19ebe07fee2dc697065f02f6d662d31ae047e6e77186ab31bbee
+    "@babel/runtime": "npm:^7.28.4"
+  checksum: 10c0/f869aee90a4314ed217b94a7ca9445a6ec8364ff7f227d6193b742877b25a6b40b216b14009c05d958c08d829b8b89d850a004189f5becf27b23b3ac6cc93589
   languageName: node
   linkType: hard
 
@@ -4258,7 +4265,7 @@ __metadata:
     i18next: "npm:^25.3.2"
     i18next-browser-languagedetector: "npm:^8.2.0"
     i18next-chained-backend: "npm:^4.6.2"
-    i18next-localstorage-backend: "npm:^4.2.0"
+    i18next-localstorage-backend: "npm:^4.3.2"
     i18next-xhr-backend: "npm:^3.2.2"
     immer: "npm:^10.1.1"
     js-cookie: "npm:^3.0.8"
