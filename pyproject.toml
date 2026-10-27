@@ -70,7 +70,7 @@ include = ["papermerge*"]
 mysql = ["mysqlclient (>=2.2)"]
 pg = ["psycopg2-binary (>=2.9.2)"]
 databases = ["mysqlclient", "psycopg2"]
-cloud = ["botocore (>=1.35)", "boto3 (>=1.35)", "cryptography (>=43)"]
+cloud = ["botocore (>=1.35)", "boto3 (>=1.35)", "cryptography (>=50.0.2)"]
 
 [tool.poetry.group.test]
 optional = true
