@@ -12,6 +12,7 @@ from papermerge.core.features.feedback import schema as fb_schema
 from papermerge.core.features.feedback.db import api as fb_api
 from papermerge.core.features.feedback.db import orm as fb_orm
 from papermerge.core.features.library_ts.db import api as lib_api
+from papermerge.core.features.users.schema import user_display_name
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
@@ -31,6 +32,10 @@ def _author_name(username: str | None, from_staff: bool) -> str:
     if username:
         return username
     return "admin" if from_staff else "user"
+
+
+def _sender_name(user: schema.User) -> str:
+    return user_display_name(user.first_name, user.last_name, user.username)
 
 
 def _message_out(
@@ -98,12 +103,12 @@ async def send_my_message(
         db_session,
         thread_id=thread.id,
         author_id=user.id,
-        author_username=user.username,
+        author_username=_sender_name(user),
         preview=thread.last_preview,
         from_staff=False,
     )
     await db_session.commit()
-    return _message_out(message, user.username)
+    return _message_out(message, _sender_name(user))
 
 
 @router.get("/threads", response_model=list[fb_schema.FeedbackThreadOut])
@@ -136,7 +141,7 @@ async def get_thread(
     thread = await fb_api.get_thread(db_session, thread_id)
     if thread is None:
         raise exc.HTTP404NotFound()
-    username = await fb_api.username_by_id(db_session, thread.user_id) or "user"
+    username = await fb_api.display_name_by_id(db_session, thread.user_id) or "user"
     fb_api.mark_staff_read(thread)
     await lib_api.mark_feedback_notifications_read(
         db_session, user.id, thread.id
@@ -180,12 +185,12 @@ async def send_wish(
         db_session,
         wish_id=wish.id,
         author_id=user.id,
-        author_username=user.username,
+        author_username=_sender_name(user),
         subject=wish.subject,
         preview=" ".join(wish.body.split())[:160],
     )
     await db_session.commit()
-    return _wish_out(wish, user.username)
+    return _wish_out(wish, _sender_name(user))
 
 
 @router.get("/wishes", response_model=list[fb_schema.FeedbackWishOut])
@@ -213,7 +218,11 @@ async def get_wish(
         db_session, user.id, wish.id
     )
     await db_session.commit()
-    username = await fb_api.username_by_id(db_session, wish.author_id) if wish.author_id else None
+    username = (
+        await fb_api.display_name_by_id(db_session, wish.author_id)
+        if wish.author_id
+        else None
+    )
     return _wish_out(wish, username)
 
 
@@ -241,10 +250,41 @@ async def reply_to_thread(
         db_session,
         thread_id=thread.id,
         author_id=user.id,
-        author_username=user.username,
+        author_username=_sender_name(user),
         preview=thread.last_preview,
         from_staff=True,
         recipient_user_id=thread.user_id,
     )
     await db_session.commit()
-    return _message_out(message, user.username)
+    return _message_out(message, _sender_name(user))
+
+
+@router.delete("/threads/{thread_id}/messages/{message_id}", status_code=204)
+async def delete_thread_message(
+    thread_id: UUID,
+    message_id: UUID,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> None:
+    _require_manage(user)
+    thread = await fb_api.get_thread(db_session, thread_id)
+    if thread is None:
+        raise exc.HTTP404NotFound()
+    deleted = await fb_api.delete_message(db_session, thread, message_id)
+    if not deleted:
+        raise exc.HTTP404NotFound()
+    await db_session.commit()
+
+
+@router.delete("/threads/{thread_id}", status_code=204)
+async def delete_thread(
+    thread_id: UUID,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> None:
+    _require_manage(user)
+    deleted = await fb_api.delete_thread(db_session, thread_id)
+    if not deleted:
+        raise exc.HTTP404NotFound()
+    await lib_api.delete_feedback_message_notifications(db_session, thread_id)
+    await db_session.commit()

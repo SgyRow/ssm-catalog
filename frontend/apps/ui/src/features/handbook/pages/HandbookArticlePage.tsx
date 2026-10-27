@@ -10,7 +10,9 @@ import {selectCurrentUser} from "@/slices/currentUser"
 import type {UserDetails} from "@/types"
 import {formatApiDateTimeCompact} from "@/utils/formatDateTime"
 import {Anchor, Button, Group, Loader, Stack, Text, TextInput, Title} from "@mantine/core"
-import {useEffect, useState} from "react"
+import {notifications} from "@mantine/notifications"
+import {IconCheck} from "@tabler/icons-react"
+import {useEffect, useRef, useState} from "react"
 import {useSelector} from "react-redux"
 import {Link, useParams} from "react-router-dom"
 import {useTranslation} from "react-i18next"
@@ -29,11 +31,15 @@ export default function HandbookArticlePage() {
     useUpdateHandbookArticleMutation()
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
+  const bodyRef = useRef("")
+  const flashTimer = useRef<number | null>(null)
+  const [savedFlash, setSavedFlash] = useState(false)
 
   useEffect(() => {
     if (data) {
       setTitle(data.title)
       setBody(data.body)
+      bodyRef.current = data.body
     }
   }, [data])
 
@@ -53,7 +59,29 @@ export default function HandbookArticlePage() {
     if (!articleId) {
       return
     }
-    await updateArticle({id: articleId, title, body}).unwrap()
+    try {
+      await updateArticle({
+        id: articleId,
+        title,
+        body: bodyRef.current
+      }).unwrap()
+      setSavedFlash(true)
+      notifications.show({
+        message: t("handbook.saved"),
+        color: "green",
+        autoClose: 4000
+      })
+      if (flashTimer.current !== null) {
+        window.clearTimeout(flashTimer.current)
+      }
+      flashTimer.current = window.setTimeout(() => setSavedFlash(false), 4000)
+    } catch {
+      setSavedFlash(false)
+      notifications.show({
+        message: t("handbook.save_error"),
+        color: "red"
+      })
+    }
   }
 
   return (
@@ -65,7 +93,10 @@ export default function HandbookArticlePage() {
         {canManage ? (
           <TextInput
             value={title}
-            onChange={e => setTitle(e.currentTarget.value)}
+            onChange={e => {
+              setTitle(e.currentTarget.value)
+              setSavedFlash(false)
+            }}
             size="lg"
           />
         ) : (
@@ -80,11 +111,20 @@ export default function HandbookArticlePage() {
             <HandbookEditor
               articleId={data.id}
               html={body}
-              onChange={setBody}
+              onChange={html => {
+                bodyRef.current = html
+                setBody(html)
+                setSavedFlash(false)
+              }}
             />
             <Group justify="flex-end">
-              <Button onClick={() => void save()} loading={saving}>
-                {t("common.save")}
+              <Button
+                color={savedFlash ? "green" : undefined}
+                leftSection={savedFlash ? <IconCheck size={16} /> : undefined}
+                onClick={() => void save()}
+                loading={saving}
+              >
+                {savedFlash ? t("handbook.saved") : t("common.save")}
               </Button>
             </Group>
           </>

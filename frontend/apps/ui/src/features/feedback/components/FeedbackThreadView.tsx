@@ -1,8 +1,8 @@
 import classes from "@/features/feedback/FeedbackChat.module.css"
 import type {FeedbackMessage} from "@/features/feedback/feedbackApiSlice"
 import {formatApiDateTimeCompact} from "@/utils/formatDateTime"
-import {Button, Group, Text, Textarea} from "@mantine/core"
-import {IconSend} from "@tabler/icons-react"
+import {ActionIcon, Button, Group, Text, Textarea} from "@mantine/core"
+import {IconSend, IconTrash} from "@tabler/icons-react"
 import {useEffect, useRef, useState} from "react"
 import {useTranslation} from "react-i18next"
 
@@ -13,6 +13,7 @@ type Args = {
   fill?: boolean
   emptyHint: string
   onSend: (body: string) => Promise<void> | void
+  onDeleteMessage?: (messageId: string) => void
 }
 
 export default function FeedbackThreadView({
@@ -21,7 +22,8 @@ export default function FeedbackThreadView({
   sending,
   fill,
   emptyHint,
-  onSend
+  onSend,
+  onDeleteMessage
 }: Args) {
   const {t} = useTranslation()
   const [draft, setDraft] = useState("")
@@ -58,10 +60,23 @@ export default function FeedbackThreadView({
                 key={item.id}
                 className={`${classes.bubble} ${mine ? classes.mine : classes.theirs}`}
               >
-                <span className={classes.meta}>
-                  {item.author_name}
-                  {" · "}
-                  {formatApiDateTimeCompact(item.created_at)}
+                <span className={classes.metaRow}>
+                  <span className={classes.meta}>
+                    {item.author_name}
+                    {" · "}
+                    {formatApiDateTimeCompact(item.created_at)}
+                  </span>
+                  {onDeleteMessage ? (
+                    <ActionIcon
+                      variant="subtle"
+                      color={mine ? "gray.0" : "red"}
+                      size="sm"
+                      aria-label={t("feedback.delete_message")}
+                      onClick={() => onDeleteMessage(item.id)}
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  ) : null}
                 </span>
                 {item.body}
               </div>

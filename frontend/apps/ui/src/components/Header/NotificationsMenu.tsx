@@ -27,6 +27,7 @@ import * as React from "react"
 import {useTranslation} from "react-i18next"
 import {useNavigate} from "react-router-dom"
 import {getWSURL} from "@/utils"
+import {subscribeNotificationsMenu} from "@/components/Header/notificationsMenuControl"
 
 type NotificationPayload = {
   document_id?: string
@@ -57,6 +58,9 @@ const NotificationsMenu: React.FC = () => {
   })
   const [markRead] = useMarkLibraryNotificationReadMutation()
   const [markingId, setMarkingId] = React.useState<string | null>(null)
+  const [opened, setOpened] = React.useState(false)
+
+  React.useEffect(() => subscribeNotificationsMenu(setOpened), [])
 
   const unreadCount =
     data?.filter(n => !n.read_at && n.kind !== "ocr_completed").length ?? 0
@@ -171,7 +175,13 @@ const NotificationsMenu: React.FC = () => {
   }
 
   return hasScope ? (
-    <Popover withArrow position="bottom-end" width={380}>
+    <Popover
+      opened={opened}
+      onChange={setOpened}
+      withArrow
+      position="bottom-end"
+      width={380}
+    >
       <Popover.Target>
         <Tooltip label={t("library.tab_notifications")}>
           <Indicator

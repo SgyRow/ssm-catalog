@@ -68,6 +68,13 @@
   white-space: nowrap;
 }
 
+.chatHead {
+  flex-shrink: 0;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+}
+
 .chat {
   min-height: 0;
   display: flex;

@@ -1,3 +1,13 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+}
+
+.submit {
+  padding-top: var(--mantine-spacing-xs);
+}
+
 .result {
   display: flex;
   align-items: flex-start;

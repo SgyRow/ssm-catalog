@@ -546,16 +546,19 @@ async def list_my_notifications(
 ):
     await lib_api.ensure_ocr_complete_notifications(db_session, user_id=user.id)
     rows = await lib_api.list_notifications(db_session, user.id, limit=limit)
+    payloads = await lib_api.notification_payloads_with_display_names(
+        db_session, [r.payload for r in rows]
+    )
     await db_session.commit()
     return [
         lib_schema.NotificationOut(
             id=r.id,
             kind=r.kind,
-            payload=r.payload,
+            payload=payload,
             read_at=r.read_at,
             created_at=r.created_at,
         )
-        for r in rows
+        for r, payload in zip(rows, payloads, strict=True)
     ]
 
 

@@ -23,7 +23,7 @@ export default function AdvancedSearchResults({items, loading}: Args) {
     [portalRoot]
   )
 
-  if (loading) {
+  if (loading && items.length === 0) {
     return <Loader size="sm" />
   }
 

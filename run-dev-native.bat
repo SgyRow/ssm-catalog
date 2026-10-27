@@ -50,13 +50,17 @@ REM Leave VITE_BASE_URL unset so the UI calls relative /api and /ws via the Vite
 REM dev proxy (same origin as :15173 — no browser CORS preflight).
 
 echo Starting backend on http://127.0.0.1:%DEV_BE_PORT%
-start "papermerge-be-dev" cmd /k "cd /d ""%ROOT_DIR%"" && set ""TZ=%TZ%"" && set ""PAPERMERGE__MAIN__TIMEZONE=%PAPERMERGE__MAIN__TIMEZONE%"" && set ""PAPERMERGE__DATABASE__URL=%PAPERMERGE__DATABASE__URL%"" && set ""PAPERMERGE__REDIS__URL=%PAPERMERGE__REDIS__URL%"" && set ""PAPERMERGE__MAIN__MEDIA_ROOT=%PAPERMERGE__MAIN__MEDIA_ROOT%"" && set ""PAPERMERGE__MAIN__API_PREFIX=%PAPERMERGE__MAIN__API_PREFIX%"" && set ""PAPERMERGE__MAIN__CORS_ORIGINS=%PAPERMERGE__MAIN__CORS_ORIGINS%"" && set ""PAPERMERGE__DEV__AUTH_BYPASS_ENABLED=%PAPERMERGE__DEV__AUTH_BYPASS_ENABLED%"" && set ""PAPERMERGE__DEV__AUTH_BYPASS_USERNAME=%PAPERMERGE__DEV__AUTH_BYPASS_USERNAME%"" && set ""PAPERMERGE__SEARCH__URL=%PAPERMERGE__SEARCH__URL%"" && set ""PAPERMERGE__MAIN__GOTENBERG_URL=%PAPERMERGE__MAIN__GOTENBERG_URL%"" && set ""PAPERMERGE__OCR__ENABLED=false"" && poetry env use 3.13 && poetry install -E pg && poetry run task migrate && %INDEX_SCHEMA_CMD% && poetry run task server --host 127.0.0.1 --port %DEV_BE_PORT%"
+REM --no-reload is required on Windows. uvicorn --reload restarts the worker
+REM with CTRL_C_EVENT, then blocks forever in Process.join(). The listen
+REM socket stays open and never answers HTTP, so the wait below never ends.
+start "papermerge-be-dev" cmd /k "cd /d ""%ROOT_DIR%"" && set ""TZ=%TZ%"" && set ""PAPERMERGE__MAIN__TIMEZONE=%PAPERMERGE__MAIN__TIMEZONE%"" && set ""PAPERMERGE__DATABASE__URL=%PAPERMERGE__DATABASE__URL%"" && set ""PAPERMERGE__REDIS__URL=%PAPERMERGE__REDIS__URL%"" && set ""PAPERMERGE__MAIN__MEDIA_ROOT=%PAPERMERGE__MAIN__MEDIA_ROOT%"" && set ""PAPERMERGE__MAIN__API_PREFIX=%PAPERMERGE__MAIN__API_PREFIX%"" && set ""PAPERMERGE__MAIN__CORS_ORIGINS=%PAPERMERGE__MAIN__CORS_ORIGINS%"" && set ""PAPERMERGE__DEV__AUTH_BYPASS_ENABLED=%PAPERMERGE__DEV__AUTH_BYPASS_ENABLED%"" && set ""PAPERMERGE__DEV__AUTH_BYPASS_USERNAME=%PAPERMERGE__DEV__AUTH_BYPASS_USERNAME%"" && set ""PAPERMERGE__SEARCH__URL=%PAPERMERGE__SEARCH__URL%"" && set ""PAPERMERGE__MAIN__GOTENBERG_URL=%PAPERMERGE__MAIN__GOTENBERG_URL%"" && set ""PAPERMERGE__OCR__ENABLED=false"" && poetry env use 3.13 && poetry install -E pg && poetry run task migrate && %INDEX_SCHEMA_CMD% && poetry run task server --host 127.0.0.1 --port %DEV_BE_PORT% --no-reload"
 
 echo Waiting for backend (migrations + poetry install may take a few minutes)...
+echo Auto-reload is off. Restart the papermerge-be-dev window after code changes.
 set /a WAIT_COUNT=0
 :wait_backend
-powershell -NoProfile -Command "try { $null = Invoke-WebRequest -Uri 'http://127.0.0.1:%DEV_BE_PORT%/api/version/' -UseBasicParsing -TimeoutSec 2; exit 0 } catch { exit 1 }" >nul 2>&1
-if %ERRORLEVEL%==0 goto backend_ready
+curl.exe -fsS -o NUL --max-time 2 "http://127.0.0.1:%DEV_BE_PORT%/api/version/" 2>nul
+if not errorlevel 1 goto backend_ready
 set /a WAIT_COUNT+=1
 if %WAIT_COUNT% GEQ 120 (
   echo [warn] Backend not responding on port %DEV_BE_PORT% after 4 minutes.
