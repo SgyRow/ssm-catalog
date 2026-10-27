@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 RECENT_LIMIT = 50
 OCR_COMPLETED_KIND = "ocr_completed"
 PORTAL_FEED_PUBLISHED_KIND = "portal_feed_published"
+FEEDBACK_MESSAGE_KIND = "feedback_message"
+FEEDBACK_WISH_KIND = "feedback_wish"
 
 
 def audit_detail_json(data: object) -> str:
@@ -447,6 +449,142 @@ async def notify_users_portal_feed_published(
                 created_at=_utc_naive_now(),
             )
         )
+
+
+async def notify_feedback_message(
+    db_session: AsyncSession,
+    *,
+    thread_id: UUID,
+    author_id: UUID,
+    author_username: str,
+    preview: str,
+    from_staff: bool,
+    recipient_user_id: UUID | None = None,
+) -> None:
+    """Notify staff about a user message, or the user about a staff reply."""
+    payload = audit_detail_json(
+        {
+            "thread_id": str(thread_id),
+            "username": author_username,
+            "preview": preview,
+            "from_staff": from_staff,
+        }
+    )
+    recipient_ids: list[UUID]
+    if from_staff:
+        if recipient_user_id is None or recipient_user_id == author_id:
+            return
+        recipient_ids = [recipient_user_id]
+    else:
+        recipient_ids = [
+            uid
+            for uid in await list_active_user_ids_with_scope(
+                db_session, scopes.FEEDBACK_MANAGE
+            )
+            if uid != author_id
+        ]
+    for uid in recipient_ids:
+        db_session.add(
+            lib_orm.UserNotification(
+                id=uuid.uuid4(),
+                user_id=uid,
+                kind=FEEDBACK_MESSAGE_KIND,
+                payload=payload,
+                created_at=_utc_naive_now(),
+            )
+        )
+
+
+async def notify_feedback_wish(
+    db_session: AsyncSession,
+    *,
+    wish_id: UUID,
+    author_id: UUID,
+    author_username: str,
+    subject: str,
+    preview: str,
+) -> None:
+    payload = audit_detail_json(
+        {
+            "wish_id": str(wish_id),
+            "username": author_username,
+            "subject": subject,
+            "preview": preview,
+        }
+    )
+    recipient_ids = [
+        uid
+        for uid in await list_active_user_ids_with_scope(
+            db_session, scopes.FEEDBACK_MANAGE
+        )
+        if uid != author_id
+    ]
+    for uid in recipient_ids:
+        db_session.add(
+            lib_orm.UserNotification(
+                id=uuid.uuid4(),
+                user_id=uid,
+                kind=FEEDBACK_WISH_KIND,
+                payload=payload,
+                created_at=_utc_naive_now(),
+            )
+        )
+
+
+async def mark_feedback_wish_notifications_read(
+    db_session: AsyncSession,
+    user_id: UUID,
+    wish_id: UUID | None = None,
+) -> None:
+    rows = list(
+        (
+            await db_session.scalars(
+                select(lib_orm.UserNotification).where(
+                    lib_orm.UserNotification.user_id == user_id,
+                    lib_orm.UserNotification.kind == FEEDBACK_WISH_KIND,
+                    lib_orm.UserNotification.read_at.is_(None),
+                )
+            )
+        ).all()
+    )
+    now = _utc_naive_now()
+    for row in rows:
+        if wish_id is not None:
+            try:
+                data = json.loads(row.payload or "{}")
+            except json.JSONDecodeError:
+                continue
+            if data.get("wish_id") != str(wish_id):
+                continue
+        row.read_at = now
+
+
+async def mark_feedback_notifications_read(
+    db_session: AsyncSession,
+    user_id: UUID,
+    thread_id: UUID | None = None,
+) -> None:
+    rows = list(
+        (
+            await db_session.scalars(
+                select(lib_orm.UserNotification).where(
+                    lib_orm.UserNotification.user_id == user_id,
+                    lib_orm.UserNotification.kind == FEEDBACK_MESSAGE_KIND,
+                    lib_orm.UserNotification.read_at.is_(None),
+                )
+            )
+        ).all()
+    )
+    now = _utc_naive_now()
+    for row in rows:
+        if thread_id is not None:
+            try:
+                data = json.loads(row.payload or "{}")
+            except json.JSONDecodeError:
+                continue
+            if data.get("thread_id") != str(thread_id):
+                continue
+        row.read_at = now
 
 
 async def list_notifications(

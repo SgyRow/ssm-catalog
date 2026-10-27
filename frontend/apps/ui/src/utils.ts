@@ -1,4 +1,5 @@
 import {store} from "@/app/store"
+import {appendDevUserQuery} from "@/features/auth/devSession"
 import {SliceState} from "@/types"
 import {ComboboxData} from "@mantine/core"
 import Cookies from "js-cookie"
@@ -27,12 +28,12 @@ export function getWSURL(): string | null {
   const ws_url = import.meta.env.VITE_WS_URL
 
   if (ws_url) {
-    return ws_url
+    return appendDevUserQuery(ws_url)
   }
 
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    return `${protocol}//${window.location.host}/ws`
+    return appendDevUserQuery(`${protocol}//${window.location.host}/ws`)
   }
 
   return null

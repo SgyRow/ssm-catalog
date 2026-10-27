@@ -1,4 +1,5 @@
-import {useAppSelector} from "@/app/hooks"
+import {useAppDispatch, useAppSelector} from "@/app/hooks"
+import {apiSlice} from "@/features/api/slice"
 import {
   useGetLibraryNotificationsQuery,
   useMarkLibraryNotificationReadMutation
@@ -34,10 +35,17 @@ type NotificationPayload = {
   finished_at?: string
   news_id?: string
   author_username?: string
+  username?: string
+  preview?: string
+  from_staff?: boolean
+  thread_id?: string
+  wish_id?: string
+  subject?: string
 }
 
 const NotificationsMenu: React.FC = () => {
   const {t} = useTranslation()
+  const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const user = useAppSelector(selectCurrentUser) as User | null
   const scopes = user?.scopes ?? []
@@ -72,15 +80,15 @@ const NotificationsMenu: React.FC = () => {
     })()
     const ws = new WebSocket(wsUrl)
     const onMessage = () => {
-      // Refresh notifications immediately on server event.
       refetch()
+      dispatch(apiSlice.util.invalidateTags(["Feedback"]))
     }
     ws.addEventListener("message", onMessage)
     return () => {
       ws.removeEventListener("message", onMessage)
       ws.close()
     }
-  }, [hasScope, refetch])
+  }, [dispatch, hasScope, refetch])
 
   const parsePayload = (payload: string | null): NotificationPayload | null => {
     if (!payload) {
@@ -100,6 +108,42 @@ const NotificationsMenu: React.FC = () => {
         title: kind,
         message: payload || "",
         documentId: parsed?.document_id
+      }
+    }
+
+    if (kind === "feedback_wish") {
+      const preview = parsed?.preview?.trim() ?? ""
+      const username = parsed?.username?.trim() ?? ""
+      const subject = parsed?.title?.trim() ?? parsed?.subject?.trim() ?? ""
+      const wishId = parsed?.wish_id?.trim() ?? ""
+      return {
+        title: t("library.notification.feedback_wish.title"),
+        message: t("library.notification.feedback_wish.incoming", {
+          username,
+          subject: subject || preview
+        }),
+        feedbackPath: wishId ? `/feedback?wish=${wishId}` : "/feedback?tab=wishes"
+      }
+    }
+
+    if (kind === "feedback_message") {
+      const preview = parsed?.preview?.trim() ?? ""
+      const username = parsed?.username?.trim() ?? ""
+      const fromStaff = Boolean(parsed?.from_staff)
+      const threadId = parsed?.thread_id?.trim() ?? ""
+      return {
+        title: t("library.notification.feedback_message.title"),
+        message: fromStaff
+          ? t("library.notification.feedback_message.reply", {preview})
+          : t("library.notification.feedback_message.incoming", {
+              username,
+              preview
+            }),
+        feedbackPath: fromStaff
+          ? `${window.location.pathname}?feedback=1`
+          : threadId
+            ? `/feedback?thread=${threadId}`
+            : "/feedback"
       }
     }
 
@@ -182,9 +226,30 @@ const NotificationsMenu: React.FC = () => {
                           variant="subtle"
                           p={0}
                           justify="flex-start"
-                          onClick={() => navigate(item.feedPath!)}
+                          onClick={async () => {
+                            if (!n.read_at) {
+                              await markRead(n.id)
+                            }
+                            navigate(item.feedPath!)
+                          }}
                         >
                           {t("library.notification.open_feed")}
+                        </Button>
+                      ) : null}
+                      {item.feedbackPath ? (
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          p={0}
+                          justify="flex-start"
+                          onClick={async () => {
+                            if (!n.read_at) {
+                              await markRead(n.id)
+                            }
+                            navigate(item.feedbackPath!)
+                          }}
+                        >
+                          {t("library.notification.open_feedback")}
                         </Button>
                       ) : null}
                     </Stack>

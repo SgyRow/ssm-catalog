@@ -3,20 +3,26 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket
+from fastapi.security import SecurityScopes
 from starlette.websockets import WebSocketDisconnect
 from sqlalchemy import func, select
 
 from papermerge.core.db.engine import AsyncSessionLocal
 from papermerge.core.features.auth import extract_token_data
+from papermerge.core.features.auth.dev_session import (
+    requested_dev_username_from_ws,
+    resolve_dev_bypass_user,
+)
 from papermerge.core.features.library_ts.db import orm as lib_orm
-from papermerge.core.features.users.db import api as usr_dbapi
 from papermerge.core.config import get_settings
 
 router = APIRouter()
 settings = get_settings()
 
 
-async def resolve_ws_user_id(token: str | None) -> UUID | None:
+async def resolve_ws_user_id(
+    token: str | None, dev_username: str | None = None
+) -> UUID | None:
     if token:
         token_data = extract_token_data(token)
         if token_data and token_data.user_id:
@@ -24,10 +30,10 @@ async def resolve_ws_user_id(token: str | None) -> UUID | None:
 
     if settings.papermerge__dev__auth_bypass_enabled:
         async with AsyncSessionLocal() as db_session:
-            user = await usr_dbapi.get_user(
-                db_session, settings.papermerge__dev__auth_bypass_username
+            user = await resolve_dev_bypass_user(
+                db_session, dev_username, SecurityScopes()
             )
-            return user.id
+            return UUID(str(user.id))
     return None
 
 
@@ -48,7 +54,9 @@ async def notifications_marker(user_id: UUID) -> tuple[int, str]:
 @router.websocket("/ws")
 async def ws_notifications(websocket: WebSocket):
     token = websocket.query_params.get("token")
-    user_id = await resolve_ws_user_id(token)
+    user_id = await resolve_ws_user_id(
+        token, requested_dev_username_from_ws(websocket)
+    )
     if not user_id:
         await websocket.close(code=1008)
         return

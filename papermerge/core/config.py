@@ -89,8 +89,10 @@ class Settings(BaseSettings):
         default="HS256",
         description="JWT signing algorithm; must match auth-server.",
     )
-    # Development-only switch: when enabled, API requests without token
-    # are treated as authenticated as `papermerge__dev__auth_bypass_username`.
+    # Development-only switch: API requests without a token are authenticated
+    # as `papermerge__dev__auth_bypass_username` (all scopes). The UI can
+    # switch that session to another active user; non-superusers then receive
+    # only the scopes of their roles.
     papermerge__dev__auth_bypass_enabled: bool = False
     papermerge__dev__auth_bypass_username: str = "admin"
     papermerge__library__catalog_root_node_id: str | None = Field(

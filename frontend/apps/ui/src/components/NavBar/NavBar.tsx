@@ -1,5 +1,8 @@
+import {useGetFeedbackUnreadQuery} from "@/features/feedback/feedbackApiSlice"
+import {useGetPortalRootQuery} from "@/features/portal/portalApiSlice"
 import {selectNavBarCollapsed} from "@/features/ui/uiSlice"
 import {
+  FEEDBACK_MANAGE,
   NODE_VIEW,
   PORTAL_FEED_VIEW,
   PORTAL_VIEW,
@@ -14,7 +17,7 @@ import {
   selectCurrentUserError,
   selectCurrentUserStatus
 } from "@/slices/currentUser.ts"
-import {Center, Group, Loader, Text} from "@mantine/core"
+import {Center, Group, Indicator, Loader, Text} from "@mantine/core"
 import {
   IconMasksTheater,
   IconNews,
@@ -24,6 +27,9 @@ import {
   IconClipboardList,
   IconDatabaseExport,
   IconBook2,
+  IconHome,
+  IconMessages,
+  IconNotebook,
   IconUsersGroup
 } from "@tabler/icons-react"
 import {useSelector} from "react-redux"
@@ -33,19 +39,41 @@ import {useGetVersionQuery} from "@/features/version/apiSlice"
 import type {UserDetails} from "@/types.ts"
 import {useTranslation} from "react-i18next"
 
+function useNavActive() {
+  const {pathname} = useLocation()
+  return {
+    home: pathname === "/portal",
+    catalog:
+      pathname.startsWith("/portal/folder/") || pathname === "/portal/folder",
+    citizenCategories:
+      pathname === "/citizen-categories" ||
+      pathname.startsWith("/citizen-categories/"),
+    handbook: pathname === "/handbook" || pathname.startsWith("/handbook/"),
+    library: pathname === "/library" || pathname.startsWith("/library/"),
+    feedback: pathname === "/feedback" || pathname.startsWith("/feedback/")
+  }
+}
+
+function canOpenFeedbackInbox(user: UserDetails | null): boolean {
+  if (!user) {
+    return false
+  }
+  return user.is_superuser || (user.scopes ?? []).includes(FEEDBACK_MANAGE)
+}
+
 function NavBarFull() {
   const {t} = useTranslation()
-  const {pathname} = useLocation()
+  const active = useNavActive()
   const {data, isLoading} = useGetVersionQuery()
-  const portalCatalogNavActive =
-    pathname === "/portal" || pathname.startsWith("/portal/folder/")
-  const citizenCategoriesNavActive =
-    pathname === "/citizen-categories" ||
-    pathname.startsWith("/citizen-categories/")
 
   const user = useSelector(selectCurrentUser) as UserDetails
   const status = useSelector(selectCurrentUserStatus)
   const error = useSelector(selectCurrentUserError)
+  const scopes = user?.scopes ?? []
+  const {data: portalRoot} = useGetPortalRootQuery(undefined, {
+    skip: status !== "succeeded" || !scopes.includes(PORTAL_VIEW)
+  })
+  const catalogPath = portalRoot ? `/portal/folder/${portalRoot.id}` : "/portal"
 
   if (status == "loading" || isLoading) {
     return <>{t("common.loading")}</>
@@ -59,20 +87,26 @@ function NavBarFull() {
     return <>{t("common.loading")}</>
   }
 
-  const scopes = user.scopes ?? []
-
   return (
     <>
       <div className="navbar">
         {scopes.includes(PORTAL_VIEW) && (
-          <Link
-            to="/portal"
-            className={portalCatalogNavActive ? "active" : undefined}
-          >
+          <Link to="/portal" className={active.home ? "active" : undefined}>
           <Group wrap="nowrap" gap="xs">
-            <IconBook2 />
+            <IconHome />
             {t("portal.home")}
           </Group>
+          </Link>
+        )}
+        {scopes.includes(PORTAL_VIEW) && portalRoot && (
+          <Link
+            to={catalogPath}
+            className={active.catalog ? "active" : undefined}
+          >
+            <Group wrap="nowrap" gap="xs">
+              <IconBook2 />
+              {t("portal.catalog_nav")}
+            </Group>
           </Link>
         )}
         {scopes.includes(PORTAL_FEED_VIEW) && (
@@ -82,17 +116,32 @@ function NavBarFull() {
         )}
         <Link
           to="/citizen-categories"
-          className={citizenCategoriesNavActive ? "active" : undefined}
+          className={active.citizenCategories ? "active" : undefined}
         >
           <Group wrap="nowrap" gap="xs">
             <IconUsersGroup />
             {t("citizen_categories.nav")}
           </Group>
         </Link>
+        <Link
+          to="/handbook"
+          className={active.handbook ? "active" : undefined}
+        >
+          <Group wrap="nowrap" gap="xs">
+            <IconNotebook />
+            {t("handbook.nav")}
+          </Group>
+        </Link>
         {scopes.includes(NODE_VIEW) && (
-          <NavLink to="/library/favorites">
-            {NavLinkWithFeedback(t("library.nav"), <IconBookmark />)}
-          </NavLink>
+          <Link
+            to="/library/favorites"
+            className={active.library ? "active" : undefined}
+          >
+            <Group wrap="nowrap" gap="xs">
+              <IconBookmark />
+              {t("library.nav")}
+            </Group>
+          </Link>
         )}
         {(scopes.includes(TAG_VIEW) ||
           scopes.includes(TAG_SELECT) ||
@@ -110,6 +159,9 @@ function NavBarFull() {
           <NavLink to="/roles">
             {NavLinkWithFeedback(t("roles.name"), <IconMasksTheater />)}
           </NavLink>
+        )}
+        {canOpenFeedbackInbox(user) && (
+          <FeedbackInboxNav collapsed={false} />
         )}
         {user.is_superuser && (
           <>
@@ -133,17 +185,17 @@ function NavBarFull() {
 
 function NavBarCollapsed() {
   const {t} = useTranslation()
-  const {pathname} = useLocation()
+  const active = useNavActive()
   const {data, isLoading} = useGetVersionQuery()
-  const portalCatalogNavActive =
-    pathname === "/portal" || pathname.startsWith("/portal/folder/")
-  const citizenCategoriesNavActive =
-    pathname === "/citizen-categories" ||
-    pathname.startsWith("/citizen-categories/")
 
   const user = useSelector(selectCurrentUser) as UserDetails
   const status = useSelector(selectCurrentUserStatus)
   const error = useSelector(selectCurrentUserError)
+  const scopes = user?.scopes ?? []
+  const {data: portalRoot} = useGetPortalRootQuery(undefined, {
+    skip: status !== "succeeded" || !scopes.includes(PORTAL_VIEW)
+  })
+  const catalogPath = portalRoot ? `/portal/folder/${portalRoot.id}` : "/portal"
 
   if (status == "loading" || isLoading) {
     return <>{t("common.loading")}</>
@@ -157,15 +209,20 @@ function NavBarCollapsed() {
     return <>{t("common.loading")}</>
   }
 
-  const scopes = user.scopes ?? []
-
   return (
     <>
       <div className="navbar">
         {scopes.includes(PORTAL_VIEW) && (
+          <Link to="/portal" className={active.home ? "active" : undefined}>
+            <Group>
+              <IconHome />
+            </Group>
+          </Link>
+        )}
+        {scopes.includes(PORTAL_VIEW) && portalRoot && (
           <Link
-            to="/portal"
-            className={portalCatalogNavActive ? "active" : undefined}
+            to={catalogPath}
+            className={active.catalog ? "active" : undefined}
           >
             <Group>
               <IconBook2 />
@@ -179,16 +236,29 @@ function NavBarCollapsed() {
         )}
         <Link
           to="/citizen-categories"
-          className={citizenCategoriesNavActive ? "active" : undefined}
+          className={active.citizenCategories ? "active" : undefined}
         >
           <Group wrap="nowrap" gap="xs">
             <IconUsersGroup />
           </Group>
         </Link>
+        <Link
+          to="/handbook"
+          className={active.handbook ? "active" : undefined}
+        >
+          <Group>
+            <IconNotebook />
+          </Group>
+        </Link>
         {scopes.includes(NODE_VIEW) && (
-          <NavLink to="/library/favorites">
-            {NavLinkWithFeedbackShort(<IconBookmark />)}
-          </NavLink>
+          <Link
+            to="/library/favorites"
+            className={active.library ? "active" : undefined}
+          >
+            <Group>
+              <IconBookmark />
+            </Group>
+          </Link>
         )}
         {(scopes.includes(TAG_VIEW) ||
           scopes.includes(TAG_SELECT) ||
@@ -205,6 +275,7 @@ function NavBarCollapsed() {
             {NavLinkWithFeedbackShort(<IconMasksTheater />)}
           </NavLink>
         )}
+        {canOpenFeedbackInbox(user) && <FeedbackInboxNav collapsed />}
         {user.is_superuser && (
           <>
             <NavLink to="/audit-log">
@@ -233,6 +304,31 @@ function NavBar() {
   }
 
   return <NavBarFull />
+}
+
+function FeedbackInboxNav({collapsed}: {collapsed: boolean}) {
+  const {t} = useTranslation()
+  const active = useNavActive()
+  const {data} = useGetFeedbackUnreadQuery(undefined, {
+    pollingInterval: 15000
+  })
+  const unread = data?.inbox ?? 0
+  const icon = (
+    <Indicator disabled={unread <= 0} size={8} offset={2}>
+      <IconMessages />
+    </Indicator>
+  )
+  return (
+    <Link
+      to="/feedback"
+      className={active.feedback ? "active" : undefined}
+    >
+      <Group wrap="nowrap" gap="xs">
+        {icon}
+        {collapsed ? null : t("feedback.inbox_nav")}
+      </Group>
+    </Link>
+  )
 }
 
 type NavLinkState = {

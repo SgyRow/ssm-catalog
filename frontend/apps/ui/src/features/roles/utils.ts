@@ -9,7 +9,8 @@ const SCOPE_TO_SKIP = [
   "role",
   "group",
   "document.page",
-  "comment"
+  "comment",
+  "feedback"
 ]
 
 const FOLDER_DOCUMENT_NODE_MAP: Record<string, string> = {

@@ -40,6 +40,7 @@ def test_employee_is_read_only_for_nodes_and_documents():
         Scopes.ROLE_DELETE,
         Scopes.ROLE_VIEW,
         Scopes.PORTAL_FEED_MANAGE,
+        Scopes.FEEDBACK_MANAGE,
         Scopes.PORTAL_SECTION_CREATE,
         Scopes.PORTAL_SECTION_UPDATE,
         Scopes.PORTAL_SECTION_DELETE,

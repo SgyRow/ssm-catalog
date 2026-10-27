@@ -11,6 +11,7 @@ import {useSelector} from "react-redux"
 import {Link} from "react-router-dom"
 
 import {navigateToLogout} from "@/features/public/guestMode"
+import DevSessionItems from "@/components/Header/DevSessionItems"
 import {
   selectCurrentUser,
   selectCurrentUserError,
@@ -47,6 +48,7 @@ export default function UserMenu() {
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
+        <DevSessionItems />
         <Menu.Item
           component={Link}
           to="/profile"

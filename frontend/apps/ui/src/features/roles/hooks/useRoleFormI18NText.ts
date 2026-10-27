@@ -63,6 +63,8 @@ export default function useI18NText(): I18NRoleFormModal | undefined {
             citizen_category_delete: t(
               "roleForm.permissionTree.citizen_category_delete"
             ),
+            feedback: t("roleForm.permissionTree.feedback"),
+            feedback_manage: t("roleForm.permissionTree.feedback_manage"),
             comments: t("roleForm.permissionTree.comments"),
             comment_moderate_edit: t(
               "roleForm.permissionTree.comment_moderate_edit"
