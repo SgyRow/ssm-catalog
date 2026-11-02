@@ -6,6 +6,7 @@ from rich.table import Table
 from sqlalchemy import select
 
 from papermerge.core.db.engine import AsyncSessionLocal
+from papermerge.core.exceptions import EntityNotFound
 from papermerge.core.features.tags import schema as tag_schema
 from papermerge.core.features.tags.db import api as tags_dbapi
 from papermerge.core.features.tags.db import orm as tags_orm
@@ -74,3 +75,16 @@ async def tag_add(
         console.print(" ".join(err.messages), style="red")
         raise typer.Exit(1)
     console.print(f"Tag [bold]{tag.name}[/bold] created (id={tag.id})", style="green")
+
+
+@app.command("delete")
+@async_command
+async def tag_delete(tag_id: UUID = typer.Argument(..., help="Tag ID")):
+    """Delete a tag (all tags with the same name, plus node associations)."""
+    async with AsyncSessionLocal() as db_session:
+        try:
+            await tags_dbapi.delete_tag(db_session, tag_id)
+        except EntityNotFound:
+            console.print(f"Tag {tag_id} not found", style="red")
+            raise typer.Exit(1)
+    console.print(f"Tag {tag_id} deleted", style="green")

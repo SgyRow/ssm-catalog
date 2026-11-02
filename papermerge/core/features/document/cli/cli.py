@@ -15,6 +15,7 @@ from papermerge.core.features.document.docx_migration import (
     find_docx_versions_needing_migration,
     migrate_docx_candidates,
 )
+from papermerge.core.features.nodes.db import api as nodes_dbapi
 from papermerge.core.utils.cli import async_command, get_user_by_username
 
 app = typer.Typer(help="Document maintenance commands")
@@ -144,6 +145,7 @@ async def list_documents(page_size: int = 20, page_number: int = 1):
     async with AsyncSessionLocal() as db_session:
         stmt = (
             select(orm.Document)
+            .where(orm.Node.deleted_at.is_(None))
             .order_by(orm.Document.updated_at.desc())
             .limit(page_size)
             .offset(page_size * (page_number - 1))
@@ -169,3 +171,39 @@ def _print_error(err, console):
         messages = [" ; ".join(err.messages or [])] or ["Unknown error"]
     for line in messages:
         console.print(line, style="red")
+
+
+@app.command("delete")
+@async_command
+async def delete_document(
+    document_id: uuid.UUID = typer.Argument(..., help="Document node ID"),
+    username: str = typer.Option(
+        "admin", "--user", help="Actor username for the audit log"
+    ),
+):
+    """Move a document to trash (soft delete, descendants included)."""
+    console = Console()
+    async with AsyncSessionLocal() as db_session:
+        node = (
+            await db_session.execute(
+                select(orm.Node).where(orm.Node.id == document_id)
+            )
+        ).scalar_one_or_none()
+        if node is None:
+            console.print(f"Node {document_id} not found", style="red")
+            raise typer.Exit(1)
+        if node.ctype != "document":
+            console.print(
+                f"Node {document_id} is not a document (ctype={node.ctype})",
+                style="red",
+            )
+            raise typer.Exit(1)
+        actor = await get_user_by_username(db_session, username)
+        if actor is None:
+            console.print(f"User [bold]{username}[/bold] not found", style="red")
+            raise typer.Exit(1)
+        err = await nodes_dbapi.delete_nodes(db_session, [document_id], actor.id)
+    if err:
+        console.print(" ".join(err.messages or ["unknown error"]), style="red")
+        raise typer.Exit(1)
+    console.print(f"Document {document_id} moved to trash", style="green")

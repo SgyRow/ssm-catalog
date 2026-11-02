@@ -60,7 +60,10 @@ async def folder_ls(
         parent = await _resolve_parent_id(db_session, parent_id, username)
         stmt = (
             select(nodes_orm.Node)
-            .where(nodes_orm.Node.parent_id == parent)
+            .where(
+                nodes_orm.Node.parent_id == parent,
+                nodes_orm.Node.deleted_at.is_(None),
+            )
             .order_by(nodes_orm.Node.sort_index, nodes_orm.Node.title)
         )
         nodes = (await db_session.execute(stmt)).scalars().all()
@@ -72,3 +75,24 @@ async def folder_ls(
     for node in nodes:
         table.add_row(str(node.id), node.ctype, node.title)
     console.print(table)
+
+
+@app.command("delete")
+@async_command
+async def node_delete(
+    node_id: UUID = typer.Argument(..., help="Node ID (folder or document)"),
+    username: str = typer.Option(
+        "admin", "--user", help="Actor username for the audit log"
+    ),
+):
+    """Soft-delete a node (folder/document) and all its descendants (to trash)."""
+    async with AsyncSessionLocal() as db_session:
+        actor = await get_user_by_username(db_session, username)
+        if actor is None:
+            console.print(f"User [bold]{username}[/bold] not found", style="red")
+            raise typer.Exit(1)
+        err = await nodes_dbapi.delete_nodes(db_session, [node_id], actor.id)
+    if err:
+        console.print(" ".join(err.messages or ["unknown error"]), style="red")
+        raise typer.Exit(1)
+    console.print(f"Node {node_id} moved to trash", style="green")
