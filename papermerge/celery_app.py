@@ -2,8 +2,10 @@ import os
 
 from celery import Celery
 
-PREFIX = os.environ.get("PAPERMERGE__MAIN__PREFIX", None)
-broker_url = os.environ.get("PAPERMERGE__REDIS__URL", None)
+from papermerge.core.config import settings
+
+PREFIX = os.environ.get("PAPERMERGE__MAIN__PREFIX", None) or settings.papermerge__main__prefix or None
+broker_url = os.environ.get("PAPERMERGE__REDIS__URL", None) or settings.papermerge__redis__url
 
 if broker_url:
     app = Celery("papermerge", broker=broker_url)
