@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -16,7 +16,7 @@ def _preview(body: str) -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _shown_name(
@@ -247,6 +247,15 @@ async def get_wish(
 def mark_wish_read(wish: fb_orm.FeedbackWish) -> None:
     if wish.read_at is None:
         wish.read_at = _now()
+
+
+async def delete_wish(db_session: AsyncSession, wish_id: UUID) -> bool:
+    wish = await get_wish(db_session, wish_id)
+    if wish is None:
+        return False
+    await db_session.delete(wish)
+    await db_session.flush()
+    return True
 
 
 async def list_wishes(

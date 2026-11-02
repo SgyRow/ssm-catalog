@@ -7,11 +7,9 @@ from sqlalchemy.orm import selectinload
 from papermerge.core import orm
 from papermerge.core.db.engine import AsyncSessionLocal
 from papermerge.core.features.auth import scopes
-from papermerge.core.features.roles import schema
+from papermerge.core.features.roles import schema, test_role_presets
 from papermerge.core.features.roles.db import api as roles_dbapi
-from papermerge.core.features.roles import test_role_presets
 from papermerge.core.utils.cli import async_command
-
 
 app = typer.Typer(
     help="Role management (built-ins: admin, moderator, employee)"
@@ -99,6 +97,61 @@ async def seed_test_roles():
             console.print(
                 f"[bold]{name}[/bold]: {len(details.scopes)} permission(s) configured"
             )
+
+
+@app.command("create")
+@async_command
+async def create_role_cmd(
+    name: str = typer.Argument(..., help="Role name"),
+    scope: list[str] = typer.Option(..., "--scope", help="Permission scope (repeatable)"),
+):
+    """Create a role with the given scopes."""
+    console = Console()
+    async with AsyncSessionLocal() as db_session:
+        role, error = await roles_dbapi.create_role(db_session, name=name, scopes=sorted(set(scope)))
+    if error:
+        console.print(error, style="red")
+        raise typer.Exit(1)
+    console.print(f"Role [bold]{role.name}[/bold] created (id={role.id})", style="green")
+
+
+@app.command("update")
+@async_command
+async def update_role_cmd(
+    name: str = typer.Argument(..., help="Role name"),
+    scope: list[str] = typer.Option(..., "--scope", help="New full scope set (repeatable)"),
+):
+    """Replace a role's scope set."""
+    console = Console()
+    async with AsyncSessionLocal() as db_session:
+        stmt = select(orm.Role).where(orm.Role.name == name)
+        role_obj = (await db_session.execute(stmt)).scalar_one_or_none()
+        if role_obj is None:
+            console.print(f"Role [bold]{name}[/bold] not found", style="red")
+            raise typer.Exit(1)
+        attrs = schema.UpdateRole(name=name, scopes=sorted(set(scope)))
+        details, error = await roles_dbapi.update_role(db_session, role_obj.id, attrs)
+    if error:
+        console.print(error, style="red")
+        raise typer.Exit(1)
+    console.print(
+        f"Role [bold]{details.name}[/bold] updated: {len(details.scopes)} scope(s)", style="green"
+    )
+
+
+@app.command("delete")
+@async_command
+async def delete_role_cmd(name: str = typer.Argument(..., help="Role name")):
+    """Delete a role by name."""
+    console = Console()
+    async with AsyncSessionLocal() as db_session:
+        stmt = select(orm.Role).where(orm.Role.name == name)
+        role_obj = (await db_session.execute(stmt)).scalar_one_or_none()
+        if role_obj is None:
+            console.print(f"Role [bold]{name}[/bold] not found", style="red")
+            raise typer.Exit(1)
+        await roles_dbapi.delete_role(db_session, role_obj.id)
+    console.print(f"Role [bold]{name}[/bold] deleted", style="green")
 
 
 @app.command("seed-test-role")
