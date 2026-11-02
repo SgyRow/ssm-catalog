@@ -1,4 +1,4 @@
-FROM postgres:16.1-alpine
+FROM postgres:18.6-alpine
 
 RUN apk add --no-cache bash dcron tzdata
 
