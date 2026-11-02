@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -93,6 +95,40 @@ async def message_add(
     console.print(
         f"Message added to thread {thread.id} (message id={message.id})", style="green"
     )
+
+
+@app.command("wish ls")
+@async_command
+async def wishes_ls():
+    """List feedback wishes."""
+    async with AsyncSessionLocal() as db_session:
+        wishes = await feedback_dbapi.list_wishes(db_session)
+
+    table = Table(title="Feedback wishes")
+    table.add_column("ID")
+    table.add_column("Subject")
+    table.add_column("Author")
+    table.add_column("Created")
+    table.add_column("Read (staff)")
+    for wish, shown in wishes:
+        table.add_row(
+            str(wish.id), wish.subject, shown or "",
+            str(wish.created_at), "yes" if wish.read_at else "no",
+        )
+    console.print(table)
+
+
+@app.command("wish delete")
+@async_command
+async def wish_delete(wish_id: UUID = typer.Argument(..., help="Wish ID")):
+    """Delete a feedback wish."""
+    async with AsyncSessionLocal() as db_session:
+        deleted = await feedback_dbapi.delete_wish(db_session, wish_id)
+        await db_session.commit()
+    if not deleted:
+        console.print(f"Wish {wish_id} not found", style="red")
+        raise typer.Exit(1)
+    console.print(f"Wish {wish_id} deleted", style="green")
 
 
 @app.command("wish")
