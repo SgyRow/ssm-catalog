@@ -2,6 +2,8 @@ import {useAppDispatch, useAppSelector} from "@/app/hooks"
 import {useGetFolderQuery} from "@/features/nodes/apiSlice"
 import PortalFolderTree from "@/features/portal/components/PortalFolderTree"
 import {useGetPortalNodesQuery, useGetPortalRootQuery} from "@/features/portal/portalApiSlice"
+import MspView from "@/features/msp/MspView"
+import {useGetMspByNodeQuery} from "@/features/msp/mspApiSlice"
 import {makePortalDocumentNavState} from "@/features/portal/portalNavState"
 import {COMMANDER_VIEW} from "@/scopes"
 import {selectCurrentUser} from "@/slices/currentUser"
@@ -72,6 +74,14 @@ export default function PortalFolderPage() {
   const {data, isLoading, error} = useGetPortalNodesQuery(
     {parentId: parentId!, page_size: 100},
     {skip: !parentId}
+  )
+
+  // A folder node can anchor a measure (МСП). When it does, the folder is
+  // rendered as the document itself (styled sections + PDF) rather than a
+  // listing of children.
+  const {data: msp, isFetching: mspIsFetching} = useGetMspByNodeQuery(
+    parentId ?? "",
+    {skip: !parentId || parentId === root?.id}
   )
 
   const catalogItems = data?.items ?? []
@@ -179,7 +189,13 @@ export default function PortalFolderPage() {
           </Group>
         </Group>
 
-        {catalogItems.length === 0 ? (
+        {msp ? (
+          <Paper shadow="xs" p="md" radius="md" withBorder>
+            <MspView msp={msp} />
+          </Paper>
+        ) : mspIsFetching ? (
+          <Loader size="lg" />
+        ) : catalogItems.length === 0 ? (
           <Paper withBorder p="xl" radius="md">
             <Text c="dimmed" ta="center">
               {t("portal.folder_empty")}

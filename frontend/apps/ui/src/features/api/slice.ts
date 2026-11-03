@@ -68,7 +68,9 @@ export const apiSlice = createApi({
     "CitizenCategoryFolders",
     "FolderCitizenCategories",
     "Handbook",
-    "Feedback"
+    "Feedback",
+    "MspType",
+    "Msp"
   ],
   endpoints: _ => ({})
 })
