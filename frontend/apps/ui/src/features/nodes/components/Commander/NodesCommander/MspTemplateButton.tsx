@@ -7,8 +7,8 @@ import {useContext} from "react"
 
 import type {PanelMode} from "@/types"
 
+import MspCreateModal from "@/features/msp/MspCreateModal"
 import PanelContext from "@/contexts/PanelContext"
-import {MspTemplateModal} from "@/features/nodes/components/MspTemplateModal"
 import {useTranslation} from "react-i18next"
 
 export default function MspTemplateButton() {
@@ -24,7 +24,7 @@ export default function MspTemplateButton() {
           <IconTemplate stroke={1.4} />
         </ActionIcon>
       </Tooltip>
-      <MspTemplateModal
+      <MspCreateModal
         opened={opened}
         parent_id={currentFolderId!}
         onSubmit={close}

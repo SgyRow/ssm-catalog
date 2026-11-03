@@ -28,6 +28,7 @@ from papermerge.core.db.base import Base
 # Import models so Base.metadata sees all tables (incl. portal_settings).
 from papermerge.core.features.portal.db import orm as _portal_orm  # noqa: F401
 from papermerge.core.features.citizen_categories.db import orm as _citizen_categories_orm  # noqa: F401
+from papermerge.core.features.msp.db import orm as _msp_orm  # noqa: F401
 
 target_metadata = Base.metadata
 
