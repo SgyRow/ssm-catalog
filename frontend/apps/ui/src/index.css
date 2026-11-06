@@ -65,6 +65,11 @@ body {
     color-mix(in srgb, var(--mantine-color-body), black 20%)
   );
   flex-grow: 1;
+  /* The AppShell navbar is fixed-height (100dvh minus header/footer),
+  so the section list must scroll when it does not fit on screen. */
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .navbar-bg-color {
