@@ -244,6 +244,15 @@ async def get_wish(
     return (await db_session.execute(stmt)).scalar_one_or_none()
 
 
+async def delete_wish(db_session: AsyncSession, wish_id: UUID) -> bool:
+    wish = await get_wish(db_session, wish_id)
+    if wish is None:
+        return False
+    await db_session.delete(wish)
+    await db_session.flush()
+    return True
+
+
 def mark_wish_read(wish: fb_orm.FeedbackWish) -> None:
     if wish.read_at is None:
         wish.read_at = _now()

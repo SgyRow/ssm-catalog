@@ -39,6 +39,24 @@ class NewMspTypeSection(BaseModel):
     title: str = Field(min_length=1, max_length=300)
 
 
+class UpdateMspTypeSection(BaseModel):
+    """One section in a type update.
+
+    ``id`` is set for an existing section; omit it (or send ``null``) to
+    create a new one. Sections not listed are removed. Order in the list
+    becomes ``sort_order``.
+    """
+
+    id: UUID | None = None
+    title: str = Field(min_length=1, max_length=300)
+
+
+class UpdateMspType(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    description: str | None = None
+    sections: list[UpdateMspTypeSection] | None = None
+
+
 # --------------------------------------------------------------------------- #
 # Measures (меры МСП)
 # --------------------------------------------------------------------------- #

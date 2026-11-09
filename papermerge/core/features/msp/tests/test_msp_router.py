@@ -113,6 +113,41 @@ async def test_list_types(auth_api_client, db_session):
     assert "ЕДВ" in names
 
 
+async def test_update_type_sections(auth_api_client, db_session):
+    client = auth_api_client.test_client
+
+    resp = await client.post(
+        "/msp/types",
+        json={
+            "name": "ЕДВ-редакт",
+            "description": "старое",
+            "sections": [{"title": "Приём"}, {"title": "Удалить"}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    type_id = resp.json()["id"]
+    by_title = {s["title"]: s["id"] for s in resp.json()["sections"]}
+
+    resp = await client.patch(
+        f"/msp/types/{type_id}",
+        json={
+            "name": "ЕДВ",
+            "description": "новое",
+            "sections": [
+                {"id": by_title["Приём"], "title": "Приём документов"},
+                {"title": "Назначение"},
+            ],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["name"] == "ЕДВ"
+    assert payload["description"] == "новое"
+    titles = [s["title"] for s in payload["sections"]]
+    assert titles == ["Приём документов", "Назначение"]
+    assert payload["sections"][0]["id"] == by_title["Приём"]
+
+
 async def test_add_section_to_type(auth_api_client, db_session):
     client = auth_api_client.test_client
 

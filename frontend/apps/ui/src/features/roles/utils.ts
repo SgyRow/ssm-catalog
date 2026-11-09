@@ -10,7 +10,9 @@ const SCOPE_TO_SKIP = [
   "group",
   "document.page",
   "comment",
-  "feedback"
+  "feedback",
+  "commander",
+  "citizen_category"
 ]
 
 const FOLDER_DOCUMENT_NODE_MAP: Record<string, string> = {
@@ -54,7 +56,8 @@ const DOWNLOAD_CHILD_SCOPES = new Set([
 ])
 
 function mapClientScopeToServer(scope: string): string[] {
-  if (SCOPE_TO_SKIP.includes(scope)) {
+  // Tree group nodes (no ".") are not real API scopes.
+  if (!scope.includes(".") || SCOPE_TO_SKIP.includes(scope)) {
     return []
   }
   if (scope in FOLDER_DOCUMENT_NODE_MAP) {

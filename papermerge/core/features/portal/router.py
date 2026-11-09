@@ -92,6 +92,20 @@ async def list_portal_children(
     return nodes
 
 
+@router.get("/feed/categories", response_model=list[str])
+async def get_portal_feed_categories(
+    user: Annotated[
+        schema.User, Security(get_current_user, scopes=[scopes.PORTAL_FEED_VIEW])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> list[str]:
+    """Distinct news categories currently in use."""
+    _ = user
+    categories = await portal_dbapi.list_portal_news_categories(db_session)
+    await db_session.commit()
+    return categories
+
+
 @router.get("/feed", response_model=PaginatedResponse[portal_schema.PortalNewsOut])
 async def get_portal_feed(
     user: Annotated[
@@ -100,13 +114,15 @@ async def get_portal_feed(
     db_session: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    category: str | None = Query(default=None, max_length=120),
 ) -> PaginatedResponse[portal_schema.PortalNewsOut]:
     """News feed for the legal portal (editorial posts).
 
     """
     _ = user
+    cat = category.strip() if category else None
     rows, total = await portal_dbapi.list_portal_news(
-        db_session, page=page, page_size=page_size
+        db_session, page=page, page_size=page_size, category=cat or None
     )
     await db_session.commit()
     num_pages = max(1, (total + page_size - 1) // page_size) if total else 1
@@ -142,6 +158,8 @@ async def create_portal_feed_item(
         title=payload.title,
         body=payload.body,
         attachment_node_ids=attachment_ids,
+        category=payload.category,
+        is_pinned=payload.is_pinned,
     )
     await lib_ts_api.add_audit(
         db_session,
@@ -192,6 +210,9 @@ async def update_portal_feed_item(
         body=payload.body,
         attachment_node_ids=attachment_ids,
         replace_attachments=replace_attachments,
+        category=payload.category,
+        update_category="category" in payload.model_fields_set,
+        is_pinned=payload.is_pinned,
     )
     if row is None:
         raise exc.HTTP404NotFound()

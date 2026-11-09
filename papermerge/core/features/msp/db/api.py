@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from papermerge.core.features.msp.db import orm
+from papermerge.core.features.msp.htmlutil import is_empty_body, sanitize_msp_html
 from papermerge.core.features.msp.schema import (
     MspSectionInput,
     NewMspType,
@@ -60,6 +61,70 @@ async def get_msp_type(
     return (await db_session.execute(stmt)).scalar_one_or_none()
 
 
+async def update_msp_type(
+    db_session: AsyncSession,
+    msp_type_id: UUID,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    sections: list | None = None,
+) -> orm.MspType | None:
+    """Update a measure type, optionally replacing its section list.
+
+    ``sections`` is the full ordered list. Existing ids are renamed and
+    reordered; missing ids are deleted; items without an id are created.
+    Measure instances keep their own section bodies; titles of still-linked
+    sections follow the type when renamed.
+    """
+    msp_type = await get_msp_type(db_session, msp_type_id)
+    if msp_type is None:
+        return None
+
+    if name is not None and name.strip():
+        msp_type.name = name.strip()
+    if description is not None:
+        stripped = description.strip()
+        msp_type.description = stripped or None
+
+    if sections is not None:
+        existing = {s.id: s for s in msp_type.sections}
+        kept_ids: set[UUID] = set()
+        new_rows: list[orm.MspTypeSection] = []
+        for i, item in enumerate(sections):
+            title = item.title.strip()
+            if not title:
+                continue
+            sid = item.id
+            if sid is not None and sid in existing:
+                section = existing[sid]
+                if section.title != title:
+                    section.title = title
+                    stmt = (
+                        update(orm.MspSection)
+                        .where(orm.MspSection.type_section_id == section.id)
+                        .values(title=title)
+                    )
+                    await db_session.execute(stmt)
+                section.sort_order = i
+                kept_ids.add(sid)
+            else:
+                new_rows.append(
+                    orm.MspTypeSection(
+                        msp_type_id=msp_type.id,
+                        title=title,
+                        sort_order=i,
+                    )
+                )
+        for section in list(msp_type.sections):
+            if section.id not in kept_ids:
+                msp_type.sections.remove(section)
+        msp_type.sections.extend(new_rows)
+
+    await db_session.commit()
+    db_session.expire(msp_type)
+    return await get_msp_type(db_session, msp_type_id)
+
+
 async def add_msp_type_section(
     db_session: AsyncSession, msp_type_id: UUID, title: str
 ) -> orm.MspTypeSection | None:
@@ -109,8 +174,8 @@ async def _sections_from_inputs(
 
     result: list[orm.MspSection] = []
     for i, inp in enumerate(inputs):
-        body = (inp.body or "").strip()
-        if not body:
+        body = sanitize_msp_html((inp.body or "").strip())
+        if is_empty_body(body):
             # Empty section = "not needed" — do not store it.
             continue
         ts = None

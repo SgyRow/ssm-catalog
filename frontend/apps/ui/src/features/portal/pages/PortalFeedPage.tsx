@@ -4,6 +4,7 @@ import NewsAttachmentPickerModal, {
 import {
   useCreatePortalNewsMutation,
   useDeletePortalNewsMutation,
+  useGetPortalFeedCategoriesQuery,
   useGetPortalFeedQuery,
   useGetPortalRootQuery,
   useUpdatePortalNewsMutation,
@@ -16,21 +17,36 @@ import type {UserDetails} from "@/types"
 import {formatApiDateTime} from "@/utils/formatDateTime"
 import {drop_extension} from "@/utils"
 import {
+  ActionIcon,
   Anchor,
+  Autocomplete,
+  Badge,
   Button,
+  Chip,
   Group,
   Loader,
   Modal,
   Pagination,
   Paper,
   Stack,
+  Switch,
   Text,
   Textarea,
   TextInput,
-  Title
+  Title,
+  Tooltip
 } from "@mantine/core"
 import {useDisclosure} from "@mantine/hooks"
-import {IconEdit, IconNews, IconPaperclip, IconPlus, IconTrash} from "@tabler/icons-react"
+import {notifications} from "@mantine/notifications"
+import {
+  IconEdit,
+  IconNews,
+  IconPaperclip,
+  IconPin,
+  IconPinnedOff,
+  IconPlus,
+  IconTrash
+} from "@tabler/icons-react"
 import {useMemo, useState} from "react"
 import {useSelector} from "react-redux"
 import {Link} from "react-router-dom"
@@ -56,12 +72,20 @@ export default function PortalFeedPage() {
   )
 
   const [page, setPage] = useState(1)
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const pageSize = 15
 
   const {data, isLoading, error, refetch} = useGetPortalFeedQuery(
-    {page, page_size: pageSize},
+    {
+      page,
+      page_size: pageSize,
+      category: categoryFilter ?? undefined
+    },
     {skip: !canView}
   )
+  const {data: categories} = useGetPortalFeedCategoriesQuery(undefined, {
+    skip: !canView
+  })
 
   const [createNews, {isLoading: creating}] = useCreatePortalNewsMutation()
   const [updateNews, {isLoading: updating}] = useUpdatePortalNewsMutation()
@@ -72,6 +96,8 @@ export default function PortalFeedPage() {
   const [editing, setEditing] = useState<PortalNewsItem | null>(null)
   const [formTitle, setFormTitle] = useState("")
   const [formBody, setFormBody] = useState("")
+  const [formCategory, setFormCategory] = useState("")
+  const [formPinned, setFormPinned] = useState(false)
   const [attachmentPick, setAttachmentPick] = useState<AttachmentPick[]>([])
 
   const [deleteTarget, setDeleteTarget] = useState<PortalNewsItem | null>(null)
@@ -80,6 +106,8 @@ export default function PortalFeedPage() {
     setEditing(null)
     setFormTitle("")
     setFormBody("")
+    setFormCategory("")
+    setFormPinned(false)
     setAttachmentPick([])
     editorHandlers.open()
   }
@@ -88,6 +116,8 @@ export default function PortalFeedPage() {
     setEditing(item)
     setFormTitle(item.title)
     setFormBody(item.body)
+    setFormCategory(item.category ?? "")
+    setFormPinned(Boolean(item.is_pinned))
     setAttachmentPick(
       (item.attachments ?? []).map(a => ({
         node_id: a.node_id,
@@ -108,17 +138,22 @@ export default function PortalFeedPage() {
       return
     }
     const ids = attachmentPick.map(a => a.node_id)
+    const category = formCategory.trim() || null
     if (editing) {
       await updateNews({
         id: editing.id,
         title,
         body: formBody,
+        category,
+        is_pinned: formPinned,
         attachment_node_ids: ids
       }).unwrap()
     } else {
       await createNews({
         title,
         body: formBody,
+        category,
+        is_pinned: formPinned,
         attachment_node_ids: ids
       }).unwrap()
     }
@@ -133,6 +168,26 @@ export default function PortalFeedPage() {
     await deleteNews(deleteTarget.id).unwrap()
     setDeleteTarget(null)
     void refetch()
+  }
+
+  const handleTogglePin = async (item: PortalNewsItem) => {
+    try {
+      await updateNews({
+        id: item.id,
+        is_pinned: !item.is_pinned
+      }).unwrap()
+      void refetch()
+    } catch {
+      notifications.show({
+        title: t("portal.news_pin_error"),
+        color: "red"
+      })
+    }
+  }
+
+  const onCategoryChip = (value: string | null) => {
+    setCategoryFilter(value)
+    setPage(1)
   }
 
   if (!canView) {
@@ -174,6 +229,29 @@ export default function PortalFeedPage() {
             </Button>
           ) : null}
         </Group>
+        {(categories ?? []).length > 0 ? (
+          <Group gap="xs" mt="md" wrap="wrap">
+            <Chip
+              checked={categoryFilter == null}
+              onChange={() => onCategoryChip(null)}
+              variant="outline"
+            >
+              {t("portal.news_category_all")}
+            </Chip>
+            {(categories ?? []).map(cat => (
+              <Chip
+                key={cat}
+                checked={categoryFilter === cat}
+                onChange={() =>
+                  onCategoryChip(categoryFilter === cat ? null : cat)
+                }
+                variant="outline"
+              >
+                {cat}
+              </Chip>
+            ))}
+          </Group>
+        ) : null}
       </Paper>
 
       {rows.length === 0 ? (
@@ -186,7 +264,20 @@ export default function PortalFeedPage() {
             <Paper key={item.id} withBorder p="md" shadow="xs">
               <Group justify="space-between" align="flex-start" wrap="nowrap">
                 <Stack gap={6} style={{flex: 1, minWidth: 0}}>
-                  <Title order={4}>{item.title}</Title>
+                  <Group gap="xs" wrap="wrap">
+                    <Title order={4}>{item.title}</Title>
+                    {item.is_pinned ? (
+                      <Badge
+                        variant="light"
+                        leftSection={<IconPin size={12} />}
+                      >
+                        {t("portal.news_pinned")}
+                      </Badge>
+                    ) : null}
+                    {item.category ? (
+                      <Badge variant="outline">{item.category}</Badge>
+                    ) : null}
+                  </Group>
                   <Text size="sm" c="dimmed">
                     {formatApiDateTime(item.created_at)}
                     {item.author_username
@@ -225,6 +316,29 @@ export default function PortalFeedPage() {
                 </Stack>
                 {canManage ? (
                   <Group gap="xs" wrap="nowrap">
+                    <Tooltip
+                      label={
+                        item.is_pinned
+                          ? t("portal.news_unpin")
+                          : t("portal.news_pin")
+                      }
+                    >
+                      <ActionIcon
+                        variant={item.is_pinned ? "filled" : "default"}
+                        aria-label={
+                          item.is_pinned
+                            ? t("portal.news_unpin")
+                            : t("portal.news_pin")
+                        }
+                        onClick={() => void handleTogglePin(item)}
+                      >
+                        {item.is_pinned ? (
+                          <IconPinnedOff size={16} />
+                        ) : (
+                          <IconPin size={16} />
+                        )}
+                      </ActionIcon>
+                    </Tooltip>
                     <Button
                       variant="default"
                       size="compact-sm"
@@ -272,6 +386,18 @@ export default function PortalFeedPage() {
             value={formTitle}
             onChange={e => setFormTitle(e.currentTarget.value)}
             required
+          />
+          <Autocomplete
+            label={t("portal.news_category")}
+            placeholder={t("portal.news_category_placeholder")}
+            data={categories ?? []}
+            value={formCategory}
+            onChange={setFormCategory}
+          />
+          <Switch
+            label={t("portal.news_pin")}
+            checked={formPinned}
+            onChange={e => setFormPinned(e.currentTarget.checked)}
           />
           <Textarea
             label={t("portal.news_body")}

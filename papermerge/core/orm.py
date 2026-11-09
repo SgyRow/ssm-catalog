@@ -13,6 +13,7 @@ from .features.nodes.db.visibility_orm import NodeVisibility, NodeVisibilityRole
 from .features.library_ts.db.settings_orm import LibrarySettings
 from .features.handbook.db.orm import HandbookArticle, HandbookAsset
 from .features.feedback.db.orm import FeedbackMessage, FeedbackThread, FeedbackWish
+from .features.services.db.orm import ExternalService
 
 __all__ = [
     'User',
@@ -46,4 +47,5 @@ __all__ = [
     'FeedbackThread',
     'FeedbackMessage',
     'FeedbackWish',
+    'ExternalService',
 ]

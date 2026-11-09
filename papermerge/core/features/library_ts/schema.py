@@ -20,6 +20,28 @@ class FavoriteRowOut(BaseModel):
     ctype: str
     created_at: datetime
     in_trash: bool = False
+    folder_id: UUID | None = None
+
+
+class FavoriteFolderOut(BaseModel):
+    id: UUID
+    title: str
+    sort_index: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FavoriteFolderCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+class FavoriteFolderUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+class FavoriteMoveIn(BaseModel):
+    folder_id: UUID | None = None
 
 
 class RecentOut(BaseModel):
@@ -95,6 +117,7 @@ class NotificationOut(BaseModel):
 class AuditEntryOut(BaseModel):
     id: UUID
     user_id: UUID | None
+    username: str | None = None
     action: str
     resource_type: str
     resource_id: UUID | None

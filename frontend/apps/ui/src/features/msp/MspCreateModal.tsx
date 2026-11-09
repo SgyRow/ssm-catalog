@@ -1,15 +1,18 @@
+import {isEmptyMspBody} from "@/features/msp/html"
+import {MspRichTextEditor} from "@/features/msp/MspRichText"
 import {
   useCreateMspMutation,
   useCreateMspTypeMutation,
   useDeleteMspTypeMutation,
+  useUpdateMspTypeMutation,
   useListMspTypesQuery,
-  useAddMspTypeSectionMutation,
   type MspType
 } from "@/features/msp/mspApiSlice"
 import {isFetchBaseQueryError} from "@/services/helpers"
 import {selectCurrentUser} from "@/slices/currentUser"
 import type {UserDetails} from "@/types"
 import {
+  Accordion,
   ActionIcon,
   Button,
   Divider,
@@ -26,7 +29,7 @@ import {
 } from "@mantine/core"
 import {notifications} from "@mantine/notifications"
 import {IconPlus, IconTrash} from "@tabler/icons-react"
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {useSelector} from "react-redux"
 import {useTranslation} from "react-i18next"
 
@@ -79,7 +82,7 @@ export default function MspCreateModal({
       opened={opened}
       onClose={onCancel}
       title={t("msp.title")}
-      size="lg"
+      size="xl"
     >
       <Tabs value={tab} onChange={v => setTab(v as "new" | "types")}>
         <Tabs.List>
@@ -153,7 +156,7 @@ function CreateMspTab({
   }
 
   const filledCount = sections.filter(
-    s => (bodies[s.id] ?? "").trim().length > 0
+    s => !isEmptyMspBody(bodies[s.id] ?? "")
   ).length
 
   const canSubmit =
@@ -164,7 +167,7 @@ function CreateMspTab({
       return
     }
     const sectionInputs = sections
-      .filter(s => (bodies[s.id] ?? "").trim().length > 0)
+      .filter(s => !isEmptyMspBody(bodies[s.id] ?? ""))
       .map(s => ({type_section_id: s.id, body: bodies[s.id]}))
     try {
       await createMsp({
@@ -214,25 +217,41 @@ function CreateMspTab({
           <Text size="sm" c="dimmed" mb="xs">
             {t("msp.form.sections_hint")}
           </Text>
-          <Stack gap="sm">
+          <Accordion
+            key={typeId}
+            multiple
+            defaultValue={[]}
+            chevronPosition="left"
+            variant="separated"
+          >
             {sections.map(section => (
-              <div key={section.id}>
-                <Text size="xs" fw={500} c="dimmed">
-                  {section.title}
-                </Text>
-                <Textarea
-                  mt="xs"
-                  autosize
-                  minRows={2}
-                  placeholder={t("msp.form.body_placeholder")}
-                  value={bodies[section.id] ?? ""}
-                  onChange={e =>
-                    onBodyChange(section.id, e.currentTarget.value)
-                  }
-                />
-              </div>
+              <Accordion.Item key={section.id} value={section.id}>
+                <Accordion.Control>
+                  <Group justify="space-between" wrap="nowrap" gap="sm">
+                    <Text size="sm" fw={600}>
+                      {section.title}
+                    </Text>
+                    {isEmptyMspBody(bodies[section.id] ?? "") ? (
+                      <Text size="xs" c="dimmed">
+                        {t("msp.form.empty_section")}
+                      </Text>
+                    ) : (
+                      <Text size="xs" c="dimmed">
+                        {t("msp.form.filled_section")}
+                      </Text>
+                    )}
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <MspRichTextEditor
+                    value={bodies[section.id] ?? ""}
+                    placeholder={t("msp.form.body_placeholder")}
+                    onChange={html => onBodyChange(section.id, html)}
+                  />
+                </Accordion.Panel>
+              </Accordion.Item>
             ))}
-          </Stack>
+          </Accordion>
         </div>
       ) : (
         <Text size="sm" c="dimmed">
@@ -382,29 +401,112 @@ function CreateTypeForm() {
 
 function ExistingTypesList({types}: {types: MspType[]}) {
   const {t} = useTranslation()
+
+  if (types.length === 0) {
+    return <Text size="sm" c="dimmed">{t("msp.types.empty")}</Text>
+  }
+
+  return (
+    <Accordion variant="separated" radius="md" chevronPosition="left">
+      {types.map(type => (
+        <Accordion.Item key={type.id} value={type.id}>
+          <Accordion.Control>
+            <Group justify="space-between" wrap="nowrap" gap="sm" pe="xs">
+              <div style={{minWidth: 0}}>
+                <Text fw={600} truncate="end">
+                  {type.name}
+                </Text>
+                {type.description ? (
+                  <Text size="xs" c="dimmed" truncate="end">
+                    {type.description}
+                  </Text>
+                ) : null}
+              </div>
+              <Text size="xs" c="dimmed" style={{flexShrink: 0}}>
+                {t("msp.types.section_count", {
+                  count: type.sections.length
+                })}
+              </Text>
+            </Group>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <TypeEditorCard type={type} />
+          </Accordion.Panel>
+        </Accordion.Item>
+      ))}
+    </Accordion>
+  )
+}
+
+type DraftSection = {key: string; id?: string; title: string}
+
+function TypeEditorCard({type}: {type: MspType}) {
+  const {t} = useTranslation()
   const [deleteType, {isLoading: deleting}] = useDeleteMspTypeMutation()
-  const [addSection, {isLoading: addingSection}] = useAddMspTypeSectionMutation()
+  const [updateType, {isLoading: saving}] = useUpdateMspTypeMutation()
 
-  const [pendingAdd, setPendingAdd] = useState<Record<string, string>>({})
+  const [name, setName] = useState(type.name)
+  const [description, setDescription] = useState(type.description ?? "")
+  const [sections, setSections] = useState<DraftSection[]>(() =>
+    type.sections.map(s => ({key: s.id, id: s.id, title: s.title}))
+  )
 
-  const onAddSection = async (type: MspType) => {
-    const title = (pendingAdd[type.id] ?? "").trim()
-    if (!title) {
-      return
-    }
+  const syncFromType = () => {
+    setName(type.name)
+    setDescription(type.description ?? "")
+    setSections(type.sections.map(s => ({key: s.id, id: s.id, title: s.title})))
+  }
+
+  useEffect(() => {
+    syncFromType()
+    // Reset local draft when the server copy changes (after save/refetch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type.id, type.updated_at])
+
+  const onSectionChange = (key: string, value: string) => {
+    setSections(prev => prev.map(s => (s.key === key ? {...s, title: value} : s)))
+  }
+
+  const onSectionRemove = (key: string) => {
+    setSections(prev => prev.filter(s => s.key !== key))
+  }
+
+  const onSectionAdd = () => {
+    setSections(prev => [
+      ...prev,
+      {key: `new-${Date.now()}-${prev.length}`, title: ""}
+    ])
+  }
+
+  const validSections = sections
+    .map(s => ({...s, title: s.title.trim()}))
+    .filter(s => s.title.length > 0)
+
+  const canSave =
+    name.trim().length > 0 && validSections.length > 0 && !saving && !deleting
+
+  const onSave = async () => {
     try {
-      await addSection({msp_type_id: type.id, title}).unwrap()
-      setPendingAdd(prev => ({...prev, [type.id]: ""}))
+      await updateType({
+        msp_type_id: type.id,
+        name: name.trim(),
+        description: description.trim(),
+        sections: validSections.map(s => ({
+          id: s.id,
+          title: s.title
+        }))
+      }).unwrap()
+      notifications.show({message: t("msp.types.saved"), color: "green"})
     } catch (error) {
       notifications.show({
-        title: t("msp.types.add_section_error"),
-        message: errMsg(t, error, "msp.types.add_section_error"),
+        title: t("msp.types.save_error"),
+        message: errMsg(t, error, "msp.types.save_error"),
         color: "red"
       })
     }
   }
 
-  const onDelete = async (type: MspType) => {
+  const onDelete = async () => {
     try {
       await deleteType(type.id).unwrap()
       notifications.show({message: t("msp.types.deleted"), color: "green"})
@@ -417,70 +519,80 @@ function ExistingTypesList({types}: {types: MspType[]}) {
     }
   }
 
-  if (types.length === 0) {
-    return <Text size="sm" c="dimmed">{t("msp.types.empty")}</Text>
-  }
-
   return (
     <Stack gap="sm">
-      {types.map(type => (
-        <Paper key={type.id} withBorder p="md" radius="md">
-          <Group justify="space-between" align="flex-start" gap="sm">
-            <div style={{minWidth: 0}}>
-              <Text fw={600}>{type.name}</Text>
-              {type.description ? (
-                <Text size="xs" c="dimmed">
-                  {type.description}
-                </Text>
-              ) : null}
-              <Group gap="xs" mt="xs">
-                {type.sections.map(s => (
-                  <Text key={s.id} size="xs" c="dimmed">
-                    {s.title}
-                  </Text>
-                ))}
+        <TextInput
+          label={t("msp.types.form.name")}
+          value={name}
+          onChange={e => setName(e.currentTarget.value)}
+        />
+        <TextInput
+          label={t("msp.types.form.description")}
+          value={description}
+          onChange={e => setDescription(e.currentTarget.value)}
+        />
+        <div>
+          <Text size="xs" c="dimmed" mb="xs">
+            {t("msp.types.form.sections")}
+          </Text>
+          <Stack gap="xs">
+            {sections.map(section => (
+              <Group key={section.key} gap="xs">
+                <TextInput
+                  style={{flex: 1}}
+                  placeholder={t("msp.types.form.section_placeholder")}
+                  value={section.title}
+                  onChange={e =>
+                    onSectionChange(section.key, e.currentTarget.value)
+                  }
+                />
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  onClick={() => onSectionRemove(section.key)}
+                  aria-label={t("msp.types.delete_section")}
+                  disabled={sections.length <= 1}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
               </Group>
-            </div>
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              onClick={() => onDelete(type)}
-              disabled={deleting}
-              aria-label={t("msp.types.delete")}
-            >
-              <IconTrash size={18} />
-            </ActionIcon>
-          </Group>
-          <Group gap="xs" mt="sm">
-            <TextInput
-              style={{flex: 1}}
-              size="xs"
-              placeholder={t("msp.types.add_section_placeholder")}
-              value={pendingAdd[type.id] ?? ""}
-              onChange={e =>
-                setPendingAdd(prev => ({...prev, [type.id]: e.currentTarget.value}))
-              }
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  void onAddSection(type)
-                }
-              }}
-            />
+            ))}
+          </Stack>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            mt="xs"
+            onClick={onSectionAdd}
+          >
+            {t("msp.types.form.add_section")}
+          </Button>
+        </div>
+        <Group justify="space-between">
+          <Button
+            variant="subtle"
+            color="red"
+            size="xs"
+            leftSection={<IconTrash size={14} />}
+            onClick={() => void onDelete()}
+            disabled={deleting || saving}
+          >
+            {t("msp.types.delete")}
+          </Button>
+          <Group gap="xs">
+            <Button variant="default" size="xs" onClick={syncFromType}>
+              {t("common.cancel")}
+            </Button>
             <Button
               size="xs"
-              variant="light"
-              leftSection={<IconPlus size={14} />}
-              onClick={() => onAddSection(type)}
-              disabled={
-                addingSection || (pendingAdd[type.id] ?? "").trim().length === 0
-              }
+              disabled={!canSave}
+              loading={saving}
+              onClick={() => void onSave()}
             >
-              {t("msp.types.add_section")}
+              {t("common.save")}
             </Button>
           </Group>
-        </Paper>
-      ))}
+        </Group>
     </Stack>
   )
 }

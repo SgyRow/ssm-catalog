@@ -1,13 +1,15 @@
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from papermerge.core import orm
+from papermerge.core.config import get_settings
 from papermerge.core.features.library_ts.db import settings_api as library_settings_api
 from papermerge.core.db import common as db_common
 from papermerge.core.features.auth import scopes
@@ -54,7 +56,12 @@ async def add_audit(
     db_session.add(row)
 
 
-async def add_favorite(db_session: AsyncSession, user_id: UUID, node_id: UUID) -> None:
+async def add_favorite(
+    db_session: AsyncSession,
+    user_id: UUID,
+    node_id: UUID,
+    folder_id: UUID | None = None,
+) -> None:
     existing = await db_session.scalar(
         select(lib_orm.UserFavorite).where(
             lib_orm.UserFavorite.user_id == user_id,
@@ -62,10 +69,15 @@ async def add_favorite(db_session: AsyncSession, user_id: UUID, node_id: UUID) -
         )
     )
     if existing:
+        if folder_id is not None:
+            existing.folder_id = folder_id
         return
     db_session.add(
         lib_orm.UserFavorite(
-            user_id=user_id, node_id=node_id, created_at=_utc_naive_now()
+            user_id=user_id,
+            node_id=node_id,
+            folder_id=folder_id,
+            created_at=_utc_naive_now(),
         )
     )
 
@@ -112,9 +124,129 @@ async def list_favorites_enriched(db_session: AsyncSession, user_id: UUID):
                 ctype=str(ctype),
                 created_at=fav.created_at,
                 in_trash=deleted_at is not None,
+                folder_id=fav.folder_id,
             )
         )
     return out
+
+
+MAX_FAVORITE_FOLDERS = 50
+
+
+async def list_favorite_folders(
+    db_session: AsyncSession, user_id: UUID
+) -> list[lib_orm.UserFavoriteFolder]:
+    stmt = (
+        select(lib_orm.UserFavoriteFolder)
+        .where(lib_orm.UserFavoriteFolder.user_id == user_id)
+        .order_by(
+            lib_orm.UserFavoriteFolder.sort_index.asc(),
+            lib_orm.UserFavoriteFolder.created_at.asc(),
+        )
+    )
+    return list((await db_session.scalars(stmt)).all())
+
+
+async def get_favorite_folder(
+    db_session: AsyncSession, user_id: UUID, folder_id: UUID
+) -> lib_orm.UserFavoriteFolder | None:
+    return await db_session.scalar(
+        select(lib_orm.UserFavoriteFolder).where(
+            lib_orm.UserFavoriteFolder.id == folder_id,
+            lib_orm.UserFavoriteFolder.user_id == user_id,
+        )
+    )
+
+
+async def create_favorite_folder(
+    db_session: AsyncSession, user_id: UUID, title: str
+) -> tuple[lib_orm.UserFavoriteFolder | None, str | None]:
+    name = title.strip()
+    if not name:
+        return None, "empty_title"
+    count = await db_session.scalar(
+        select(func.count(lib_orm.UserFavoriteFolder.id)).where(
+            lib_orm.UserFavoriteFolder.user_id == user_id
+        )
+    )
+    if int(count or 0) >= MAX_FAVORITE_FOLDERS:
+        return None, "folder_limit"
+    taken = await db_session.scalar(
+        select(lib_orm.UserFavoriteFolder.id).where(
+            lib_orm.UserFavoriteFolder.user_id == user_id,
+            func.lower(lib_orm.UserFavoriteFolder.title) == name.lower(),
+        )
+    )
+    if taken:
+        return None, "duplicate_title"
+    max_sort = await db_session.scalar(
+        select(func.coalesce(func.max(lib_orm.UserFavoriteFolder.sort_index), -1)).where(
+            lib_orm.UserFavoriteFolder.user_id == user_id
+        )
+    )
+    row = lib_orm.UserFavoriteFolder(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        title=name[:200],
+        sort_index=int(max_sort or 0) + 1,
+        created_at=_utc_naive_now(),
+    )
+    db_session.add(row)
+    return row, None
+
+
+async def rename_favorite_folder(
+    db_session: AsyncSession, user_id: UUID, folder_id: UUID, title: str
+) -> tuple[lib_orm.UserFavoriteFolder | None, str | None]:
+    row = await get_favorite_folder(db_session, user_id, folder_id)
+    if row is None:
+        return None, "not_found"
+    name = title.strip()
+    if not name:
+        return None, "empty_title"
+    taken = await db_session.scalar(
+        select(lib_orm.UserFavoriteFolder.id).where(
+            lib_orm.UserFavoriteFolder.user_id == user_id,
+            func.lower(lib_orm.UserFavoriteFolder.title) == name.lower(),
+            lib_orm.UserFavoriteFolder.id != folder_id,
+        )
+    )
+    if taken:
+        return None, "duplicate_title"
+    row.title = name[:200]
+    return row, None
+
+
+async def delete_favorite_folder(
+    db_session: AsyncSession, user_id: UUID, folder_id: UUID
+) -> bool:
+    row = await get_favorite_folder(db_session, user_id, folder_id)
+    if row is None:
+        return False
+    await db_session.delete(row)
+    return True
+
+
+async def move_favorite(
+    db_session: AsyncSession,
+    user_id: UUID,
+    node_id: UUID,
+    folder_id: UUID | None,
+) -> str | None:
+    fav = await db_session.scalar(
+        select(lib_orm.UserFavorite).where(
+            lib_orm.UserFavorite.user_id == user_id,
+            lib_orm.UserFavorite.node_id == node_id,
+        )
+    )
+    if fav is None:
+        return "not_favorite"
+    if folder_id is not None:
+        folder = await get_favorite_folder(db_session, user_id, folder_id)
+        if folder is None:
+            return "folder_not_found"
+    fav.folder_id = folder_id
+    return None
 
 
 async def record_recent_view(db_session: AsyncSession, user_id: UUID, node_id: UUID) -> None:
@@ -571,6 +703,17 @@ async def delete_feedback_message_notifications(
     )
 
 
+async def delete_feedback_wish_notifications(
+    db_session: AsyncSession, wish_id: UUID
+) -> None:
+    await db_session.execute(
+        delete(lib_orm.UserNotification).where(
+            lib_orm.UserNotification.kind == FEEDBACK_WISH_KIND,
+            lib_orm.UserNotification.payload.contains(str(wish_id)),
+        )
+    )
+
+
 _NOTIFICATION_NAME_KEYS = ("username", "author_username")
 
 
@@ -802,18 +945,116 @@ async def mark_notification_read(
     )
 
 
+def _app_day_bound_utc_naive(day: date, *, end: bool) -> datetime:
+    """Start/end of a calendar day in the app timezone, stored as naive UTC."""
+    tz_name = get_settings().papermerge__main__timezone or "Asia/Vladivostok"
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("Asia/Vladivostok")
+    local = datetime.combine(day, time.max if end else time.min, tzinfo=tz)
+    return local.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _audit_filters(
+    *,
+    action: str | None,
+    resource_type: str | None,
+    user_id: UUID | None,
+    q: str | None,
+    created_from: date | None,
+    created_to: date | None,
+):
+    filters = []
+    if action:
+        filters.append(lib_orm.AuditLogEntry.action == action.strip())
+    if resource_type:
+        filters.append(lib_orm.AuditLogEntry.resource_type == resource_type.strip())
+    if user_id:
+        filters.append(lib_orm.AuditLogEntry.user_id == user_id)
+    if created_from:
+        filters.append(
+            lib_orm.AuditLogEntry.created_at >= _app_day_bound_utc_naive(created_from, end=False)
+        )
+    if created_to:
+        filters.append(
+            lib_orm.AuditLogEntry.created_at <= _app_day_bound_utc_naive(created_to, end=True)
+        )
+    needle = (q or "").strip()
+    if needle:
+        pattern = f"%{needle}%"
+        text_match = [
+            lib_orm.AuditLogEntry.detail.ilike(pattern),
+            lib_orm.AuditLogEntry.action.ilike(pattern),
+            lib_orm.AuditLogEntry.resource_type.ilike(pattern),
+            orm.User.username.ilike(pattern),
+            orm.User.first_name.ilike(pattern),
+            orm.User.last_name.ilike(pattern),
+        ]
+        try:
+            as_uuid = UUID(needle)
+        except ValueError:
+            as_uuid = None
+        if as_uuid is not None:
+            text_match.extend(
+                [
+                    lib_orm.AuditLogEntry.id == as_uuid,
+                    lib_orm.AuditLogEntry.user_id == as_uuid,
+                    lib_orm.AuditLogEntry.resource_id == as_uuid,
+                ]
+            )
+        filters.append(or_(*text_match))
+    return filters
+
+
 async def list_audit(
-    db_session: AsyncSession, page: int, page_size: int
-) -> tuple[list[lib_orm.AuditLogEntry], int]:
+    db_session: AsyncSession,
+    page: int,
+    page_size: int,
+    *,
+    action: str | None = None,
+    resource_type: str | None = None,
+    user_id: UUID | None = None,
+    q: str | None = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+) -> tuple[list[tuple[lib_orm.AuditLogEntry, str | None]], int]:
     offset = (page - 1) * page_size
-    total = await db_session.scalar(select(func.count(lib_orm.AuditLogEntry.id)))
+    filters = _audit_filters(
+        action=action,
+        resource_type=resource_type,
+        user_id=user_id,
+        q=q,
+        created_from=created_from,
+        created_to=created_to,
+    )
+    count_stmt = (
+        select(func.count(lib_orm.AuditLogEntry.id))
+        .select_from(lib_orm.AuditLogEntry)
+        .outerjoin(orm.User, orm.User.id == lib_orm.AuditLogEntry.user_id)
+    )
     stmt = (
-        select(lib_orm.AuditLogEntry)
+        select(
+            lib_orm.AuditLogEntry,
+            orm.User.username,
+            orm.User.first_name,
+            orm.User.last_name,
+        )
+        .outerjoin(orm.User, orm.User.id == lib_orm.AuditLogEntry.user_id)
         .order_by(lib_orm.AuditLogEntry.created_at.desc())
         .offset(offset)
         .limit(page_size)
     )
-    rows = list((await db_session.scalars(stmt)).all())
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+        stmt = stmt.where(*filters)
+    total = await db_session.scalar(count_stmt)
+    rows = []
+    for entry, username, first_name, last_name in (await db_session.execute(stmt)).all():
+        display = (
+            user_display_name(first_name, last_name, username) if username else None
+        )
+        rows.append((entry, display))
     return rows, int(total or 0)
 
 

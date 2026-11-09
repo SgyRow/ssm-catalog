@@ -30,7 +30,8 @@ import {
   IconHome,
   IconMessages,
   IconNotebook,
-  IconUsersGroup
+  IconUsersGroup,
+  IconApps
 } from "@tabler/icons-react"
 import {useSelector} from "react-redux"
 import {Link, NavLink, useLocation} from "react-router-dom"
@@ -49,6 +50,7 @@ function useNavActive() {
       pathname === "/citizen-categories" ||
       pathname.startsWith("/citizen-categories/"),
     handbook: pathname === "/handbook" || pathname.startsWith("/handbook/"),
+    services: pathname === "/services" || pathname.startsWith("/services/"),
     library: pathname === "/library" || pathname.startsWith("/library/"),
     feedback: pathname === "/feedback" || pathname.startsWith("/feedback/")
   }
@@ -130,6 +132,15 @@ function NavBarFull() {
           <Group wrap="nowrap" gap="xs">
             <IconNotebook />
             {t("handbook.nav")}
+          </Group>
+        </Link>
+        <Link
+          to="/services"
+          className={active.services ? "active" : undefined}
+        >
+          <Group wrap="nowrap" gap="xs">
+            <IconApps />
+            {t("services.nav")}
           </Group>
         </Link>
         {scopes.includes(NODE_VIEW) && (
@@ -248,6 +259,14 @@ function NavBarCollapsed() {
         >
           <Group>
             <IconNotebook />
+          </Group>
+        </Link>
+        <Link
+          to="/services"
+          className={active.services ? "active" : undefined}
+        >
+          <Group>
+            <IconApps />
           </Group>
         </Link>
         {scopes.includes(NODE_VIEW) && (

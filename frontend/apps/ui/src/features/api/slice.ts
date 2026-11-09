@@ -55,6 +55,7 @@ export const apiSlice = createApi({
     "DocVersList",
     "DocumentVersion",
     "LibraryFavorites",
+    "LibraryFavoriteFolders",
     "LibraryRecent",
     "LibraryTrash",
     "LibraryNote",
@@ -70,7 +71,8 @@ export const apiSlice = createApi({
     "Handbook",
     "Feedback",
     "MspType",
-    "Msp"
+    "Msp",
+    "ExternalService"
   ],
   endpoints: _ => ({})
 })

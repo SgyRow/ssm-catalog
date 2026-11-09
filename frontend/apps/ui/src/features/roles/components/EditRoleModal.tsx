@@ -39,7 +39,7 @@ export default function EditRoleModalContainer({
     setError("")
     const updatedData = {
       id: roleID,
-      scopes: scopes,
+      scopes: client2serverPerms(scopes),
       name: name! || data?.name!
     }
     try {

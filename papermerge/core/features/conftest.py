@@ -43,6 +43,8 @@ from papermerge.core.features.document_types import router as document_types_rou
 from papermerge.core.features.citizen_categories import router as citizen_categories_router
 from papermerge.core.features.citizen_categories import router_public as citizen_categories_public_router
 from papermerge.core.features.msp import router as msp_router
+from papermerge.core.features.library_ts import router as library_ts_router
+from papermerge.core.features.services import router as services_router
 from papermerge.core.features.users import router as usr_router
 from papermerge.core.features.liveness_probe import router as probe_router
 from papermerge.core import orm, dbapi, schema
@@ -339,6 +341,8 @@ def get_app_with_routes():
     app.include_router(citizen_categories_router.router, prefix="")
     app.include_router(citizen_categories_public_router.router, prefix="")
     app.include_router(msp_router.router, prefix="")
+    app.include_router(library_ts_router.router, prefix="")
+    app.include_router(services_router.router, prefix="")
     app.include_router(probe_router.router, prefix="")
 
     return app

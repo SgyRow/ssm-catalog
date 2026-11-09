@@ -410,6 +410,8 @@ function NewsPreview({
     <article className={classes.newsArticle}>
       <h3>{item.title}</h3>
       <div className={classes.meta}>
+        {item.is_pinned ? `${t("portal.news_pinned")} · ` : null}
+        {item.category ? `${item.category} · ` : null}
         {formatApiDateTimeCompact(item.created_at)}
         {author}
       </div>

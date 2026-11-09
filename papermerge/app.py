@@ -44,6 +44,7 @@ from papermerge.core.features.backup.router import router as backup_router
 from papermerge.core.features.handbook.router import router as handbook_router
 from papermerge.core.features.feedback.router import router as feedback_router
 from papermerge.core.features.msp.router import router as msp_router
+from papermerge.core.features.services.router import router as services_router
 from papermerge.core.features.search_advanced.router import (
     router as advanced_search_router,
 )
@@ -123,6 +124,7 @@ app.include_router(backup_router, prefix=prefix)
 app.include_router(handbook_router, prefix=prefix)
 app.include_router(feedback_router, prefix=prefix)
 app.include_router(msp_router, prefix=prefix)
+app.include_router(services_router, prefix=prefix)
 app.include_router(advanced_search_router, prefix=prefix)
 app.include_router(ws_router)
 if settings.papermerge__dev__auth_bypass_enabled:

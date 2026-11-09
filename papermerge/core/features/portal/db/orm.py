@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from papermerge.core.db.base import Base
@@ -18,6 +18,10 @@ class PortalNews(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     body: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+    category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    is_pinned: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, default=False, server_default="false"
+    )
     author_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

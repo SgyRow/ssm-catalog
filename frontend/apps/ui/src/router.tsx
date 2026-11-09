@@ -19,6 +19,7 @@ import AuditLogPage from "@/features/audit/pages/AuditLogPage"
 import ProfilePage from "@/features/profile/pages/ProfilePage"
 import UserGuidePage from "@/features/help/pages/UserGuidePage"
 import BackupPage from "@/features/backup/pages/BackupPage"
+import ServicesPage from "@/features/services/pages/ServicesPage"
 
 import {AccessForbidden, NotFound, UnprocessableContent} from "@/pages/errors"
 
@@ -146,6 +147,10 @@ const router = createBrowserRouter([
       {
         path: "/users/:userId",
         element: <UserDetails />
+      },
+      {
+        path: "/services",
+        element: <ServicesPage />
       },
       {
         path: "/audit-log",

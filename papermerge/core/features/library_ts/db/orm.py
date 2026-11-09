@@ -8,11 +8,29 @@ from sqlalchemy.orm import Mapped, mapped_column
 from papermerge.core.db.base import Base
 
 
+class UserFavoriteFolder(Base):
+    __tablename__ = "user_favorite_folders"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(200))
+    sort_index: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "title", name="uq_user_favorite_folder_title"),
+    )
+
+
 class UserFavorite(Base):
     __tablename__ = "user_favorites"
 
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     node_id: Mapped[UUID] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True)
+    folder_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("user_favorite_folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
 

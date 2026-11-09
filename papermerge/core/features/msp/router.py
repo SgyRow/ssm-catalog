@@ -25,6 +25,7 @@ from papermerge.core.features.msp.schema import (
     NewMsp,
     NewMspType,
     NewMspTypeSection,
+    UpdateMspType,
     MspRead,
     MspSectionRead,
     MspTypeRead,
@@ -158,6 +159,35 @@ async def get_msp_type(
 ) -> MspTypeRead:
     """Get a single measure type with its sections."""
     msp_type = await api.get_msp_type(db_session, msp_type_id)
+    if msp_type is None:
+        raise HTTPException(status_code=404, detail="Measure type not found")
+    return _type_read(msp_type)
+
+
+@router.patch(
+    "/types/{msp_type_id}",
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Administrator required",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        }
+    },
+)
+async def update_msp_type(
+    msp_type_id: UUID,
+    payload: UpdateMspType,
+    user: Annotated[core_schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> MspTypeRead:
+    """Update a measure type: name, description, and/or its sections."""
+    _require_superuser(user)
+    msp_type = await api.update_msp_type(
+        db_session,
+        msp_type_id,
+        name=payload.name,
+        description=payload.description,
+        sections=payload.sections,
+    )
     if msp_type is None:
         raise HTTPException(status_code=404, detail="Measure type not found")
     return _type_read(msp_type)

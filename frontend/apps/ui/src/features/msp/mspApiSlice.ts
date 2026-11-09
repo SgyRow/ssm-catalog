@@ -94,6 +94,26 @@ const injected = apiSlice.injectEndpoints({
       }),
       invalidatesTags: [{type: "MspType", id: "LIST"}]
     }),
+    updateMspType: builder.mutation<
+      MspType,
+      {
+        msp_type_id: string
+        name?: string | null
+        description?: string | null
+        sections?: Array<{id?: string | null; title: string}>
+      }
+    >({
+      query: ({msp_type_id, ...body}) => ({
+        url: `/msp/types/${msp_type_id}`,
+        method: "PATCH",
+        body
+      }),
+      invalidatesTags: (_r, _e, {msp_type_id}) => [
+        {type: "MspType", id: "LIST"},
+        {type: "MspType", id: msp_type_id},
+        "Msp"
+      ]
+    }),
     deleteMspType: builder.mutation<void, string>({
       query: id => ({
         url: `/msp/types/${id}`,
@@ -125,9 +145,10 @@ const injected = apiSlice.injectEndpoints({
         method: "PUT",
         body: patch
       }),
-      invalidatesTags: (_r, _e, {msp_id}) => [
+      invalidatesTags: (result, _e, {msp_id}) => [
         "Node",
-        {type: "Msp", id: msp_id}
+        {type: "Msp", id: msp_id},
+        ...(result ? [{type: "Msp" as const, id: result.node_id}] : [])
       ]
     }),
     deleteMsp: builder.mutation<void, string>({
@@ -145,6 +166,7 @@ export const {
   useGetMspTypeQuery,
   useCreateMspTypeMutation,
   useAddMspTypeSectionMutation,
+  useUpdateMspTypeMutation,
   useDeleteMspTypeMutation,
   useCreateMspMutation,
   useGetMspQuery,
