@@ -1,13 +1,12 @@
 import {useAppSelector} from "@/app/hooks"
 import {getBlobViewerCategory} from "@/features/document/documentPreview"
 import type {TFunction} from "i18next"
+import FavoritesPanel from "@/features/library/components/FavoritesPanel"
 import {
-  useGetLibraryFavoritesQuery,
   useGetLibraryRecentQuery,
   useGetLibraryTrashQuery,
   useGetLibrarySettingsQuery,
   usePurgeLibraryTrashMutation,
-  useRemoveLibraryFavoriteMutation,
   useRestoreLibraryTrashMutation,
   useUpdateLibrarySettingsMutation
 } from "@/features/library/libraryApiSlice"
@@ -135,83 +134,6 @@ function resolveTypeLabel(ctype: string, title: string, t: TFunction): string {
   // Files without a recognized extension fall back to category "binary", displayed as "File"
   const cat = getBlobViewerCategory(title)
   return t(`library.filetype_${cat}`, {defaultValue: cat})
-}
-
-function FavoritesPanel() {
-  const {t} = useTranslation()
-  const {data, isLoading, isError} = useGetLibraryFavoritesQuery()
-  const [remove, {isLoading: removing}] = useRemoveLibraryFavoriteMutation()
-
-  if (isLoading) {
-    return <Loader />
-  }
-  if (isError) {
-    return <Text c="red">{t("library.load_error")}</Text>
-  }
-  const rows = data ?? []
-  return (
-    <LibraryPanelScroll>
-      <Paper withBorder p="sm">
-        <Table stickyHeader striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t("common.table.columns.name")}</Table.Th>
-              <Table.Th>{t("library.col_type")}</Table.Th>
-              <Table.Th>{t("library.col_actions")}</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map(row => (
-              <Table.Tr key={row.node_id}>
-                <Table.Td>
-                  <Anchor component={Link} to={openHref(row.ctype, row.node_id)}>
-                    {formatNodeDisplayTitle(row.title, row.ctype)}
-                  </Anchor>
-                  {row.in_trash ? (
-                    <Text size="xs" c="dimmed">
-                      {t("library.in_trash")}
-                    </Text>
-                  ) : null}
-                </Table.Td>
-                <Table.Td>{resolveTypeLabel(row.ctype, row.title, t)}</Table.Td>
-                <Table.Td>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="red"
-                    loading={removing}
-                    onClick={async () => {
-                      try {
-                        await remove(row.node_id).unwrap()
-                        notifications.show({
-                          title: t("library.removed_favorite"),
-                          message: "",
-                          color: "green"
-                        })
-                      } catch {
-                        notifications.show({
-                          title: t("library.error"),
-                          message: "",
-                          color: "red"
-                        })
-                      }
-                    }}
-                  >
-                    {t("library.remove_favorite")}
-                  </Button>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-        {rows.length === 0 ? (
-          <Text c="dimmed" mt="sm">
-            {t("library.empty_favorites")}
-          </Text>
-        ) : null}
-      </Paper>
-    </LibraryPanelScroll>
-  )
 }
 
 function RecentPanel() {

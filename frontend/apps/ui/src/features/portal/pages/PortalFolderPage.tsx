@@ -4,10 +4,13 @@ import PortalFolderTree from "@/features/portal/components/PortalFolderTree"
 import {useGetPortalNodesQuery, useGetPortalRootQuery} from "@/features/portal/portalApiSlice"
 import MspView from "@/features/msp/MspView"
 import {useGetMspByNodeQuery} from "@/features/msp/mspApiSlice"
-import {makePortalDocumentNavState} from "@/features/portal/portalNavState"
-import {COMMANDER_VIEW} from "@/scopes"
+import {
+  makePortalDocumentNavState,
+  type PortalDocumentNavState
+} from "@/features/portal/portalNavState"
+import {COMMANDER_VIEW, NODE_UPDATE} from "@/scopes"
 import {selectCurrentUser} from "@/slices/currentUser"
-import type {BreadcrumbType, UserDetails} from "@/types"
+import type {BreadcrumbType, NodeType, UserDetails} from "@/types"
 import {formatNodeDisplayTitle} from "@/utils"
 import {
   homeFolderTreeToggled,
@@ -77,12 +80,15 @@ export default function PortalFolderPage() {
   )
 
   // A folder node can anchor a measure (МСП). When it does, the folder is
-  // rendered as the document itself (styled sections + PDF) rather than a
-  // listing of children.
-  const {data: msp, isFetching: mspIsFetching} = useGetMspByNodeQuery(
-    parentId ?? "",
-    {skip: !parentId || parentId === root?.id}
-  )
+  // rendered as the document (styled sections + PDF) plus any child nodes.
+  // Use currentData and match node_id so leaving an MSP folder never keeps
+  // showing the previous measure (RTK Query otherwise retains last `data`,
+  // especially when the root lookup is skipped).
+  const {currentData: mspData} = useGetMspByNodeQuery(parentId ?? "", {
+    skip: !parentId
+  })
+  const msp =
+    mspData && parentId && mspData.node_id === parentId ? mspData : undefined
 
   const catalogItems = data?.items ?? []
 
@@ -190,11 +196,29 @@ export default function PortalFolderPage() {
         </Group>
 
         {msp ? (
-          <Paper shadow="xs" p="md" radius="md" withBorder>
-            <MspView msp={msp} />
+          <Paper
+            shadow="xs"
+            p="md"
+            radius="md"
+            withBorder
+            className={classes.mspPanel}
+          >
+            <MspView
+              msp={msp}
+              canEdit={scopes.includes(NODE_UPDATE)}
+              childrenNodes={catalogItems}
+              childNav={row => ({
+                to:
+                  row.ctype === "folder"
+                    ? `/portal/folder/${row.id}`
+                    : `/document/${row.id}`,
+                state:
+                  row.ctype === "folder"
+                    ? undefined
+                    : documentNavState ?? undefined
+              })}
+            />
           </Paper>
-        ) : mspIsFetching ? (
-          <Loader size="lg" />
         ) : catalogItems.length === 0 ? (
           <Paper withBorder p="xl" radius="md">
             <Text c="dimmed" ta="center">
@@ -202,73 +226,84 @@ export default function PortalFolderPage() {
             </Text>
           </Paper>
         ) : (
-          <Stack gap="sm" className={classes.list}>
-            {catalogItems.map(row => {
-              const isFolder = row.ctype === "folder"
-              return (
-                <Paper
-                  key={row.id}
-                  withBorder
-                  p="sm"
-                  radius="md"
-                  shadow="xs"
-                  styles={{
-                    root: {
-                      transition: "background-color 120ms ease",
-                      "&:hover": {
-                        backgroundColor: "var(--mantine-color-default-hover)"
-                      }
-                    }
-                  }}
-                >
-                  <Anchor
-                    component={Link}
-                    to={
-                      isFolder
-                        ? `/portal/folder/${row.id}`
-                        : `/document/${row.id}`
-                    }
-                    state={isFolder ? undefined : documentNavState ?? undefined}
-                    underline="never"
-                    c="var(--mantine-color-text)"
-                    display="block"
-                  >
-                    <Group wrap="nowrap" gap="md" justify="space-between">
-                      <Group wrap="nowrap" gap="md" style={{minWidth: 0}}>
-                        <ThemeIcon
-                          variant="light"
-                          color={isFolder ? "yellow" : "gray"}
-                          size="lg"
-                          radius="md"
-                          aria-hidden
-                        >
-                          {isFolder ? (
-                            <IconFolder size={20} stroke={1.5} />
-                          ) : (
-                            <IconFile size={20} stroke={1.5} />
-                          )}
-                        </ThemeIcon>
-                        <Text fw={500} size="md" truncate="end">
-                          {formatNodeDisplayTitle(row.title, row.ctype)}
-                        </Text>
-                      </Group>
-                      {isFolder ? (
-                        <IconChevronRight
-                          size={18}
-                          stroke={1.5}
-                          color="var(--mantine-color-dimmed)"
-                          style={{flexShrink: 0}}
-                          aria-hidden
-                        />
-                      ) : null}
-                    </Group>
-                  </Anchor>
-                </Paper>
-              )
-            })}
-          </Stack>
+          <CatalogNodeList
+            items={catalogItems}
+            documentNavState={documentNavState}
+          />
         )}
       </Stack>
     </Group>
+  )
+}
+
+function CatalogNodeList({
+  items,
+  documentNavState
+}: {
+  items: NodeType[]
+  documentNavState: PortalDocumentNavState | null
+}) {
+  return (
+    <Stack gap="sm" className={classes.list}>
+      {items.map(row => {
+        const isFolder = row.ctype === "folder"
+        return (
+          <Paper
+            key={row.id}
+            withBorder
+            p="sm"
+            radius="md"
+            shadow="xs"
+            styles={{
+              root: {
+                transition: "background-color 120ms ease",
+                "&:hover": {
+                  backgroundColor: "var(--mantine-color-default-hover)"
+                }
+              }
+            }}
+          >
+            <Anchor
+              component={Link}
+              to={isFolder ? `/portal/folder/${row.id}` : `/document/${row.id}`}
+              state={isFolder ? undefined : documentNavState ?? undefined}
+              underline="never"
+              c="var(--mantine-color-text)"
+              display="block"
+            >
+              <Group wrap="nowrap" gap="md" justify="space-between">
+                <Group wrap="nowrap" gap="md" style={{minWidth: 0}}>
+                  <ThemeIcon
+                    variant="light"
+                    color={isFolder ? "yellow" : "gray"}
+                    size="lg"
+                    radius="md"
+                    aria-hidden
+                  >
+                    {isFolder ? (
+                      <IconFolder size={20} stroke={1.5} />
+                    ) : (
+                      <IconFile size={20} stroke={1.5} />
+                    )}
+                  </ThemeIcon>
+                  <Text fw={500} size="md" truncate="end">
+                    {formatNodeDisplayTitle(row.title, row.ctype)}
+                  </Text>
+                </Group>
+                {isFolder ? (
+                  <IconChevronRight
+                    size={18}
+                    stroke={1.5}
+                    color="var(--mantine-color-dimmed)"
+                    style={{flexShrink: 0}}
+                    aria-hidden
+                  />
+                ) : null}
+              </Group>
+            </Anchor>
+          </Paper>
+        )
+      })}
+    </Stack>
   )
 }

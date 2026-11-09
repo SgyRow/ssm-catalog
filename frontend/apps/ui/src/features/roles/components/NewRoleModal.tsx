@@ -34,7 +34,7 @@ export default function NewRoleModalContainer({
   const onLocalSubmit = async () => {
     setError("")
     const updatedData = {
-      scopes: scopes,
+      scopes: client2serverPerms(scopes),
       name: name!
     }
     try {

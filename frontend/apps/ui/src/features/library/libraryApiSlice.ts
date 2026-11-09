@@ -5,11 +5,23 @@ import type {FolderType, NodeType, Paginated} from "@/types"
 export type AuditLogEntry = {
   id: string
   user_id: string | null
+  username?: string | null
   action: string
   resource_type: string
   resource_id: string | null
   detail: string | null
   created_at: string
+}
+
+export type AuditLogQuery = {
+  page?: number
+  page_size?: number
+  action?: string
+  resource_type?: string
+  user_id?: string
+  q?: string
+  created_from?: string
+  created_to?: string
 }
 
 export type FavoriteRow = {
@@ -18,6 +30,14 @@ export type FavoriteRow = {
   ctype: string
   created_at: string
   in_trash: boolean
+  folder_id: string | null
+}
+
+export type FavoriteFolder = {
+  id: string
+  title: string
+  sort_index: number
+  created_at: string
 }
 
 export type RecentRow = {
@@ -92,6 +112,42 @@ export const apiSliceWithLibrary = apiSlice.injectEndpoints({
         method: "DELETE"
       }),
       invalidatesTags: [{type: "LibraryFavorites", id: "LIST"}]
+    }),
+    moveLibraryFavorite: builder.mutation<
+      void,
+      {nodeId: string; folderId: string | null}
+    >({
+      query: ({nodeId, folderId}) => ({
+        url: `/library/favorites/${nodeId}/`,
+        method: "PATCH",
+        body: {folder_id: folderId}
+      }),
+      invalidatesTags: [{type: "LibraryFavorites", id: "LIST"}]
+    }),
+    getLibraryFavoriteFolders: builder.query<FavoriteFolder[], void>({
+      query: () => "/library/favorite-folders/",
+      providesTags: [{type: "LibraryFavoriteFolders", id: "LIST"}]
+    }),
+    createLibraryFavoriteFolder: builder.mutation<
+      FavoriteFolder,
+      {title: string}
+    >({
+      query: body => ({
+        url: "/library/favorite-folders/",
+        method: "POST",
+        body
+      }),
+      invalidatesTags: [{type: "LibraryFavoriteFolders", id: "LIST"}]
+    }),
+    deleteLibraryFavoriteFolder: builder.mutation<void, string>({
+      query: folderId => ({
+        url: `/library/favorite-folders/${folderId}/`,
+        method: "DELETE"
+      }),
+      invalidatesTags: [
+        {type: "LibraryFavoriteFolders", id: "LIST"},
+        {type: "LibraryFavorites", id: "LIST"}
+      ]
     }),
     getLibraryRecent: builder.query<RecentRow[], void>({
       query: () => "/library/recent/",
@@ -228,12 +284,28 @@ export const apiSliceWithLibrary = apiSlice.injectEndpoints({
       }),
       invalidatesTags: [{type: "LibraryNotifications", id: "LIST"}]
     }),
-    getLibraryAuditLog: builder.query<
-      Paginated<AuditLogEntry>,
-      {page?: number; page_size?: number}
-    >({
-      query: ({page = 1, page_size = 50}) =>
-        `/library/audit/?page=${page}&page_size=${page_size}`,
+    getLibraryAuditLog: builder.query<Paginated<AuditLogEntry>, AuditLogQuery>({
+      query: ({
+        page = 1,
+        page_size = 50,
+        action,
+        resource_type,
+        user_id,
+        q,
+        created_from,
+        created_to
+      }) => {
+        const params = new URLSearchParams()
+        params.set("page", String(page))
+        params.set("page_size", String(page_size))
+        if (action) params.set("action", action)
+        if (resource_type) params.set("resource_type", resource_type)
+        if (user_id) params.set("user_id", user_id)
+        if (q) params.set("q", q)
+        if (created_from) params.set("created_from", created_from)
+        if (created_to) params.set("created_to", created_to)
+        return `/library/audit/?${params.toString()}`
+      },
       providesTags: [{type: "AuditLog", id: "LIST"}]
     }),
     createMspTemplate: builder.mutation<
@@ -291,6 +363,10 @@ export const {
   useGetLibraryFavoritesQuery,
   useAddLibraryFavoriteMutation,
   useRemoveLibraryFavoriteMutation,
+  useMoveLibraryFavoriteMutation,
+  useGetLibraryFavoriteFoldersQuery,
+  useCreateLibraryFavoriteFolderMutation,
+  useDeleteLibraryFavoriteFolderMutation,
   useGetLibraryRecentQuery,
   useGetLibraryTrashQuery,
   useRestoreLibraryTrashMutation,

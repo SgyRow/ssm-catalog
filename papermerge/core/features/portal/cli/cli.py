@@ -83,6 +83,8 @@ async def news_add(
                 title=title,
                 body=post_body,
                 attachment_node_ids=list(attachment or []),
+                category=None,
+                is_pinned=False,
             )
         except Exception as e:
             await db_session.rollback()

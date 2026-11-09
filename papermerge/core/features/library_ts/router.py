@@ -1,7 +1,9 @@
 """Course TS: favorites, recent, trash helpers, collaboration, stats."""
 
 import uuid
+from datetime import date
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -149,6 +151,135 @@ async def remove_favorite(
         action="favorite_remove",
         resource_type="node",
         resource_id=node_id,
+    )
+    await db_session.commit()
+
+
+@router.patch("/favorites/{node_id}", status_code=204)
+@router.patch("/favorites/{node_id}/", status_code=204)
+async def move_favorite(
+    node_id: uuid.UUID,
+    body: lib_schema.FavoriteMoveIn,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    error = await lib_api.move_favorite(
+        db_session, user.id, node_id, body.folder_id
+    )
+    if error == "not_favorite":
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    if error == "folder_not_found":
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="favorite_move",
+        resource_type="node",
+        resource_id=node_id,
+        detail=lib_api.audit_detail_json(
+            {"folder_id": str(body.folder_id) if body.folder_id else None}
+        ),
+    )
+    await db_session.commit()
+
+
+@router.get(
+    "/favorite-folders",
+    response_model=list[lib_schema.FavoriteFolderOut],
+)
+@router.get(
+    "/favorite-folders/",
+    response_model=list[lib_schema.FavoriteFolderOut],
+)
+async def list_favorite_folders(
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    rows = await lib_api.list_favorite_folders(db_session, user.id)
+    return rows
+
+
+@router.post(
+    "/favorite-folders",
+    response_model=lib_schema.FavoriteFolderOut,
+    status_code=201,
+)
+@router.post(
+    "/favorite-folders/",
+    response_model=lib_schema.FavoriteFolderOut,
+    status_code=201,
+)
+async def create_favorite_folder(
+    body: lib_schema.FavoriteFolderCreate,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    row, error = await lib_api.create_favorite_folder(
+        db_session, user.id, body.title
+    )
+    if error == "empty_title":
+        raise HTTPException(status_code=422, detail="title must not be empty")
+    if error == "duplicate_title":
+        raise HTTPException(status_code=409, detail="Folder already exists")
+    if error == "folder_limit":
+        raise HTTPException(status_code=400, detail="Folder limit reached")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="favorite_folder_create",
+        resource_type="favorite_folder",
+        resource_id=row.id,
+        detail=lib_api.audit_detail_json({"title": row.title}),
+    )
+    await db_session.commit()
+    await db_session.refresh(row)
+    return row
+
+
+@router.patch(
+    "/favorite-folders/{folder_id}",
+    response_model=lib_schema.FavoriteFolderOut,
+)
+@router.patch(
+    "/favorite-folders/{folder_id}/",
+    response_model=lib_schema.FavoriteFolderOut,
+)
+async def rename_favorite_folder(
+    folder_id: uuid.UUID,
+    body: lib_schema.FavoriteFolderUpdate,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    row, error = await lib_api.rename_favorite_folder(
+        db_session, user.id, folder_id, body.title
+    )
+    if error == "not_found":
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if error == "empty_title":
+        raise HTTPException(status_code=422, detail="title must not be empty")
+    if error == "duplicate_title":
+        raise HTTPException(status_code=409, detail="Folder already exists")
+    await db_session.commit()
+    await db_session.refresh(row)
+    return row
+
+
+@router.delete("/favorite-folders/{folder_id}", status_code=204)
+@router.delete("/favorite-folders/{folder_id}/", status_code=204)
+async def delete_favorite_folder(
+    folder_id: uuid.UUID,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    ok = await lib_api.delete_favorite_folder(db_session, user.id, folder_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="favorite_folder_delete",
+        resource_type="favorite_folder",
+        resource_id=folder_id,
     )
     await db_session.commit()
 
@@ -598,23 +729,40 @@ async def list_audit_log(
     db_session: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
+    action: str | None = Query(None, max_length=64),
+    resource_type: str | None = Query(None, max_length=64),
+    user_id: UUID | None = Query(None),
+    q: str | None = Query(None, max_length=200),
+    created_from: date | None = Query(None),
+    created_to: date | None = Query(None),
 ):
     if not user.is_superuser:
         raise exc.HTTP403Forbidden()
-    rows, total = await lib_api.list_audit(db_session, page=page, page_size=page_size)
+    rows, total = await lib_api.list_audit(
+        db_session,
+        page=page,
+        page_size=page_size,
+        action=action,
+        resource_type=resource_type,
+        user_id=user_id,
+        q=q,
+        created_from=created_from,
+        created_to=created_to,
+    )
     await db_session.commit()
     num_pages = max(1, (int(total) + page_size - 1) // page_size) if total else 1
     items = [
         lib_schema.AuditEntryOut(
             id=r.id,
             user_id=r.user_id,
+            username=username,
             action=r.action,
             resource_type=r.resource_type,
             resource_id=r.resource_id,
             detail=r.detail,
             created_at=r.created_at,
         )
-        for r in rows
+        for r, username in rows
     ]
     return PaginatedResponse[lib_schema.AuditEntryOut](
         page_size=page_size,

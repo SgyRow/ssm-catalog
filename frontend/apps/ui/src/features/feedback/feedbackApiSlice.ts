@@ -153,6 +153,13 @@ const injected = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ["Feedback", "LibraryNotifications"]
     }),
+    deleteFeedbackWish: builder.mutation<void, string>({
+      query: wishId => ({
+        url: `/feedback/wishes/${wishId}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: ["Feedback", "LibraryNotifications"]
+    }),
     sendFeedbackWish: builder.mutation<
       FeedbackWish,
       {subject: string; body: string}
@@ -210,6 +217,7 @@ export const {
   useReplyFeedbackThreadMutation,
   useDeleteFeedbackMessageMutation,
   useDeleteFeedbackThreadMutation,
+  useDeleteFeedbackWishMutation,
   useSendFeedbackWishMutation,
   useGetFeedbackWishesQuery,
   useGetFeedbackWishQuery

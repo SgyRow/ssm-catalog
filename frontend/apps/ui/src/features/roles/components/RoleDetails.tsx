@@ -1,3 +1,4 @@
+import classes from "@/components/ViewportPage.module.css"
 import {Box, Breadcrumbs, Group, Loader, LoadingOverlay} from "@mantine/core"
 import {Link, useNavigation} from "react-router-dom"
 import {useTranslation} from "react-i18next"
@@ -20,37 +21,44 @@ export default function RoleDetailsComponent({roleId}: RoleDetailsArgs) {
 
   if (isLoading || !data) {
     return (
-      <Box pos="relative">
-        <LoadingOverlay
-          visible={true}
-          zIndex={1000}
-          overlayProps={{radius: "sm", blur: 2}}
-        />
-        <Path role={null} />
-        <RoleForm
-          txt={txt?.roleForm}
-          isLoading={true}
-          readOnly={true}
-          initialCheckedState={[]}
-        />
-      </Box>
+      <div className={classes.page}>
+        <Box pos="relative" p="md" className={classes.scroll}>
+          <LoadingOverlay
+            visible={true}
+            zIndex={1000}
+            overlayProps={{radius: "sm", blur: 2}}
+          />
+          <Path role={null} />
+          <RoleForm
+            txt={txt?.roleForm}
+            isLoading={true}
+            readOnly={true}
+            initialCheckedState={[]}
+            withScrollArea={false}
+          />
+        </Box>
+      </div>
     )
   }
 
   return (
-    <>
-      <Group justify="space-between">
+    <div className={classes.page}>
+      <Group justify="space-between" p="md" pb="xs">
         <Path role={data} />
         <ActionButtons modelId={data?.id} />
       </Group>
-      <RoleForm
-        key={`${data.id}-${data.scopes.join(",")}`}
-        initialCheckedState={server2clientPerms(data.scopes)}
-        name={data.name}
-        isLoading={false}
-        readOnly={true}
-      />
-    </>
+      <div className={classes.scroll} style={{padding: "0 1rem 1rem"}}>
+        <RoleForm
+          key={`${data.id}-${data.scopes.join(",")}`}
+          txt={txt?.roleForm}
+          initialCheckedState={server2clientPerms(data.scopes)}
+          name={data.name}
+          isLoading={false}
+          readOnly={true}
+          withScrollArea={false}
+        />
+      </div>
+    </div>
   )
 }
 

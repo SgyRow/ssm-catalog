@@ -1,8 +1,23 @@
 from pathlib import Path
 import mimetypes
+import re
 from urllib.parse import quote
 
 from fastapi.responses import FileResponse
+
+# Chrome treats a raw comma in Content-Disposition as a second header and
+# aborts the request with ERR_RESPONSE_HEADERS_MULTIPLE_CONTENT_DISPOSITION.
+# Keep the ASCII fallback conservative; the original name goes in filename*.
+_ASCII_FILENAME_RE = re.compile(r"[^A-Za-z0-9._()\[\] -]+")
+
+
+def content_disposition_header(disposition_type: str, filename: str) -> str:
+    kind = "inline" if disposition_type == "inline" else "attachment"
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii")
+    ascii_name = _ASCII_FILENAME_RE.sub("_", ascii_name)
+    ascii_name = re.sub(r"[ _]+", " ", ascii_name).strip(" ._") or "download"
+    encoded = quote(filename, safe="")
+    return f"{kind}; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
 
 
 class DocumentFileResponse(FileResponse):
@@ -41,21 +56,13 @@ class DocumentFileResponse(FileResponse):
         if filename is None:
             filename = Path(path).name
 
-        # Prepare headers
-        headers = kwargs.get('headers', {})
-
-        # Set Content-Disposition header with proper filename encoding
-        # This handles filenames with special characters or unicode
-        filename_ascii = filename.encode('ascii', 'ignore').decode('ascii')
-        filename_utf8 = quote(filename)
-
-        disposition = f'{content_disposition_type}; filename="{filename_ascii}"'
-        if filename != filename_ascii:
-            disposition += f"; filename*=UTF-8''{filename_utf8}"
-
-        headers['Content-Disposition'] = disposition
+        headers = dict(kwargs.get('headers') or {})
+        headers['Content-Disposition'] = content_disposition_header(
+            content_disposition_type, filename
+        )
         kwargs['headers'] = headers
 
+        # Do not pass filename: Starlette would add another Content-Disposition.
         super().__init__(
             path=path,
             media_type=content_type,

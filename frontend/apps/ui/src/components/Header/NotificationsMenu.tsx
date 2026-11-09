@@ -189,7 +189,10 @@ const NotificationsMenu: React.FC = () => {
             disabled={unreadCount === 0}
             size={16}
           >
-            <UnstyledButton aria-label={t("library.tab_notifications")}>
+            <UnstyledButton
+              aria-label={t("library.tab_notifications")}
+              onClick={() => setOpened(current => !current)}
+            >
               <IconBell />
             </UnstyledButton>
           </Indicator>

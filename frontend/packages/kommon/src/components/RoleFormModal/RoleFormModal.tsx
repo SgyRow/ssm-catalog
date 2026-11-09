@@ -3,7 +3,6 @@ import {
   Button,
   Group,
   Modal,
-  Space,
   ScrollArea,
   Text,
   CheckedNodeStatus
@@ -55,7 +54,7 @@ export default function RoleFormModal({
           height: "100%"
         }}
       >
-        <ScrollArea style={{flex: 1}}>
+        <ScrollArea style={{flex: 1, minHeight: 0}} mah="70dvh">
           <RoleForm
             name={name}
             isLoading={inProgress}
@@ -66,19 +65,15 @@ export default function RoleFormModal({
             onNameChange={onNameChange}
           />
         </ScrollArea>
-        <Space h="md" />
         <Box
           pt="sm"
+          mt="sm"
           style={{
-            borderTop: "1px solid #e0e0e0",
-            backgroundColor: "white",
-            position: "sticky",
-            bottom: 0,
-            zIndex: 1,
-            padding: "1rem"
+            borderTop: "1px solid light-dark(#e0e0e0, var(--mantine-color-dark-4))",
+            flexShrink: 0
           }}
         >
-          <Text c="red">{error}</Text>
+          {error ? <Text c="red">{error}</Text> : null}
           <Group gap="lg" justify="space-between">
             <Button variant="default" onClick={onCancel}>
               {txt?.cancel || "Cancel"}

@@ -3,6 +3,7 @@ import FeedbackThreadView from "@/features/feedback/components/FeedbackThreadVie
 import {
   useDeleteFeedbackMessageMutation,
   useDeleteFeedbackThreadMutation,
+  useDeleteFeedbackWishMutation,
   useGetFeedbackThreadQuery,
   useGetFeedbackThreadsQuery,
   useGetFeedbackWishQuery,
@@ -56,8 +57,13 @@ export default function FeedbackInboxPage() {
     useDeleteFeedbackMessageMutation()
   const [deleteThread, {isLoading: deletingThread}] =
     useDeleteFeedbackThreadMutation()
+  const [deleteWish, {isLoading: deletingWish}] = useDeleteFeedbackWishMutation()
+  const deleting = deletingMessage || deletingThread || deletingWish
   const [pendingDelete, setPendingDelete] = useState<
-    {kind: "thread"; id: string} | {kind: "message"; id: string} | null
+    | {kind: "thread"; id: string}
+    | {kind: "message"; id: string}
+    | {kind: "wish"; id: string}
+    | null
   >(null)
 
   if (!user) {
@@ -143,7 +149,20 @@ export default function FeedbackInboxPage() {
           <div className={classes.chat}>
             {selectedWishId && wish ? (
               <div className={classes.wish}>
-                <Text fw={650}>{wish.subject}</Text>
+                <Group justify="space-between" wrap="nowrap" align="flex-start">
+                  <Text fw={650}>{wish.subject}</Text>
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    size="compact-sm"
+                    leftSection={<IconTrash size={14} />}
+                    onClick={() =>
+                      setPendingDelete({kind: "wish", id: selectedWishId})
+                    }
+                  >
+                    {t("feedback.delete_wish")}
+                  </Button>
+                </Group>
                 <Text size="sm" c="dimmed">
                   {wish.author_name}
                   {" · "}
@@ -239,56 +258,69 @@ export default function FeedbackInboxPage() {
       <Modal
         opened={pendingDelete !== null}
         onClose={() => {
-          if (!deletingMessage && !deletingThread) {
+          if (!deleting) {
             setPendingDelete(null)
           }
         }}
         title={
           pendingDelete?.kind === "thread"
             ? t("feedback.delete_chat")
-            : t("feedback.delete_message")
+            : pendingDelete?.kind === "wish"
+              ? t("feedback.delete_wish")
+              : t("feedback.delete_message")
         }
       >
         <Text>
           {pendingDelete?.kind === "thread"
             ? t("feedback.delete_chat_confirm")
-            : t("feedback.delete_message_confirm")}
+            : pendingDelete?.kind === "wish"
+              ? t("feedback.delete_wish_confirm")
+              : t("feedback.delete_message_confirm")}
         </Text>
         <Group justify="flex-end" mt="md">
           <Button
             variant="default"
             onClick={() => setPendingDelete(null)}
-            disabled={deletingMessage || deletingThread}
+            disabled={deleting}
           >
             {t("common.cancel")}
           </Button>
           <Button
             color="red"
-            loading={deletingMessage || deletingThread}
+            loading={deleting}
             onClick={() => {
               if (!pendingDelete) {
                 return
               }
+              const target = pendingDelete
+              const previousParams = new URLSearchParams(params)
+              if (target.kind === "thread" && selectedThreadId === target.id) {
+                setParams(new URLSearchParams(), {replace: true})
+              }
+              if (target.kind === "wish" && selectedWishId === target.id) {
+                const next = new URLSearchParams()
+                next.set("tab", "wishes")
+                setParams(next, {replace: true})
+              }
               const task =
-                pendingDelete.kind === "thread"
-                  ? deleteThread(pendingDelete.id).unwrap()
-                  : selectedThreadId
-                    ? deleteMessage({
-                        threadId: selectedThreadId,
-                        messageId: pendingDelete.id
-                      }).unwrap()
-                    : Promise.resolve()
+                target.kind === "thread"
+                  ? deleteThread(target.id).unwrap()
+                  : target.kind === "wish"
+                    ? deleteWish(target.id).unwrap()
+                    : selectedThreadId
+                      ? deleteMessage({
+                          threadId: selectedThreadId,
+                          messageId: target.id
+                        }).unwrap()
+                      : Promise.resolve()
               void task
                 .then(() => {
-                  if (
-                    pendingDelete.kind === "thread" &&
-                    selectedThreadId === pendingDelete.id
-                  ) {
-                    setParams(new URLSearchParams(), {replace: true})
-                  }
                   setPendingDelete(null)
                 })
                 .catch(() => {
+                  if (target.kind === "thread" || target.kind === "wish") {
+                    setParams(previousParams, {replace: true})
+                  }
                   notifications.show({
                     message: t("feedback.delete_error"),
                     color: "red"

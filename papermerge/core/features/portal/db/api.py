@@ -2,7 +2,7 @@ import logging
 import uuid
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from papermerge.core import orm
@@ -17,10 +17,34 @@ from papermerge.core.features.portal.constants import (
     PORTAL_SETTINGS_ROW_ID,
 )
 from papermerge.core.features.portal.db import orm as portal_orm
+from papermerge.core.features.users.schema import user_display_name
 
 logger = logging.getLogger(__name__)
 
 MAX_PORTAL_NEWS_ATTACHMENTS = 30
+
+
+def _author_label(
+    username: str | None, first_name: str | None, last_name: str | None
+) -> str:
+    if not username:
+        return ""
+    return user_display_name(first_name, last_name, username)
+
+
+async def _author_label_by_id(db_session: AsyncSession, user_id: UUID | None) -> str:
+    if user_id is None:
+        return ""
+    row = (
+        await db_session.execute(
+            select(orm.User.username, orm.User.first_name, orm.User.last_name).where(
+                orm.User.id == user_id
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        return ""
+    return _author_label(row[0], row[1], row[2])
 
 
 async def get_portal_settings_row(
@@ -203,45 +227,84 @@ async def _replace_news_attachments(
         )
 
 
+def _news_dict(
+    news: portal_orm.PortalNews,
+    *,
+    author_username: str,
+    attachments: list,
+) -> dict:
+    return {
+        "id": news.id,
+        "title": news.title,
+        "body": news.body,
+        "category": news.category,
+        "is_pinned": bool(news.is_pinned),
+        "created_at": news.created_at,
+        "updated_at": news.updated_at,
+        "author_id": news.author_id,
+        "author_username": author_username,
+        "attachments": attachments,
+    }
+
+
+async def list_portal_news_categories(db_session: AsyncSession) -> list[str]:
+    stmt = (
+        select(portal_orm.PortalNews.category)
+        .where(
+            portal_orm.PortalNews.category.isnot(None),
+            portal_orm.PortalNews.category != "",
+        )
+        .distinct()
+        .order_by(portal_orm.PortalNews.category)
+    )
+    return [row[0] for row in (await db_session.execute(stmt)).all() if row[0]]
+
+
 async def list_portal_news(
     db_session: AsyncSession,
     *,
     page: int,
     page_size: int,
+    category: str | None = None,
 ) -> tuple[list[dict], int]:
-    """Paginated portal news posts, newest first."""
-    total = int(
-        (
-            await db_session.scalar(
-                select(func.count()).select_from(portal_orm.PortalNews)
-            )
-        )
-        or 0
-    )
+    """Paginated portal news posts: pinned first, then newest."""
+    filters = []
+    if category:
+        filters.append(portal_orm.PortalNews.category == category)
+
+    count_stmt = select(func.count()).select_from(portal_orm.PortalNews)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+    total = int((await db_session.scalar(count_stmt)) or 0)
     offset = (page - 1) * page_size
     stmt = (
-        select(portal_orm.PortalNews, orm.User.username)
+        select(
+            portal_orm.PortalNews,
+            orm.User.username,
+            orm.User.first_name,
+            orm.User.last_name,
+        )
         .outerjoin(orm.User, orm.User.id == portal_orm.PortalNews.author_id)
-        .order_by(portal_orm.PortalNews.created_at.desc())
+        .order_by(
+            desc(portal_orm.PortalNews.is_pinned),
+            portal_orm.PortalNews.created_at.desc(),
+        )
         .offset(offset)
         .limit(page_size)
     )
+    if filters:
+        stmt = stmt.where(*filters)
     rows = (await db_session.execute(stmt)).all()
-    news_ids = [news.id for news, _u in rows]
+    news_ids = [news.id for news, _username, _first, _last in rows]
     att_map = await _attachments_by_news_ids(db_session, news_ids)
     out: list[dict] = []
-    for news, username in rows:
+    for news, username, first_name, last_name in rows:
         out.append(
-            {
-                "id": news.id,
-                "title": news.title,
-                "body": news.body,
-                "created_at": news.created_at,
-                "updated_at": news.updated_at,
-                "author_id": news.author_id,
-                "author_username": username or "",
-                "attachments": att_map.get(news.id, []),
-            }
+            _news_dict(
+                news,
+                author_username=_author_label(username, first_name, last_name),
+                attachments=att_map.get(news.id, []),
+            )
         )
     return out, total
 
@@ -253,26 +316,26 @@ async def create_portal_news(
     title: str,
     body: str,
     attachment_node_ids: list[UUID],
+    category: str | None = None,
+    is_pinned: bool = False,
 ) -> dict:
-    row = portal_orm.PortalNews(title=title, body=body, author_id=user_id)
+    row = portal_orm.PortalNews(
+        title=title,
+        body=body,
+        author_id=user_id,
+        category=category,
+        is_pinned=is_pinned,
+    )
     db_session.add(row)
     await db_session.flush()
     await _replace_news_attachments(db_session, row.id, attachment_node_ids)
     await db_session.flush()
-    username = await db_session.scalar(
-        select(orm.User.username).where(orm.User.id == user_id)
-    )
     att_map = await _attachments_by_news_ids(db_session, [row.id])
-    return {
-        "id": row.id,
-        "title": row.title,
-        "body": row.body,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-        "author_id": row.author_id,
-        "author_username": username or "",
-        "attachments": att_map.get(row.id, []),
-    }
+    return _news_dict(
+        row,
+        author_username=await _author_label_by_id(db_session, user_id),
+        attachments=att_map.get(row.id, []),
+    )
 
 
 async def update_portal_news(
@@ -283,6 +346,9 @@ async def update_portal_news(
     body: str | None,
     attachment_node_ids: list[UUID] | None,
     replace_attachments: bool,
+    category: str | None = None,
+    update_category: bool = False,
+    is_pinned: bool | None = None,
 ) -> dict | None:
     stmt = select(portal_orm.PortalNews).where(portal_orm.PortalNews.id == news_id)
     row = (await db_session.scalars(stmt)).one_or_none()
@@ -292,28 +358,22 @@ async def update_portal_news(
         row.title = title
     if body is not None:
         row.body = body
+    if update_category:
+        row.category = category.strip() if category else None
+    if is_pinned is not None:
+        row.is_pinned = is_pinned
     if replace_attachments and attachment_node_ids is not None:
         await _replace_news_attachments(db_session, news_id, attachment_node_ids)
     await db_session.flush()
-    username = ""
-    if row.author_id:
-        username = (
-            await db_session.scalar(
-                select(orm.User.username).where(orm.User.id == row.author_id)
-            )
-            or ""
-        )
+    # `updated_at` has onupdate=func.now() and is expired on flush; reload it
+    # explicitly — a lazy refresh here would raise MissingGreenlet.
+    await db_session.refresh(row)
     att_map = await _attachments_by_news_ids(db_session, [row.id])
-    return {
-        "id": row.id,
-        "title": row.title,
-        "body": row.body,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-        "author_id": row.author_id,
-        "author_username": username,
-        "attachments": att_map.get(row.id, []),
-    }
+    return _news_dict(
+        row,
+        author_username=await _author_label_by_id(db_session, row.author_id),
+        attachments=att_map.get(row.id, []),
+    )
 
 
 async def delete_portal_news(db_session: AsyncSession, news_id: UUID) -> bool:

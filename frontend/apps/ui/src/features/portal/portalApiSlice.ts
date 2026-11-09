@@ -16,6 +16,8 @@ export type PortalNewsItem = {
   id: string
   title: string
   body: string
+  category: string | null
+  is_pinned: boolean
   created_at: string
   updated_at: string
   author_id: string | null
@@ -70,40 +72,74 @@ const injected = apiSlice.injectEndpoints({
     }),
     getPortalFeed: builder.query<
       Paginated<PortalNewsItem>,
-      {page?: number; page_size?: number}
+      {page?: number; page_size?: number; category?: string}
     >({
-      query: ({page = 1, page_size = 50} = {}) =>
-        `/portal/feed?page=${page}&page_size=${page_size}`,
+      query: ({page = 1, page_size = 50, category} = {}) => {
+        const sp = new URLSearchParams({
+          page: String(page),
+          page_size: String(page_size)
+        })
+        if (category) {
+          sp.set("category", category)
+        }
+        return `/portal/feed?${sp.toString()}`
+      },
       providesTags: [{type: "PortalFeed", id: "LIST"}]
+    }),
+    getPortalFeedCategories: builder.query<string[], void>({
+      query: () => "/portal/feed/categories",
+      providesTags: [{type: "PortalFeed", id: "CATEGORIES"}]
     }),
     createPortalNews: builder.mutation<
       PortalNewsItem,
-      {title: string; body: string; attachment_node_ids: string[]}
+      {
+        title: string
+        body: string
+        category?: string | null
+        is_pinned?: boolean
+        attachment_node_ids: string[]
+      }
     >({
       query: body => ({
         url: "/portal/feed",
         method: "POST",
         body
       }),
-      invalidatesTags: [{type: "PortalFeed", id: "LIST"}]
+      invalidatesTags: [
+        {type: "PortalFeed", id: "LIST"},
+        {type: "PortalFeed", id: "CATEGORIES"}
+      ]
     }),
     updatePortalNews: builder.mutation<
       PortalNewsItem,
-      {id: string; title?: string; body?: string; attachment_node_ids?: string[]}
+      {
+        id: string
+        title?: string
+        body?: string
+        category?: string | null
+        is_pinned?: boolean
+        attachment_node_ids?: string[]
+      }
     >({
       query: ({id, ...patch}) => ({
         url: `/portal/feed/${id}`,
         method: "PATCH",
         body: patch
       }),
-      invalidatesTags: [{type: "PortalFeed", id: "LIST"}]
+      invalidatesTags: [
+        {type: "PortalFeed", id: "LIST"},
+        {type: "PortalFeed", id: "CATEGORIES"}
+      ]
     }),
     deletePortalNews: builder.mutation<void, string>({
       query: id => ({
         url: `/portal/feed/${id}`,
         method: "DELETE"
       }),
-      invalidatesTags: [{type: "PortalFeed", id: "LIST"}]
+      invalidatesTags: [
+        {type: "PortalFeed", id: "LIST"},
+        {type: "PortalFeed", id: "CATEGORIES"}
+      ]
     })
   })
 })
@@ -113,6 +149,7 @@ export const {
   useGetPortalNodesQuery,
   useLazyGetPortalNodesQuery,
   useGetPortalFeedQuery,
+  useGetPortalFeedCategoriesQuery,
   useCreatePortalNewsMutation,
   useUpdatePortalNewsMutation,
   useDeletePortalNewsMutation

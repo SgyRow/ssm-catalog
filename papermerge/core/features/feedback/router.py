@@ -226,6 +226,20 @@ async def get_wish(
     return _wish_out(wish, username)
 
 
+@router.delete("/wishes/{wish_id}", status_code=204)
+async def delete_wish(
+    wish_id: UUID,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> None:
+    _require_manage(user)
+    deleted = await fb_api.delete_wish(db_session, wish_id)
+    if not deleted:
+        raise exc.HTTP404NotFound()
+    await lib_api.delete_feedback_wish_notifications(db_session, wish_id)
+    await db_session.commit()
+
+
 @router.post(
     "/threads/{thread_id}/messages", response_model=fb_schema.FeedbackMessageOut
 )

@@ -29,6 +29,7 @@ from papermerge.core.db.base import Base
 from papermerge.core.features.portal.db import orm as _portal_orm  # noqa: F401
 from papermerge.core.features.citizen_categories.db import orm as _citizen_categories_orm  # noqa: F401
 from papermerge.core.features.msp.db import orm as _msp_orm  # noqa: F401
+from papermerge.core.features.library_ts.db import orm as _library_ts_orm  # noqa: F401
 
 target_metadata = Base.metadata
 

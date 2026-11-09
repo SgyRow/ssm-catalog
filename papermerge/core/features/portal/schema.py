@@ -25,6 +25,8 @@ class PortalNewsOut(BaseModel):
     id: uuid.UUID
     title: str
     body: str
+    category: str | None = None
+    is_pinned: bool = False
     created_at: datetime
     updated_at: datetime
     author_id: UUID | None = None
@@ -37,6 +39,8 @@ class PortalNewsOut(BaseModel):
 class PortalNewsCreateIn(BaseModel):
     title: str = Field(..., max_length=500)
     body: str = Field(default="", max_length=50000)
+    category: str | None = Field(default=None, max_length=120)
+    is_pinned: bool = False
     attachment_node_ids: list[UUID] = Field(default_factory=list, max_length=30)
 
     @field_validator("title")
@@ -47,10 +51,20 @@ class PortalNewsCreateIn(BaseModel):
             raise ValueError("title must not be empty")
         return s
 
+    @field_validator("category")
+    @classmethod
+    def category_strip(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
 
 class PortalNewsUpdateIn(BaseModel):
     title: str | None = Field(None, max_length=500)
     body: str | None = Field(None, max_length=50000)
+    category: str | None = Field(None, max_length=120)
+    is_pinned: bool | None = None
     attachment_node_ids: list[UUID] | None = Field(None, max_length=30)
 
     @model_validator(mode="after")
@@ -58,10 +72,13 @@ class PortalNewsUpdateIn(BaseModel):
         if (
             self.title is None
             and self.body is None
+            and self.category is None
+            and self.is_pinned is None
             and self.attachment_node_ids is None
         ):
             raise ValueError(
-                "at least one of title, body, attachment_node_ids is required"
+                "at least one of title, body, category, is_pinned, "
+                "attachment_node_ids is required"
             )
         return self
 
@@ -74,3 +91,10 @@ class PortalNewsUpdateIn(BaseModel):
         if not s:
             raise ValueError("title must not be empty")
         return s
+
+    @field_validator("category")
+    @classmethod
+    def category_strip(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return v.strip()

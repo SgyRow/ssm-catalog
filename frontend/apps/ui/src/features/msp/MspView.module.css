@@ -1,0 +1,79 @@
+.root {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.header {
+  flex-shrink: 0;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+}
+
+.footer {
+  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid
+    light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+}
+
+.editor {
+  min-height: 120px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: 8px;
+  background: light-dark(#fff, var(--mantine-color-dark-6));
+  outline: none;
+}
+
+.editor:focus {
+  border-color: var(--mantine-color-pmg-6);
+}
+
+.editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--mantine-color-dimmed);
+  pointer-events: none;
+}
+
+.rich,
+.editor {
+  line-height: 1.55;
+}
+
+.rich :global(p),
+.editor :global(p) {
+  margin: 0 0 0.6em 0;
+}
+
+.rich :global(img),
+.editor :global(img) {
+  max-width: 100%;
+  height: auto;
+}
+
+.rich :global(table),
+.editor :global(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.rich :global(th),
+.rich :global(td),
+.editor :global(th),
+.editor :global(td) {
+  border: 1px solid light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-3));
+  padding: 6px 8px;
+  vertical-align: top;
+}
