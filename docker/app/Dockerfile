@@ -21,7 +21,8 @@ COPY frontend/ .
 RUN set -eux; \
     attempts=0; max_attempts=5; \
     until [ "$attempts" -ge "$max_attempts" ]; do \
-      if corepack enable && \
+      if npm install -g corepack && \
+         corepack enable && \
          yarn set version 4.9.2 && \
          yarn install --immutable && \
          mkdir -p node_modules && \
@@ -50,7 +51,7 @@ WORKDIR ${UI_DIR}
 
 COPY auth-server/ui2/ ./
 
-RUN yarn install && yarn build
+RUN npm install -g yarn && yarn install && yarn build
 
 # Auth-server Python sources + built UI (Poetry env created in the final stage).
 FROM alpine:3.21 AS auth_server
