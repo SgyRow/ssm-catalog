@@ -11,7 +11,10 @@ import {useContext, useEffect, useRef} from "react"
 import DocumentDetailsToggle from "@/components/document/DocumentDetailsToggle"
 import DuplicatePanelButton from "@/components/DualPanel/DuplicatePanelButton"
 import LibraryFavoriteToggle from "@/features/library/components/LibraryFavoriteToggle"
+import LibraryWatchToggle from "@/features/library/components/LibraryWatchToggle"
 import DownloadButton from "@/features/document/components/DownloadButton"
+import DocumentVersionSelector from "@/features/document/components/DocumentVersionSelector"
+import UploadNewVersionButton from "@/features/document/components/UploadNewVersionButton"
 import RotateButton from "@/features/document/components/RotateButton"
 import RotateCCButton from "@/features/document/components/RotateCCButton"
 import {VIEWER_FILE_EDITING_ENABLED} from "@/features/document/constants"
@@ -66,6 +69,9 @@ export default function ActionButtons({
           <EditTitleButton onClick={onEditNodeTitleClicked} />
         )}
         {doc?.id ? <LibraryFavoriteToggle nodeId={doc.id} /> : null}
+        {doc?.id ? <LibraryWatchToggle nodeId={doc.id} /> : null}
+        {doc?.id ? <DocumentVersionSelector docId={doc.id} /> : null}
+        {doc?.id ? <UploadNewVersionButton docId={doc.id} /> : null}
         <DownloadButton />
         {VIEWER_FILE_EDITING_ENABLED && selectedPages.length > 0 && (
           <RotateButton onClick={onRotateCWClicked} />

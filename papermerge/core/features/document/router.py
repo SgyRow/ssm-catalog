@@ -205,6 +205,13 @@ async def upload_file(
     if error:
         raise HTTPException(status_code=400, detail=error.model_dump())
 
+    await lib_ts_api.notify_watched_document_changed(
+        db_session,
+        document_id=document_id,
+        title=doc.title,
+        exclude_user_id=user.id,
+    )
+
     root_id = await portal_dbapi.get_portal_root_id(db_session)
     is_portal = bool(
         root_id

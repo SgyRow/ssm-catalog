@@ -34,6 +34,14 @@ class UserFavorite(Base):
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
 
+class UserWatched(Base):
+    __tablename__ = "user_watched"
+
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    node_id: Mapped[UUID] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+
 class UserRecentDocument(Base):
     __tablename__ = "user_recent_documents"
 

@@ -2,7 +2,16 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from papermerge.core.db.base import Base
@@ -95,6 +104,10 @@ class MspSection(Base):
 
     Only sections whose text is non-empty are stored, so empty sections are
     simply "not needed" and are never rendered.
+
+    The title is a per-measure snapshot: it may be renamed for this measure
+    only (the type/template is not touched). ``hidden`` sections keep their
+    text but are not shown in the measure view or PDF.
     """
 
     __tablename__ = "msp_sections"
@@ -110,6 +123,11 @@ class MspSection(Base):
     )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     body: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    # Whether the section is hidden from the measure view/PDF for this
+    # measure only (the text is still stored).
+    hidden: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     sort_order: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )

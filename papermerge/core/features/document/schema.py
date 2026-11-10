@@ -174,6 +174,9 @@ class DocumentVersion(BaseModel):
 class DocVerListItem(BaseModel):
     id: UUID
     number: int
+    file_name: str | None = None
+    size: int = 0
+    page_count: int = 0
     short_description: str | None = None
 
 

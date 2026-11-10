@@ -284,6 +284,56 @@ async def delete_favorite_folder(
     await db_session.commit()
 
 
+@router.get("/watched", response_model=list[lib_schema.WatchedRowOut])
+@router.get("/watched/", response_model=list[lib_schema.WatchedRowOut])
+async def list_watched(
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    rows = await lib_api.list_watched_enriched(db_session, user.id)
+    await db_session.commit()
+    return rows
+
+
+@router.post("/watched/{node_id}", status_code=204)
+@router.post("/watched/{node_id}/", status_code=204)
+async def add_watched(
+    node_id: uuid.UUID,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    await dbapi_common.require_node_perm(
+        db_session, node_id=node_id, codename=scopes.NODE_VIEW, user_id=user.id
+    )
+    await lib_api.add_watched(db_session, user.id, node_id)
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_add",
+        resource_type="node",
+        resource_id=node_id,
+    )
+    await db_session.commit()
+
+
+@router.delete("/watched/{node_id}", status_code=204)
+@router.delete("/watched/{node_id}/", status_code=204)
+async def remove_watched(
+    node_id: uuid.UUID,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    await lib_api.remove_watched(db_session, user.id, node_id)
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_remove",
+        resource_type="node",
+        resource_id=node_id,
+    )
+    await db_session.commit()
+
+
 @router.get("/recent", response_model=list[lib_schema.RecentRowOut])
 @router.get("/recent/", response_model=list[lib_schema.RecentRowOut])
 async def list_recent(

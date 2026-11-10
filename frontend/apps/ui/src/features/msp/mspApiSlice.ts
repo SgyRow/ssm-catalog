@@ -24,6 +24,8 @@ export type MspSection = {
   type_section_id: string | null
   title: string
   body: string | null
+  /** Hidden for this measure only: the text is stored but not rendered. */
+  hidden: boolean
   sort_order: number
 }
 
@@ -48,8 +50,14 @@ export type NewMspTypeInput = {
 
 export type MspSectionInput = {
   type_section_id?: string | null
+  /**
+   * Non-empty title renames the section for this measure only (the type is
+   * not changed); empty falls back to the type section title.
+   */
   title?: string
   body?: string | null
+  /** Hide the section in this measure only (the text is still stored). */
+  hidden?: boolean
 }
 
 export type NewMspInput = {

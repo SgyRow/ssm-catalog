@@ -22,9 +22,9 @@ import {
   Paper,
   Select,
   Stack,
+  Switch,
   Tabs,
   Text,
-  Textarea,
   TextInput
 } from "@mantine/core"
 import {notifications} from "@mantine/notifications"
@@ -131,6 +131,10 @@ function CreateMspTab({
   const [typeId, setTypeId] = useState<string>("")
   const [title, setTitle] = useState("")
   const [bodies, setBodies] = useState<Record<string, string>>({})
+  // Per-measure section state: a renamed title and visibility — these apply
+  // to this measure only, the type (template) is not changed.
+  const [titles, setTitles] = useState<Record<string, string>>({})
+  const [hiddenMap, setHiddenMap] = useState<Record<string, boolean>>({})
 
   const type = useMemo(
     () => (types ?? []).find(x => x.id === typeId) ?? null,
@@ -142,17 +146,31 @@ function CreateMspTab({
   const onTypeChange = (value: string | null) => {
     const next = value ?? ""
     setTypeId(next)
-    // Reset the bodies: keep only sections of the newly selected type.
-    const nextMap: Record<string, string> = {}
+    // Reset per-section state: keep only sections of the newly selected type.
+    const nextBodies: Record<string, string> = {}
+    const nextTitles: Record<string, string> = {}
+    const nextHidden: Record<string, boolean> = {}
     const nextType = (types ?? []).find(x => x.id === next)
     for (const s of nextType?.sections ?? []) {
-      nextMap[s.id] = ""
+      nextBodies[s.id] = ""
+      nextTitles[s.id] = s.title
+      nextHidden[s.id] = false
     }
-    setBodies(nextMap)
+    setBodies(nextBodies)
+    setTitles(nextTitles)
+    setHiddenMap(nextHidden)
   }
 
   const onBodyChange = (sectionId: string, value: string) => {
     setBodies(prev => ({...prev, [sectionId]: value}))
+  }
+
+  const onTitleChange = (sectionId: string, value: string) => {
+    setTitles(prev => ({...prev, [sectionId]: value}))
+  }
+
+  const onHiddenChange = (sectionId: string, value: boolean) => {
+    setHiddenMap(prev => ({...prev, [sectionId]: value}))
   }
 
   const filledCount = sections.filter(
@@ -168,7 +186,12 @@ function CreateMspTab({
     }
     const sectionInputs = sections
       .filter(s => !isEmptyMspBody(bodies[s.id] ?? ""))
-      .map(s => ({type_section_id: s.id, body: bodies[s.id]}))
+      .map(s => ({
+        type_section_id: s.id,
+        title: (titles[s.id] ?? s.title).trim(),
+        body: bodies[s.id],
+        hidden: hiddenMap[s.id] ?? false
+      }))
     try {
       await createMsp({
         parent_id,
@@ -178,6 +201,8 @@ function CreateMspTab({
       }).unwrap()
       setTitle("")
       setBodies({})
+      setTitles({})
+      setHiddenMap({})
       setTypeId("")
       onDone()
     } catch (error) {
@@ -217,6 +242,9 @@ function CreateMspTab({
           <Text size="sm" c="dimmed" mb="xs">
             {t("msp.form.sections_hint")}
           </Text>
+          <Text size="xs" c="dimmed" mb="sm">
+            {t("msp.form.rename_hint")}
+          </Text>
           <Accordion
             key={typeId}
             multiple
@@ -229,11 +257,16 @@ function CreateMspTab({
                 <Accordion.Control>
                   <Group justify="space-between" wrap="nowrap" gap="sm">
                     <Text size="sm" fw={600}>
-                      {section.title}
+                      {(titles[section.id] ?? section.title).trim() ||
+                        section.title}
                     </Text>
                     {isEmptyMspBody(bodies[section.id] ?? "") ? (
                       <Text size="xs" c="dimmed">
                         {t("msp.form.empty_section")}
+                      </Text>
+                    ) : hiddenMap[section.id] ? (
+                      <Text size="xs" c="dimmed">
+                        {t("msp.form.hidden_section")}
                       </Text>
                     ) : (
                       <Text size="xs" c="dimmed">
@@ -243,6 +276,26 @@ function CreateMspTab({
                   </Group>
                 </Accordion.Control>
                 <Accordion.Panel>
+                  <TextInput
+                    label={t("msp.form.section_title")}
+                    placeholder={section.title}
+                    value={titles[section.id] ?? section.title}
+                    onChange={e =>
+                      onTitleChange(section.id, e.currentTarget.value)
+                    }
+                    mb="xs"
+                  />
+                  <Group mb="xs">
+                    <Switch
+                      size="sm"
+                      label={t("msp.form.visible")}
+                      labelPosition="right"
+                      checked={hiddenMap[section.id] ?? false}
+                      onChange={e =>
+                        onHiddenChange(section.id, e.target.checked)
+                      }
+                    />
+                  </Group>
                   <MspRichTextEditor
                     value={bodies[section.id] ?? ""}
                     placeholder={t("msp.form.body_placeholder")}

@@ -2,6 +2,7 @@ import {useAppSelector} from "@/app/hooks"
 import {getBlobViewerCategory} from "@/features/document/documentPreview"
 import type {TFunction} from "i18next"
 import FavoritesPanel from "@/features/library/components/FavoritesPanel"
+import WatchedPanel from "@/features/library/components/WatchedPanel"
 import {
   useGetLibraryRecentQuery,
   useGetLibraryTrashQuery,
@@ -32,16 +33,16 @@ import {
   Title
 } from "@mantine/core"
 import {notifications} from "@mantine/notifications"
-import {IconHistory, IconStar, IconTrash} from "@tabler/icons-react"
+import {IconEye, IconHistory, IconStar, IconTrash} from "@tabler/icons-react"
 import {type ReactNode, useEffect, useMemo, useState} from "react"
 import {useTranslation} from "react-i18next"
 import {Link, useNavigate, useParams} from "react-router-dom"
 
-type Section = "favorites" | "recent" | "trash"
+type Section = "favorites" | "watched" | "recent" | "trash"
 
 const valid = (s: string | undefined): Section => {
   const v = (s || "favorites") as Section
-  if (v === "recent" || v === "trash" || v === "favorites") {
+  if (v === "recent" || v === "trash" || v === "favorites" || v === "watched") {
     return v
   }
   return "favorites"
@@ -72,6 +73,13 @@ export default function LibraryPage() {
             {t("library.tab_favorites")}
           </Tabs.Tab>
           <Tabs.Tab
+            value="watched"
+            leftSection={<IconEye size={16} />}
+            disabled={!scopes.includes(NODE_VIEW)}
+          >
+            {t("library.tab_watched")}
+          </Tabs.Tab>
+          <Tabs.Tab
             value="recent"
             leftSection={<IconHistory size={16} />}
             disabled={!scopes.includes(NODE_VIEW)}
@@ -89,6 +97,9 @@ export default function LibraryPage() {
 
         <Tabs.Panel value="favorites" pt="md">
           {scopes.includes(NODE_VIEW) ? <FavoritesPanel /> : null}
+        </Tabs.Panel>
+        <Tabs.Panel value="watched" pt="md">
+          {scopes.includes(NODE_VIEW) ? <WatchedPanel /> : null}
         </Tabs.Panel>
         <Tabs.Panel value="recent" pt="md">
           {scopes.includes(NODE_VIEW) ? <RecentPanel /> : null}

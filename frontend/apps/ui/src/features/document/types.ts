@@ -11,6 +11,9 @@ export type BasicPage = {
 export type DocVersItem = {
   id: string
   number: number
+  file_name?: string | null
+  size?: number
+  page_count?: number
   short_description: string
 }
 
@@ -59,6 +62,7 @@ export type DocumentVersion = {
   pages: Array<BasicPageType>
   short_description: string
   size: number
+  download_url?: string | null
 }
 
 export type NodeTag = {
