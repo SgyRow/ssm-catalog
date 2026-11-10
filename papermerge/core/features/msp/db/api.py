@@ -8,6 +8,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from papermerge.core.features.msp import folder_template
 from papermerge.core.features.msp.db import orm
 from papermerge.core.features.msp.htmlutil import is_empty_body, sanitize_msp_html
 from papermerge.core.features.msp.schema import (
@@ -15,7 +16,10 @@ from papermerge.core.features.msp.schema import (
     NewMspType,
 )
 from papermerge.core.features.nodes.db import orm as nodes_orm
-from papermerge.core.features.nodes.db.api import create_folder as nodes_create_folder
+from papermerge.core.features.nodes.db.api import (
+    create_folder as nodes_create_folder,
+    hard_delete_subtree,
+)
 from papermerge.core.features.nodes.schema import NewFolder
 from papermerge.core.schemas.error import Error
 
@@ -166,8 +170,13 @@ async def _sections_from_inputs(
 ) -> list[orm.MspSection]:
     """Build MspSection rows (non-empty only) from the supplied inputs.
 
-    Titles come from the type's section definitions; a snapshot of the title is
-    stored on the section so a measure keeps rendering even if the type changes.
+    Titles come from the type's section definitions unless the input supplies
+    its own ``title`` — then the section is renamed for this measure only
+    (the type is not touched). A snapshot of the title is stored on the
+    section so a measure keeps rendering even if the type changes.
+
+    ``hidden`` is passed through: hidden sections keep their text but are
+    not rendered in the measure view or PDF.
     """
     type_sections = {ts.id: ts for ts in msp_type.sections}
     type_sections_by_title = {ts.title: ts for ts in msp_type.sections}
@@ -183,12 +192,15 @@ async def _sections_from_inputs(
             ts = type_sections.get(inp.type_section_id)
         if ts is None:
             ts = type_sections_by_title.get(inp.title)
-        title = ts.title if ts is not None else inp.title
+        # A non-empty input title renames the section for this measure only;
+        # otherwise the type section title is used (snapshot).
+        title = inp.title.strip() or (ts.title if ts is not None else "")
         sort_order = ts.sort_order if ts is not None else i
         result.append(
             orm.MspSection(
                 title=title,
                 body=body,
+                hidden=inp.hidden,
                 sort_order=sort_order,
                 type_section_id=ts.id if ts is not None else None,
             )
@@ -215,6 +227,12 @@ async def create_msp(
     )
     if folder is None:
         return None, None, Error(messages=["Could not create the folder node"])
+
+    # Standard folders inside the measure folder (idempotent tree; the
+    # transaction is committed together with the measure below).
+    await folder_template.create_default_msp_folders(
+        db_session, parent_id=folder.id
+    )
 
     msp = orm.Msp(node_id=folder.id, msp_type_id=msp_type_id)
     db_session.add(msp)
@@ -310,14 +328,13 @@ async def delete_msp(db_session: AsyncSession, msp_id: UUID) -> None:
     if msp is None:
         return
 
-    # Delete the measure first (ORM cascades to its sections), then the anchor
-    # folder node. Deleting the node first would trigger the DB-level
+    # Delete the measure first (ORM cascades to its sections), then the
+    # anchor folder together with everything inside it (standard subfolders
+    # and documents). Deleting the node first would trigger the DB-level
     # ON DELETE CASCADE on msps.node_id and leave the ORM to delete an already
     # gone row.
     await db_session.delete(msp)
 
-    node = await db_session.get(nodes_orm.Folder, msp.node_id)
-    if node is not None:
-        await db_session.delete(node)
+    await hard_delete_subtree(db_session, msp.node_id)
 
     await db_session.commit()

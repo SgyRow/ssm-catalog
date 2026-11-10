@@ -517,6 +517,42 @@ async def delete_nodes(
     return None
 
 
+async def hard_delete_subtree(db_session: AsyncSession, node_id: UUID) -> None:
+    """Hard-delete a node together with its entire subtree (children first).
+
+    Unlike :func:`delete_nodes` (soft delete), node rows are actually removed,
+    so a parent can be deleted even if child nodes still reference it through
+    ``parent_id`` (there is no DB cascade on that FK).
+    """
+    rows = (
+        await db_session.execute(
+            select(orm.Node.id, orm.Node.parent_id).where(
+                orm.Node.id.in_(
+                    [nid for nid, _ in await get_descendants(
+                        db_session, node_ids=[node_id]
+                    )]
+                )
+            )
+        )
+    ).fetchall()
+    parent_of = {nid: pid for nid, pid in rows}
+    remaining = set(parent_of)
+    order: list[UUID] = []
+    while remaining:
+        # A node can be deleted once all of its children are gone.
+        children = {pid for _, pid in parent_of.items() if pid in remaining}
+        batch = [nid for nid in remaining if nid not in children]
+        if not batch:
+            break
+        order.extend(batch)
+        remaining.difference_update(batch)
+    for nid in order:
+        node = await db_session.get(orm.Node, nid)
+        if node is not None:
+            db_session.delete(node)
+    await db_session.flush()
+
+
 async def move_nodes(db_session: AsyncSession, source_ids: list[UUID], target_id: UUID) -> int:
 
     # Sqlite does not raise "Integrity Error" during update

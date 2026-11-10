@@ -58,8 +58,7 @@ async function download_file(doc_ver: DocumentVersion) {
   const resp1 = await client.get(`/api/document-versions/${doc_ver.id}`)
   const v = resp1.data as DocumentVersion
   // now, with `download_url` at hand, actual download starts!
-  v.download_url
-  const resp2 = await client.get(v.download_url, {responseType: "blob"})
+  const resp2 = await client.get(v.download_url!, {responseType: "blob"})
   const blob = resp2.data
   const url = window.URL.createObjectURL(blob)
   /*

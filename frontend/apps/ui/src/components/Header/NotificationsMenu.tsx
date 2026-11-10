@@ -151,6 +151,20 @@ const NotificationsMenu: React.FC = () => {
       }
     }
 
+    if (kind === "watched_document_changed") {
+      const title = parsed?.title?.trim() ?? ""
+      const documentId = parsed?.document_id?.trim() ?? ""
+      return {
+        title: t("library.notification.watched_document_changed.title"),
+        message: title
+          ? t("library.notification.watched_document_changed.message", {
+              title
+            })
+          : t("library.notification.watched_document_changed.message_no_title"),
+        documentId: documentId || undefined
+      }
+    }
+
     if (kind === "portal_feed_published") {
       const newsTitle = parsed?.title?.trim() ?? ""
       const author = parsed?.author_username?.trim() ?? ""

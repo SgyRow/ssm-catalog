@@ -1,16 +1,19 @@
 import {useAppDispatch, useAppSelector} from "@/app/hooks"
 import {useCurrentDoc} from "@/features/document/hooks"
-import {Alert, Button, Flex, Group, Loader} from "@mantine/core"
+import {Alert, Button, Flex, Group, Loader, Text} from "@mantine/core"
 import {useDisclosure} from "@mantine/hooks"
+import {IconInfoCircle} from "@tabler/icons-react"
 import {useContext, useRef, useMemo} from "react"
 import {useLocation, useNavigate} from "react-router-dom"
 
 import Breadcrumbs from "@/components/Breadcrumbs"
 import PanelContext from "@/contexts/PanelContext"
+import {skipToken} from "@reduxjs/toolkit/query"
 
 import EditNodeTitleModal from "@/components/EditNodeTitleModal"
 import useEnsureDocVerBuffer from "@/features/document/hooks/useEnsureDocVerBuffer"
 import useGeneratePreviews from "@/features/document/hooks/useGeneratePreviews"
+import {useGetDocLastVersionQuery} from "@/features/document/store/apiSlice"
 
 import DocumentDetails from "@/components/document/DocumentDetails/DocumentDetails"
 import classes from "@/components/document/Viewer.module.css"
@@ -59,6 +62,12 @@ export default function Viewer() {
   const dispatch = useAppDispatch()
   const height = useAppSelector(s => selectContentHeight(s, mode))
   const lastPageSize = useAppSelector(s => selectLastPageSize(s, mode))
+  const {currentData: latestDocVer} = useGetDocLastVersionQuery(
+    doc?.id ?? skipToken
+  )
+  const viewingOutdatedVersion = Boolean(
+    docVer && latestDocVer && docVer.id !== latestDocVer.id
+  )
   const chrome = docVer ? getViewerChromeKind(docVer.file_name) : undefined
   const customPreview = Boolean(docVer && !usesNativePdfPreview(docVer.file_name))
   /* Native PDF iframe also needs an authenticated buffer (no Bearer token on iframe GET). */
@@ -169,6 +178,12 @@ export default function Viewer() {
     }
   }
 
+  const onBackToLatestVersionClicked = () => {
+    if (latestDocVer) {
+      dispatch(currentDocVerUpdated({mode: mode, docVerID: latestDocVer.id}))
+    }
+  }
+
   const onDeletePagesItemClicked = () => {
     if (selectedPages.length == pages.length) {
       /* Confirm that user intends to delete entire document */
@@ -223,6 +238,27 @@ export default function Viewer() {
         onRotateCCClicked={onRotateCCItemClicked}
         onDeletePagesClicked={onDeletePagesItemClicked}
       />
+      {viewingOutdatedVersion && (
+        <Alert
+          variant="light"
+          color="blue"
+          icon={<IconInfoCircle size={18} />}
+          mt="xs"
+        >
+          <Group justify="space-between" wrap="nowrap" align="center">
+            <Text size="sm">
+              {t("viewer.outdated_version.message", {title: doc.title})}
+            </Text>
+            <Button
+              size="xs"
+              variant="default"
+              onClick={onBackToLatestVersionClicked}
+            >
+              {t("viewer.outdated_version.back")}
+            </Button>
+          </Group>
+        </Alert>
+      )}
       <Breadcrumbs breadcrumb={breadcrumb} onClick={onClick} leaf="document" />
       <Flex className={classes.inner} style={{height: `${height}px`}}>
         {chrome === "native-pdf" && <NativePdfViewer />}

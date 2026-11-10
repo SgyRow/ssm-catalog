@@ -64,13 +64,19 @@ class MspSectionInput(BaseModel):
     """A section value supplied when creating/updating a measure.
 
     ``type_section_id`` references the section of the type. ``title`` is
-    optional: when omitted it is taken from the linked type section. An empty
-    ``body`` means the section is not needed and is not stored.
+    optional: when omitted (or empty) it is taken from the linked type
+    section; a non-empty ``title`` renames the section for this measure only
+    (the type is not changed). An empty ``body`` means the section is not
+    needed and is not stored.
+
+    ``hidden`` hides the section from the measure view/PDF for this measure
+    only; the text is still stored.
     """
 
     type_section_id: UUID | None = None
     title: str = Field(default="", max_length=300)
     body: str | None = None
+    hidden: bool = False
 
 
 class MspSectionRead(BaseModel):
@@ -80,6 +86,7 @@ class MspSectionRead(BaseModel):
     type_section_id: UUID | None
     title: str
     body: str | None
+    hidden: bool
     sort_order: int
 
 

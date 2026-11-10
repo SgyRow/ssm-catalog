@@ -24,6 +24,7 @@ OCR_COMPLETED_KIND = "ocr_completed"
 PORTAL_FEED_PUBLISHED_KIND = "portal_feed_published"
 FEEDBACK_MESSAGE_KIND = "feedback_message"
 FEEDBACK_WISH_KIND = "feedback_wish"
+WATCHED_DOCUMENT_CHANGED_KIND = "watched_document_changed"
 
 
 def audit_detail_json(data: object) -> str:
@@ -247,6 +248,95 @@ async def move_favorite(
             return "folder_not_found"
     fav.folder_id = folder_id
     return None
+
+
+async def add_watched(
+    db_session: AsyncSession, user_id: UUID, node_id: UUID
+) -> None:
+    existing = await db_session.scalar(
+        select(lib_orm.UserWatched).where(
+            lib_orm.UserWatched.user_id == user_id,
+            lib_orm.UserWatched.node_id == node_id,
+        )
+    )
+    if existing:
+        return
+    db_session.add(
+        lib_orm.UserWatched(
+            user_id=user_id,
+            node_id=node_id,
+            created_at=_utc_naive_now(),
+        )
+    )
+
+
+async def remove_watched(
+    db_session: AsyncSession, user_id: UUID, node_id: UUID
+) -> None:
+    await db_session.execute(
+        delete(lib_orm.UserWatched).where(
+            lib_orm.UserWatched.user_id == user_id,
+            lib_orm.UserWatched.node_id == node_id,
+        )
+    )
+
+
+async def list_watched_enriched(
+    db_session: AsyncSession, user_id: UUID
+):
+    from papermerge.core.features.library_ts import schema as lib_schema
+
+    stmt = (
+        select(
+            lib_orm.UserWatched,
+            orm.Node.title,
+            orm.Node.ctype,
+            orm.Node.deleted_at,
+        )
+        .join(orm.Node, orm.Node.id == lib_orm.UserWatched.node_id)
+        .where(lib_orm.UserWatched.user_id == user_id)
+        .order_by(lib_orm.UserWatched.created_at.desc())
+    )
+    rows = (await db_session.execute(stmt)).all()
+    out: list[lib_schema.WatchedRowOut] = []
+    for watched, title, ctype, deleted_at in rows:
+        out.append(
+            lib_schema.WatchedRowOut(
+                node_id=watched.node_id,
+                title=title,
+                ctype=str(ctype),
+                created_at=watched.created_at,
+                in_trash=deleted_at is not None,
+            )
+        )
+    return out
+
+
+async def notify_watched_document_changed(
+    db_session: AsyncSession,
+    *,
+    document_id: UUID,
+    title: str,
+    exclude_user_id: UUID | None = None,
+) -> None:
+    """Notify users who have the document in their watch list about a new version."""
+    stmt = select(lib_orm.UserWatched.user_id).where(
+        lib_orm.UserWatched.node_id == document_id
+    )
+    watcher_ids = list((await db_session.scalars(stmt)).all())
+    payload = audit_detail_json({"document_id": str(document_id), "title": title})
+    for uid in watcher_ids:
+        if uid == exclude_user_id:
+            continue
+        db_session.add(
+            lib_orm.UserNotification(
+                id=uuid.uuid4(),
+                user_id=uid,
+                kind=WATCHED_DOCUMENT_CHANGED_KIND,
+                payload=payload,
+                created_at=_utc_naive_now(),
+            )
+        )
 
 
 async def record_recent_view(db_session: AsyncSession, user_id: UUID, node_id: UUID) -> None:

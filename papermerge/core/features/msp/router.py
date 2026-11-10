@@ -81,6 +81,7 @@ def _msp_read(msp: orm.Msp, title: str) -> MspRead:
                 type_section_id=s.type_section_id,
                 title=s.title,
                 body=s.body,
+                hidden=s.hidden,
                 sort_order=s.sort_order,
             )
             for s in sorted(msp.sections, key=lambda x: x.sort_order)

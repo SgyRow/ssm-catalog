@@ -46,12 +46,14 @@ def _body_to_html(body: str) -> str:
 def build_msp_html(msp, title: str) -> str:
     """Build the full HTML document for a measure.
 
-    Only non-empty sections are included; empty sections are "not needed".
+    Only non-empty, visible sections are included: empty sections are
+    "not needed", hidden sections are excluded on purpose (for this measure
+    only — their text is still stored in the database).
     """
     parts = [f"<h1>{_escape(title)}</h1>"]
     sections = sorted(msp.sections, key=lambda s: s.sort_order)
     for section in sections:
-        if is_empty_body(section.body or ""):
+        if section.hidden or is_empty_body(section.body or ""):
             continue
         parts.append(f"<h2>{_escape(section.title)}</h2>")
         parts.append(_body_to_html(section.body or ""))

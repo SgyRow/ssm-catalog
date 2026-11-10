@@ -40,6 +40,14 @@ export type FavoriteFolder = {
   created_at: string
 }
 
+export type WatchedRow = {
+  node_id: string
+  title: string
+  ctype: string
+  created_at: string
+  in_trash: boolean
+}
+
 export type RecentRow = {
   node_id: string
   title: string
@@ -148,6 +156,24 @@ export const apiSliceWithLibrary = apiSlice.injectEndpoints({
         {type: "LibraryFavoriteFolders", id: "LIST"},
         {type: "LibraryFavorites", id: "LIST"}
       ]
+    }),
+    getLibraryWatched: builder.query<WatchedRow[], void>({
+      query: () => "/library/watched/",
+      providesTags: [{type: "LibraryWatched", id: "LIST"}]
+    }),
+    addLibraryWatched: builder.mutation<void, string>({
+      query: nodeId => ({
+        url: `/library/watched/${nodeId}/`,
+        method: "POST"
+      }),
+      invalidatesTags: [{type: "LibraryWatched", id: "LIST"}]
+    }),
+    removeLibraryWatched: builder.mutation<void, string>({
+      query: nodeId => ({
+        url: `/library/watched/${nodeId}/`,
+        method: "DELETE"
+      }),
+      invalidatesTags: [{type: "LibraryWatched", id: "LIST"}]
     }),
     getLibraryRecent: builder.query<RecentRow[], void>({
       query: () => "/library/recent/",
@@ -367,6 +393,9 @@ export const {
   useGetLibraryFavoriteFoldersQuery,
   useCreateLibraryFavoriteFolderMutation,
   useDeleteLibraryFavoriteFolderMutation,
+  useGetLibraryWatchedQuery,
+  useAddLibraryWatchedMutation,
+  useRemoveLibraryWatchedMutation,
   useGetLibraryRecentQuery,
   useGetLibraryTrashQuery,
   useRestoreLibraryTrashMutation,

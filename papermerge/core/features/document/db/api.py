@@ -1063,7 +1063,10 @@ async def get_doc_versions_list(
     stmt = select(
         orm.DocumentVersion.id,
         orm.DocumentVersion.number,
-        orm.DocumentVersion.short_description
+        orm.DocumentVersion.file_name,
+        orm.DocumentVersion.size,
+        orm.DocumentVersion.page_count,
+        orm.DocumentVersion.short_description,
     ).where(
         orm.DocumentVersion.document_id == doc_id
     ).order_by(orm.DocumentVersion.number.desc())
@@ -1073,7 +1076,10 @@ async def get_doc_versions_list(
         schema.DocVerListItem(
             id=ver[0],
             number=ver[1],
-            short_description=ver[2]
+            file_name=ver[2],
+            size=ver[3],
+            page_count=ver[4],
+            short_description=ver[5],
         )
         for ver in db_vers
     ]
