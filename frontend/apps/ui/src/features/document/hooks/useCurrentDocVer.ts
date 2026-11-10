@@ -1,9 +1,11 @@
 import {useAppDispatch, useAppSelector} from "@/app/hooks"
 import {useGetDocLastVersionQuery} from "@/features/document/store"
+import {useGetDocumentQuery} from "@/features/document/store/apiSlice"
 import {selectLatestDocVerByDocID} from "@/features/document/store/docsSlice"
 import {
   addDocVersion,
-  selectDocVerByID
+  selectDocVerByID,
+  selectDocumentVersionID
 } from "@/features/document/store/documentVersSlice"
 import {
   currentDocVerUpdated,
@@ -52,9 +54,42 @@ export default function useCurrentDocVer(): ReturnState {
   } = useGetDocLastVersionQuery(currentDocumentID ?? skipToken, {
     refetchOnMountOrArgChange: true
   })
+  const {currentData: doc}
+    = useGetDocumentQuery(currentDocumentID ?? skipToken)
+  const currentDocVerID = useAppSelector(s =>
+    selectDocumentVersionID(s, mode)
+  )
+  const currentDocVer = useAppSelector(s =>
+    selectDocVerByID(s, currentDocVerID)
+  )
+  /**
+   * The version the user pinned via the version selector.
+   * Only respected when it belongs to the currently open document,
+   * otherwise a stale value from the previous document would be shown
+   * during navigation.
+   */
+  const pinnedDocVer =
+    currentDocVer && currentDocVer.document_id === currentDocumentID
+      ? currentDocVer
+      : undefined
+  const isCurrentDocVerOfThisDoc = Boolean(
+    currentDocVerID &&
+    doc?.versions?.some(v => v.id === currentDocVerID)
+  )
 
   useEffect(() => {
     if (currentData) {
+      // Do not override the version the user pinned via the version
+      // selector. `pinnedDocVer` is only set when the current docVer
+      // actually belongs to the currently open document, so a stale value
+      // from the previous document never suppresses the auto-select of
+      // the latest version here. (Note: `doc` above is a
+      // `DocumentWithoutVersions`, its `versions` list is empty, so we
+      // must NOT rely on it for this check.)
+      if (pinnedDocVer || (currentDocVerID && isCurrentDocVerOfThisDoc)) {
+        return
+      }
+
       // set current docVer to the value of docVer
       // return docVer as current one
 
@@ -63,17 +98,26 @@ export default function useCurrentDocVer(): ReturnState {
       }
       dispatch(currentDocVerUpdated({mode: mode, docVerID: currentData.id}))
     }
-  }, [currentData, latestDocVerID, currentDocumentID])
+  }, [
+    currentData,
+    latestDocVerID,
+    currentDocumentID,
+    currentDocVerID,
+    isCurrentDocVerOfThisDoc,
+    pinnedDocVer
+  ])
 
   const docVer: ClientDocumentVersion | undefined = useMemo(() => {
-    if (docVerFromSlice) {
+    if (pinnedDocVer) {
+      return pinnedDocVer
+    } else if (docVerFromSlice) {
       return docVerFromSlice
     } else if (currentData) {
       return clientDVFromDV(currentData)
     } else {
       return undefined
     }
-  }, [currentData, docVerFromSlice, latestDocVerID, latestDocVerID, mode])
+  }, [currentData, docVerFromSlice, pinnedDocVer, latestDocVerID, mode])
 
   return {
     error: undefined,

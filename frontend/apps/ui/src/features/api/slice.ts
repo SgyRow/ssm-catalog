@@ -56,6 +56,7 @@ export const apiSlice = createApi({
     "DocumentVersion",
     "LibraryFavorites",
     "LibraryFavoriteFolders",
+    "LibraryWatched",
     "LibraryRecent",
     "LibraryTrash",
     "LibraryNote",

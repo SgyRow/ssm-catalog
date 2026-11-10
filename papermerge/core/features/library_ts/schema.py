@@ -44,6 +44,14 @@ class FavoriteMoveIn(BaseModel):
     folder_id: UUID | None = None
 
 
+class WatchedRowOut(BaseModel):
+    node_id: UUID
+    title: str
+    ctype: str
+    created_at: datetime
+    in_trash: bool = False
+
+
 class RecentOut(BaseModel):
     node_id: UUID
     viewed_at: datetime
