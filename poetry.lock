@@ -1216,21 +1216,19 @@ files = [
 
 [[package]]
 name = "img2pdf"
-version = "0.6.0"
-description = "Convert images to PDF via direct JPEG inclusion."
+version = "0.6.3"
+description = "Lossless conversion of raster images to PDF."
 optional = false
-python-versions = "*"
+python-versions = ">=3.5"
 groups = ["main"]
 files = [
-    {file = "img2pdf-0.6.0.tar.gz", hash = "sha256:85a89b8abdeef9ef033508aed0d9f1e84fd6d0130e864e2c523f948ec45365e1"},
+    {file = "img2pdf-0.6.3-py3-none-any.whl", hash = "sha256:44d12d235752edd17c43c04ff39952cdc5dd4c6aba90569c4902bd445085266b"},
+    {file = "img2pdf-0.6.3.tar.gz", hash = "sha256:219518020f5bd242bdc46493941ea3f756f664c2e86f2454721e74353f58cd95"},
 ]
 
 [package.dependencies]
 pikepdf = "*"
 Pillow = "*"
-
-[package.extras]
-gui = ["tkinter"]
 
 [[package]]
 name = "iniconfig"
@@ -3296,4 +3294,4 @@ pg = ["psycopg2-binary"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<4"
-content-hash = "3cc88cade8768bb7e4dd60a131627f4b14677cbcd08088188492e417a35d272b"
+content-hash = "db8c6932c4aff0b7072b648d5674fce6b35bd3e892f61693900568b4b020be2e"
