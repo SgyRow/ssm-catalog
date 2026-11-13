@@ -2,6 +2,7 @@ import classes from "@/components/ViewportPage.module.css"
 import cardClasses from "@/features/handbook/Handbook.module.css"
 import {
   useCreateHandbookArticleMutation,
+  useCreateHandbookDocumentMutation,
   useDeleteHandbookArticleMutation,
   useGetHandbookArticlesQuery
 } from "@/features/handbook/handbookApiSlice"
@@ -10,7 +11,9 @@ import {selectCurrentUser} from "@/slices/currentUser"
 import type {UserDetails} from "@/types"
 import {formatApiDateTimeCompact} from "@/utils/formatDateTime"
 import {Button, Group, Loader, Stack, Text, Title} from "@mantine/core"
-import {IconPlus, IconTrash} from "@tabler/icons-react"
+import {notifications} from "@mantine/notifications"
+import {IconFile, IconPlus, IconTrash, IconUpload} from "@tabler/icons-react"
+import {useRef} from "react"
 import {useSelector} from "react-redux"
 import {Link, useNavigate} from "react-router-dom"
 import {useTranslation} from "react-i18next"
@@ -26,6 +29,9 @@ export default function HandbookPage() {
   const [createArticle, {isLoading: creating}] =
     useCreateHandbookArticleMutation()
   const [deleteArticle] = useDeleteHandbookArticleMutation()
+  const [createDocument, {isLoading: uploading}] =
+    useCreateHandbookDocumentMutation()
+  const docInput = useRef<HTMLInputElement>(null)
 
   const onCreate = async () => {
     const created = await createArticle({
@@ -33,6 +39,18 @@ export default function HandbookPage() {
       body: ""
     }).unwrap()
     navigate(`/handbook/${created.id}`)
+  }
+
+  const onUploadDocument = async (file: File) => {
+    try {
+      const created = await createDocument(file).unwrap()
+      navigate(`/handbook/${created.id}`)
+    } catch {
+      notifications.show({
+        message: t("handbook.upload_failed"),
+        color: "red"
+      })
+    }
   }
 
   if (isLoading) {
@@ -55,13 +73,23 @@ export default function HandbookPage() {
         <Group justify="space-between" align="center">
           <Title order={3}>{t("handbook.title")}</Title>
           {canManage ? (
-            <Button
-              leftSection={<IconPlus size={16} />}
-              onClick={() => void onCreate()}
-              loading={creating}
-            >
-              {t("handbook.create")}
-            </Button>
+            <Group gap="xs">
+              <Button
+                leftSection={<IconPlus size={16} />}
+                onClick={() => void onCreate()}
+                loading={creating}
+              >
+                {t("handbook.create")}
+              </Button>
+              <Button
+                variant="light"
+                leftSection={<IconUpload size={16} />}
+                onClick={() => docInput.current?.click()}
+                loading={uploading}
+              >
+                {t("handbook.upload_document")}
+              </Button>
+            </Group>
           ) : null}
         </Group>
         {rows.length === 0 ? (
@@ -80,7 +108,12 @@ export default function HandbookPage() {
                   to={`/handbook/${item.id}`}
                   style={{flex: 1}}
                 >
-                  <Text fw={650}>{item.title}</Text>
+                  <Group gap={6} align="center" wrap="nowrap">
+                    {item.kind === "file" ? (
+                      <IconFile size={16} style={{flexShrink: 0}} />
+                    ) : null}
+                    <Text fw={650}>{item.title}</Text>
+                  </Group>
                   <Text size="sm" c="dimmed">
                     {formatApiDateTimeCompact(item.updated_at)}
                     {item.author_username
@@ -104,6 +137,18 @@ export default function HandbookPage() {
           </Stack>
         )}
       </Stack>
+      {canManage ? (
+        <input
+          ref={docInput}
+          type="file"
+          hidden
+          onChange={e => {
+            const file = e.currentTarget.files?.[0]
+            e.currentTarget.value = ""
+            if (file) void onUploadDocument(file)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

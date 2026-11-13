@@ -51,6 +51,85 @@ async def create_handbook(
     return hb_schema.HandbookArticleOut(**row)
 
 
+@router.post("/documents", response_model=hb_schema.HandbookArticleOut)
+async def create_handbook_document(
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+) -> hb_schema.HandbookArticleOut:
+    if not _can_manage(user):
+        raise exc.HTTP403Forbidden()
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_ASSET_BYTES:
+        raise HTTPException(status_code=400, detail="File is too large")
+    filename = (file.filename or "file").strip() or "file"
+    content_type = file.content_type or "application/octet-stream"
+    row = await hb_api.create_file_document(
+        db_session,
+        title=filename,
+        author_id=user.id,
+        filename=filename,
+        content_type=content_type,
+        data=data,
+    )
+    await db_session.commit()
+    return hb_schema.HandbookArticleOut(**row)
+
+
+@router.post(
+    "/documents/{article_id}/replace", response_model=hb_schema.HandbookArticleOut
+)
+async def replace_handbook_document(
+    article_id: UUID,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+) -> hb_schema.HandbookArticleOut:
+    if not _can_manage(user):
+        raise exc.HTTP403Forbidden()
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_ASSET_BYTES:
+        raise HTTPException(status_code=400, detail="File is too large")
+    filename = (file.filename or "file").strip() or "file"
+    content_type = file.content_type or "application/octet-stream"
+    row = await hb_api.replace_file_document(
+        db_session,
+        article_id,
+        filename=filename,
+        content_type=content_type,
+        data=data,
+    )
+    if row is None:
+        raise exc.HTTP404NotFound()
+    await db_session.commit()
+    return hb_schema.HandbookArticleOut(**row)
+
+
+@router.get("/documents/{article_id}/download")
+async def download_handbook_document(
+    article_id: UUID,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+    inline: bool = False,
+):
+    found = await hb_api.get_file_document(db_session, article_id)
+    if found is None:
+        raise exc.HTTP404NotFound()
+    article, path = found
+    content_type = article.file_content_type or "application/octet-stream"
+    if inline:
+        return FileResponse(path, media_type=content_type)
+    return FileResponse(
+        path,
+        media_type=content_type,
+        filename=article.file_filename or article.title,
+    )
+
+
 @router.get("/assets/{asset_id}")
 async def download_handbook_asset(
     asset_id: UUID,
