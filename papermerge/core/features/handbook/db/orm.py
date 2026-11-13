@@ -14,6 +14,14 @@ class HandbookArticle(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     body: Mapped[str] = mapped_column(Text(), nullable=False, default="")
+    kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="article", server_default="article"
+    )
+    file_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    file_content_type: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    file_size_bytes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     author_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

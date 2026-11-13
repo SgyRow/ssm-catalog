@@ -13,12 +13,31 @@ from papermerge.core.features.handbook.sanitize import sanitize_html
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
+# Storage name of the single file that makes up a "file" handbook item.
+DOC_STORAGE_NAME = "document"
+
 
 def _article_dir(article_id: UUID) -> Path:
     root = get_settings().papermerge__main__media_root
     path = Path(root) / "handbook" / str(article_id)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _article_file_path(article_id: UUID) -> Path:
+    root = get_settings().papermerge__main__media_root
+    return Path(root) / "handbook" / str(article_id) / DOC_STORAGE_NAME
+
+
+def _file_dict(article: hb_orm.HandbookArticle) -> dict | None:
+    if article.kind != "file":
+        return None
+    return {
+        "filename": article.file_filename or article.title,
+        "content_type": article.file_content_type or "application/octet-stream",
+        "size_bytes": article.file_size_bytes or 0,
+        "url": f"/api/handbook/documents/{article.id}/download",
+    }
 
 
 def _safe_filename(name: str) -> str:
@@ -49,6 +68,8 @@ async def list_articles(db_session: AsyncSession) -> list[dict]:
                 "author_username": username or "",
                 "created_at": article.created_at,
                 "updated_at": article.updated_at,
+                "kind": article.kind,
+                "file": _file_dict(article),
             }
         )
     return items
@@ -73,7 +94,71 @@ async def get_article(db_session: AsyncSession, article_id: UUID) -> dict | None
         "author_username": username or "",
         "created_at": article.created_at,
         "updated_at": article.updated_at,
+        "kind": article.kind,
+        "file": _file_dict(article),
     }
+
+
+async def create_file_document(
+    db_session: AsyncSession,
+    *,
+    title: str,
+    author_id: UUID | None,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> dict:
+    article = hb_orm.HandbookArticle(
+        title=title,
+        body="",
+        kind="file",
+        author_id=author_id,
+        file_filename=filename,
+        file_content_type=content_type or "application/octet-stream",
+        file_size_bytes=len(data),
+    )
+    db_session.add(article)
+    await db_session.flush()
+    path = _article_dir(article.id) / DOC_STORAGE_NAME
+    path.write_bytes(data)
+    row = await get_article(db_session, article.id)
+    if row is None:
+        raise RuntimeError("handbook file document was not stored")
+    return row
+
+
+async def replace_file_document(
+    db_session: AsyncSession,
+    article_id: UUID,
+    *,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> dict | None:
+    article = await db_session.get(hb_orm.HandbookArticle, article_id)
+    if article is None or article.kind != "file":
+        return None
+    path = _article_dir(article_id) / DOC_STORAGE_NAME
+    if path.exists():
+        path.unlink()
+    path.write_bytes(data)
+    article.file_filename = filename
+    article.file_content_type = content_type or "application/octet-stream"
+    article.file_size_bytes = len(data)
+    await db_session.flush()
+    return await get_article(db_session, article_id)
+
+
+async def get_file_document(
+    db_session: AsyncSession, article_id: UUID
+) -> tuple[hb_orm.HandbookArticle, Path] | None:
+    article = await db_session.get(hb_orm.HandbookArticle, article_id)
+    if article is None or article.kind != "file":
+        return None
+    path = _article_file_path(article_id)
+    if not path.exists():
+        return None
+    return article, path
 
 
 async def create_article(

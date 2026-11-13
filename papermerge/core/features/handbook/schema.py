@@ -5,6 +5,15 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class HandbookFileOut(BaseModel):
+    filename: str
+    content_type: str
+    size_bytes: int
+    url: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class HandbookArticleOut(BaseModel):
     id: uuid.UUID
     title: str
@@ -13,6 +22,8 @@ class HandbookArticleOut(BaseModel):
     author_username: str = ""
     created_at: datetime
     updated_at: datetime
+    kind: str = "article"
+    file: HandbookFileOut | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
