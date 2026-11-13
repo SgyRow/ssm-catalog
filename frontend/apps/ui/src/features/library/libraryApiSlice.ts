@@ -40,12 +40,20 @@ export type FavoriteFolder = {
   created_at: string
 }
 
+export type WatchedFolder = {
+  id: string
+  title: string
+  sort_index: number
+  created_at: string
+}
+
 export type WatchedRow = {
   node_id: string
   title: string
   ctype: string
   created_at: string
   in_trash: boolean
+  folder_id: string | null
 }
 
 export type RecentRow = {
@@ -174,6 +182,42 @@ export const apiSliceWithLibrary = apiSlice.injectEndpoints({
         method: "DELETE"
       }),
       invalidatesTags: [{type: "LibraryWatched", id: "LIST"}]
+    }),
+    moveLibraryWatched: builder.mutation<
+      void,
+      {nodeId: string; folderId: string | null}
+    >({
+      query: ({nodeId, folderId}) => ({
+        url: `/library/watched/${nodeId}/`,
+        method: "PATCH",
+        body: {folder_id: folderId}
+      }),
+      invalidatesTags: [{type: "LibraryWatched", id: "LIST"}]
+    }),
+    getLibraryWatchedFolders: builder.query<WatchedFolder[], void>({
+      query: () => "/library/watched-folders/",
+      providesTags: [{type: "LibraryWatchedFolders", id: "LIST"}]
+    }),
+    createLibraryWatchedFolder: builder.mutation<
+      WatchedFolder,
+      {title: string}
+    >({
+      query: body => ({
+        url: "/library/watched-folders/",
+        method: "POST",
+        body
+      }),
+      invalidatesTags: [{type: "LibraryWatchedFolders", id: "LIST"}]
+    }),
+    deleteLibraryWatchedFolder: builder.mutation<void, string>({
+      query: folderId => ({
+        url: `/library/watched-folders/${folderId}/`,
+        method: "DELETE"
+      }),
+      invalidatesTags: [
+        {type: "LibraryWatchedFolders", id: "LIST"},
+        {type: "LibraryWatched", id: "LIST"}
+      ]
     }),
     getLibraryRecent: builder.query<RecentRow[], void>({
       query: () => "/library/recent/",
@@ -396,6 +440,10 @@ export const {
   useGetLibraryWatchedQuery,
   useAddLibraryWatchedMutation,
   useRemoveLibraryWatchedMutation,
+  useMoveLibraryWatchedMutation,
+  useGetLibraryWatchedFoldersQuery,
+  useCreateLibraryWatchedFolderMutation,
+  useDeleteLibraryWatchedFolderMutation,
   useGetLibraryRecentQuery,
   useGetLibraryTrashQuery,
   useRestoreLibraryTrashMutation,

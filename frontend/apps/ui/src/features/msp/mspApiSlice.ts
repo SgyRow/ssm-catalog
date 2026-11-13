@@ -93,14 +93,36 @@ const injected = apiSlice.injectEndpoints({
     }),
     addMspTypeSection: builder.mutation<
       MspTypeSection,
-      {msp_type_id: string; title: string}
+      {
+        msp_type_id: string
+        title: string
+        /**
+         * Zero-based insertion position in the current ordered list (0 =
+         * first). Omit to append at the end.
+         */
+        index?: number | null
+      }
     >({
-      query: ({msp_type_id, title}) => ({
+      query: ({msp_type_id, title, index}) => ({
         url: `/msp/types/${msp_type_id}/sections`,
         method: "POST",
-        body: {title}
+        body: {title, index}
       }),
       invalidatesTags: [{type: "MspType", id: "LIST"}]
+    }),
+    reorderMspTypeSections: builder.mutation<
+      MspType,
+      {msp_type_id: string; order: string[]}
+    >({
+      query: ({msp_type_id, order}) => ({
+        url: `/msp/types/${msp_type_id}/sections/reorder`,
+        method: "POST",
+        body: {order}
+      }),
+      invalidatesTags: (_r, _e, {msp_type_id}) => [
+        {type: "MspType", id: "LIST"},
+        {type: "MspType", id: msp_type_id}
+      ]
     }),
     updateMspType: builder.mutation<
       MspType,
@@ -174,6 +196,7 @@ export const {
   useGetMspTypeQuery,
   useCreateMspTypeMutation,
   useAddMspTypeSectionMutation,
+  useReorderMspTypeSectionsMutation,
   useUpdateMspTypeMutation,
   useDeleteMspTypeMutation,
   useCreateMspMutation,

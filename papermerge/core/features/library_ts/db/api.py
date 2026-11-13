@@ -307,9 +307,131 @@ async def list_watched_enriched(
                 ctype=str(ctype),
                 created_at=watched.created_at,
                 in_trash=deleted_at is not None,
+                folder_id=watched.folder_id,
             )
         )
     return out
+
+
+MAX_WATCHED_FOLDERS = 50
+
+
+async def list_watched_folders(
+    db_session: AsyncSession, user_id: UUID
+) -> list[lib_orm.UserWatchedFolder]:
+    stmt = (
+        select(lib_orm.UserWatchedFolder)
+        .where(lib_orm.UserWatchedFolder.user_id == user_id)
+        .order_by(
+            lib_orm.UserWatchedFolder.sort_index.asc(),
+            lib_orm.UserWatchedFolder.created_at.asc(),
+        )
+    )
+    return list((await db_session.scalars(stmt)).all())
+
+
+async def get_watched_folder(
+    db_session: AsyncSession, user_id: UUID, folder_id: UUID
+) -> lib_orm.UserWatchedFolder | None:
+    return await db_session.scalar(
+        select(lib_orm.UserWatchedFolder).where(
+            lib_orm.UserWatchedFolder.id == folder_id,
+            lib_orm.UserWatchedFolder.user_id == user_id,
+        )
+    )
+
+
+async def create_watched_folder(
+    db_session: AsyncSession, user_id: UUID, title: str
+) -> tuple[lib_orm.UserWatchedFolder | None, str | None]:
+    name = title.strip()
+    if not name:
+        return None, "empty_title"
+    count = await db_session.scalar(
+        select(func.count(lib_orm.UserWatchedFolder.id)).where(
+            lib_orm.UserWatchedFolder.user_id == user_id
+        )
+    )
+    if int(count or 0) >= MAX_WATCHED_FOLDERS:
+        return None, "folder_limit"
+    taken = await db_session.scalar(
+        select(lib_orm.UserWatchedFolder.id).where(
+            lib_orm.UserWatchedFolder.user_id == user_id,
+            func.lower(lib_orm.UserWatchedFolder.title) == name.lower(),
+        )
+    )
+    if taken:
+        return None, "duplicate_title"
+    max_sort = await db_session.scalar(
+        select(
+            func.coalesce(
+                func.max(lib_orm.UserWatchedFolder.sort_index), -1
+            )
+        ).where(lib_orm.UserWatchedFolder.user_id == user_id)
+    )
+    row = lib_orm.UserWatchedFolder(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        title=name[:200],
+        sort_index=int(max_sort or 0) + 1,
+        created_at=_utc_naive_now(),
+    )
+    db_session.add(row)
+    return row, None
+
+
+async def rename_watched_folder(
+    db_session: AsyncSession, user_id: UUID, folder_id: UUID, title: str
+) -> tuple[lib_orm.UserWatchedFolder | None, str | None]:
+    row = await get_watched_folder(db_session, user_id, folder_id)
+    if row is None:
+        return None, "not_found"
+    name = title.strip()
+    if not name:
+        return None, "empty_title"
+    taken = await db_session.scalar(
+        select(lib_orm.UserWatchedFolder.id).where(
+            lib_orm.UserWatchedFolder.user_id == user_id,
+            func.lower(lib_orm.UserWatchedFolder.title) == name.lower(),
+            lib_orm.UserWatchedFolder.id != folder_id,
+        )
+    )
+    if taken:
+        return None, "duplicate_title"
+    row.title = name[:200]
+    return row, None
+
+
+async def delete_watched_folder(
+    db_session: AsyncSession, user_id: UUID, folder_id: UUID
+) -> bool:
+    row = await get_watched_folder(db_session, user_id, folder_id)
+    if row is None:
+        return False
+    await db_session.delete(row)
+    return True
+
+
+async def move_watched(
+    db_session: AsyncSession,
+    user_id: UUID,
+    node_id: UUID,
+    folder_id: UUID | None,
+) -> str | None:
+    watched = await db_session.scalar(
+        select(lib_orm.UserWatched).where(
+            lib_orm.UserWatched.user_id == user_id,
+            lib_orm.UserWatched.node_id == node_id,
+        )
+    )
+    if watched is None:
+        return "not_watched"
+    if folder_id is not None:
+        folder = await get_watched_folder(db_session, user_id, folder_id)
+        if folder is None:
+            return "folder_not_found"
+    watched.folder_id = folder_id
+    return None
 
 
 async def notify_watched_document_changed(

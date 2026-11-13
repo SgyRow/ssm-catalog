@@ -39,7 +39,10 @@ import {useTranslation} from "react-i18next"
 import classes from "./MspView.module.css"
 
 /** Standard folder titles created by the backend inside a measure folder. */
-const NORMATIVE_FOLDER = "Нормативные правовые документы"
+const NORMATIVE_FOLDERS = new Set([
+  "Нормативные правовые документы",
+  "Нормативно-правовые документы"
+])
 const INFORMATION_FOLDER = "Информационные материалы"
 
 /**
@@ -262,7 +265,7 @@ export default function MspView({
   // The standard folders get their own slots in the layout: the normative
   // one is shown above all sections, the information one below them.
   const normativeFolder = childrenNodes.find(
-    n => n.ctype === "folder" && n.title === NORMATIVE_FOLDER
+    n => n.ctype === "folder" && NORMATIVE_FOLDERS.has(n.title)
   )
   const infoFolder = childrenNodes.find(
     n => n.ctype === "folder" && n.title === INFORMATION_FOLDER

@@ -37,6 +37,24 @@ class MspTypeRead(BaseModel):
 
 class NewMspTypeSection(BaseModel):
     title: str = Field(min_length=1, max_length=300)
+    index: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Zero-based insertion position in the current ordered list "
+            "(0 = first). Omit or pass null to append at the end."
+        ),
+    )
+
+
+class ReorderMspTypeSections(BaseModel):
+    """A full, ordered list of section ids of a type.
+
+    The list length must equal the number of sections and must contain each
+    section exactly once; positions become the new ``sort_order``.
+    """
+
+    order: list[UUID]
 
 
 class UpdateMspTypeSection(BaseModel):

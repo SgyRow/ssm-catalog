@@ -130,26 +130,53 @@ async def update_msp_type(
 
 
 async def add_msp_type_section(
-    db_session: AsyncSession, msp_type_id: UUID, title: str
+    db_session: AsyncSession,
+    msp_type_id: UUID,
+    title: str,
+    index: int | None = None,
 ) -> orm.MspTypeSection | None:
+    """Add a section to a measure type at an arbitrary position.
+
+    ``index`` is the zero-based insertion position in the current ordered
+    list (0 = first); when omitted or out of range the section is appended
+    at the end. After the insertion ``sort_order`` is renumbered 0..N.
+    """
     msp_type = await get_msp_type(db_session, msp_type_id)
     if msp_type is None:
         return None
-    stmt = (
-        select(orm.MspTypeSection.sort_order)
-        .where(orm.MspTypeSection.msp_type_id == msp_type_id)
-        .order_by(orm.MspTypeSection.sort_order.desc())
-        .limit(1)
-    )
-    last = (await db_session.execute(stmt)).scalar_one_or_none()
-    # Single-column select → the value itself (an int), not a row.
-    sort_order = (last + 1) if last is not None else 0
+    sections = sorted(msp_type.sections, key=lambda s: s.sort_order)
+    insert_at = max(0, min(index, len(sections))) if index is not None else len(sections)
     section = orm.MspTypeSection(
-        msp_type_id=msp_type_id, title=title, sort_order=sort_order
+        msp_type_id=msp_type_id, title=title.strip(), sort_order=insert_at
     )
     db_session.add(section)
+    sections = sections[:insert_at] + [section] + sections[insert_at:]
+    for i, s in enumerate(sections):
+        s.sort_order = i
     await db_session.commit()
     return section
+
+
+async def reorder_msp_type_sections(
+    db_session: AsyncSession, msp_type_id: UUID, order: list[UUID]
+) -> orm.MspType | None:
+    """Move sections within a type: ``order`` is the full new id order.
+
+    Raises ``ValueError`` when the list is not exactly the type's set of
+    sections (duplicates, unknown ids, or a missing id).
+    """
+    msp_type = await get_msp_type(db_session, msp_type_id)
+    if msp_type is None:
+        return None
+    sections_by_id = {s.id: s for s in msp_type.sections}
+    if set(order) != set(sections_by_id) or len(order) != len(sections_by_id):
+        raise ValueError(
+            "order must contain each section of the type exactly once"
+        )
+    for i, section_id in enumerate(order):
+        sections_by_id[section_id].sort_order = i
+    await db_session.commit()
+    return await get_msp_type(db_session, msp_type_id)
 
 
 async def delete_msp_type(db_session: AsyncSession, msp_type_id: UUID) -> None:

@@ -25,6 +25,7 @@ from papermerge.core.features.msp.schema import (
     NewMsp,
     NewMspType,
     NewMspTypeSection,
+    ReorderMspTypeSections,
     UpdateMspType,
     MspRead,
     MspSectionRead,
@@ -210,12 +211,54 @@ async def add_msp_type_section(
     user: Annotated[core_schema.User, Security(get_current_user)],
     db_session: AsyncSession = Depends(get_db),
 ) -> MspTypeSectionRead:
-    """Append a new section to an existing measure type."""
+    """Add a new section to an existing measure type.
+
+    ``index`` is the zero-based insertion position in the current ordered
+    list (0 = first); omit it to append at the end.
+    """
     _require_superuser(user)
-    section = await api.add_msp_type_section(db_session, msp_type_id, payload.title)
+    section = await api.add_msp_type_section(
+        db_session, msp_type_id, payload.title, index=payload.index
+    )
     if section is None:
         raise HTTPException(status_code=404, detail="Measure type not found")
     return MspTypeSectionRead(id=section.id, title=section.title, sort_order=section.sort_order)
+
+
+@router.post(
+    "/types/{msp_type_id}/sections/reorder",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid order",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Administrator required",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        }
+    },
+)
+async def reorder_msp_type_sections(
+    msp_type_id: UUID,
+    payload: ReorderMspTypeSections,
+    user: Annotated[core_schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> MspTypeRead:
+    """Move sections within a measure type.
+
+    ``order`` is the full, ordered list of section ids; positions become
+    the new order.
+    """
+    _require_superuser(user)
+    try:
+        msp_type = await api.reorder_msp_type_sections(
+            db_session, msp_type_id, payload.order
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    if msp_type is None:
+        raise HTTPException(status_code=404, detail="Measure type not found")
+    return _type_read(msp_type)
 
 
 @router.delete(
