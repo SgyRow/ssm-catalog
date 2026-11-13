@@ -28,7 +28,12 @@ import {
   TextInput
 } from "@mantine/core"
 import {notifications} from "@mantine/notifications"
-import {IconPlus, IconTrash} from "@tabler/icons-react"
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconPlus,
+  IconTrash
+} from "@tabler/icons-react"
 import {useEffect, useMemo, useState} from "react"
 import {useSelector} from "react-redux"
 import {useTranslation} from "react-i18next"
@@ -524,10 +529,35 @@ function TypeEditorCard({type}: {type: MspType}) {
     setSections(prev => prev.filter(s => s.key !== key))
   }
 
+  const newDraftKey = () => `new-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  /** Insert a new empty section right after the given row. */
+  const onSectionInsertAfter = (idx: number) => {
+    setSections(prev => {
+      const next = [...prev]
+      next.splice(idx + 1, 0, {key: newDraftKey(), title: ""})
+      return next
+    })
+  }
+
+  /** Move a section row up or down by one position. */
+  const onSectionMove = (idx: number, dir: -1 | 1) => {
+    setSections(prev => {
+      const target = idx + dir
+      if (target < 0 || target >= prev.length) {
+        return prev
+      }
+      const next = [...prev]
+      const [moved] = next.splice(idx, 1)
+      next.splice(target, 0, moved)
+      return next
+    })
+  }
+
   const onSectionAdd = () => {
     setSections(prev => [
       ...prev,
-      {key: `new-${Date.now()}-${prev.length}`, title: ""}
+      {key: newDraftKey(), title: ""}
     ])
   }
 
@@ -589,7 +619,7 @@ function TypeEditorCard({type}: {type: MspType}) {
             {t("msp.types.form.sections")}
           </Text>
           <Stack gap="xs">
-            {sections.map(section => (
+            {sections.map((section, idx) => (
               <Group key={section.key} gap="xs">
                 <TextInput
                   style={{flex: 1}}
@@ -599,6 +629,29 @@ function TypeEditorCard({type}: {type: MspType}) {
                     onSectionChange(section.key, e.currentTarget.value)
                   }
                 />
+                <ActionIcon
+                  variant="subtle"
+                  onClick={() => onSectionInsertAfter(idx)}
+                  aria-label={t("msp.types.insert_after")}
+                >
+                  <IconPlus size={16} />
+                </ActionIcon>
+                <ActionIcon
+                  variant="subtle"
+                  disabled={idx === 0}
+                  onClick={() => onSectionMove(idx, -1)}
+                  aria-label={t("msp.types.move_up")}
+                >
+                  <IconChevronUp size={16} />
+                </ActionIcon>
+                <ActionIcon
+                  variant="subtle"
+                  disabled={idx === sections.length - 1}
+                  onClick={() => onSectionMove(idx, 1)}
+                  aria-label={t("msp.types.move_down")}
+                >
+                  <IconChevronDown size={16} />
+                </ActionIcon>
                 <ActionIcon
                   variant="subtle"
                   color="red"

@@ -1,22 +1,36 @@
 import {getBlobViewerCategory} from "@/features/document/documentPreview"
 import {
+  useCreateLibraryWatchedFolderMutation,
+  useDeleteLibraryWatchedFolderMutation,
+  useGetLibraryWatchedFoldersQuery,
   useGetLibraryWatchedQuery,
+  useMoveLibraryWatchedMutation,
   useRemoveLibraryWatchedMutation,
+  type WatchedFolder,
   type WatchedRow
 } from "@/features/library/libraryApiSlice"
 import {formatNodeDisplayTitle} from "@/utils"
 import {
+  Accordion,
+  ActionIcon,
   Anchor,
   Button,
+  Group,
   Loader,
+  Menu,
+  Modal,
   Paper,
   ScrollArea,
   Stack,
   Table,
-  Text
+  Text,
+  TextInput
 } from "@mantine/core"
+import {useDisclosure} from "@mantine/hooks"
 import {notifications} from "@mantine/notifications"
+import {IconFolder, IconFolderPlus, IconTrash} from "@tabler/icons-react"
 import type {TFunction} from "i18next"
+import {useMemo, useState} from "react"
 import {useTranslation} from "react-i18next"
 import {Link} from "react-router-dom"
 
@@ -36,19 +50,23 @@ function resolveTypeLabel(ctype: string, title: string, t: TFunction): string {
 
 function WatchedRowsTable({
   rows,
+  folders,
   t,
   onRemove,
+  onMove,
   removing
 }: {
   rows: WatchedRow[]
+  folders: WatchedFolder[]
   t: TFunction
   onRemove: (nodeId: string) => Promise<void>
+  onMove: (nodeId: string, folderId: string | null) => Promise<void>
   removing: boolean
 }) {
   if (rows.length === 0) {
     return (
       <Text c="dimmed" size="sm" py="sm">
-        {t("library.empty_watched")}
+        {t("library.watched_empty_folder")}
       </Text>
     )
   }
@@ -76,15 +94,40 @@ function WatchedRowsTable({
             </Table.Td>
             <Table.Td>{resolveTypeLabel(row.ctype, row.title, t)}</Table.Td>
             <Table.Td>
-              <Button
-                size="xs"
-                variant="light"
-                color="red"
-                loading={removing}
-                onClick={() => void onRemove(row.node_id)}
-              >
-                {t("library.remove_watched")}
-              </Button>
+              <Group gap="xs" wrap="nowrap">
+                {folders.length > 0 ? (
+                  <Menu shadow="md" width={220}>
+                    <Menu.Target>
+                      <Button size="xs" variant="light">
+                        {t("library.watched_move")}
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => void onMove(row.node_id, null)}>
+                        {t("library.watched_unfiled")}
+                      </Menu.Item>
+                      {folders.map(folder => (
+                        <Menu.Item
+                          key={folder.id}
+                          disabled={row.folder_id === folder.id}
+                          onClick={() => void onMove(row.node_id, folder.id)}
+                        >
+                          {folder.title}
+                        </Menu.Item>
+                      ))}
+                    </Menu.Dropdown>
+                  </Menu>
+                ) : null}
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="red"
+                  loading={removing}
+                  onClick={() => void onRemove(row.node_id)}
+                >
+                  {t("library.remove_watched")}
+                </Button>
+              </Group>
             </Table.Td>
           </Table.Tr>
         ))}
@@ -96,9 +139,32 @@ function WatchedRowsTable({
 export default function WatchedPanel() {
   const {t} = useTranslation()
   const {data, isLoading, isError} = useGetLibraryWatchedQuery()
+  const {data: foldersData, isLoading: foldersLoading} =
+    useGetLibraryWatchedFoldersQuery()
   const [remove, {isLoading: removing}] = useRemoveLibraryWatchedMutation()
+  const [moveWatched] = useMoveLibraryWatchedMutation()
+  const [createFolder, createState] = useCreateLibraryWatchedFolderMutation()
+  const [deleteFolder] = useDeleteLibraryWatchedFolderMutation()
+  const [opened, {open, close}] = useDisclosure(false)
+  const [folderTitle, setFolderTitle] = useState("")
 
+  const folders = foldersData ?? []
   const rows = data ?? []
+
+  const grouped = useMemo(() => {
+    const byFolder = new Map<string, WatchedRow[]>()
+    const unfiled: WatchedRow[] = []
+    for (const row of rows) {
+      if (row.folder_id) {
+        const list = byFolder.get(row.folder_id) ?? []
+        list.push(row)
+        byFolder.set(row.folder_id, list)
+      } else {
+        unfiled.push(row)
+      }
+    }
+    return {byFolder, unfiled}
+  }, [rows])
 
   const onRemove = async (nodeId: string) => {
     try {
@@ -113,30 +179,203 @@ export default function WatchedPanel() {
     }
   }
 
-  if (isLoading) {
+  const onMove = async (nodeId: string, folderId: string | null) => {
+    try {
+      await moveWatched({nodeId, folderId}).unwrap()
+      notifications.show({
+        title: t("library.watched_moved"),
+        message: "",
+        color: "green"
+      })
+    } catch {
+      notifications.show({title: t("library.error"), message: "", color: "red"})
+    }
+  }
+
+  const onCreate = async () => {
+    const title = folderTitle.trim()
+    if (!title) {
+      return
+    }
+    try {
+      await createFolder({title}).unwrap()
+      setFolderTitle("")
+      close()
+      notifications.show({
+        title: t("library.watched_folder_created"),
+        message: "",
+        color: "green"
+      })
+    } catch (err: unknown) {
+      const status =
+        err && typeof err === "object" && "status" in err
+          ? (err as {status: number}).status
+          : 0
+      notifications.show({
+        title: t("library.error"),
+        message:
+          status === 409
+            ? t("library.watched_folder_exists")
+            : status === 400
+              ? t("library.watched_folder_limit")
+              : "",
+        color: "red"
+      })
+    }
+  }
+
+  if (isLoading || foldersLoading) {
     return <Loader />
   }
   if (isError) {
     return <Text c="red">{t("library.load_error")}</Text>
   }
 
+  const accordionValues = [
+    ...folders.map(folder => folder.id),
+    "__unfiled"
+  ]
+
   return (
     <Stack gap="sm">
+      <Group>
+        <Button
+          leftSection={<IconFolderPlus size={16} />}
+          onClick={open}
+          size="sm"
+        >
+          {t("library.watched_new_folder")}
+        </Button>
+      </Group>
       <ScrollArea
         type="scroll"
         offsetScrollbars
         scrollbarSize={10}
         h={LIBRARY_PANEL_SCROLL_HEIGHT}
       >
-        <Paper withBorder p="sm">
-          <WatchedRowsTable
-            rows={rows}
-            t={t}
-            onRemove={onRemove}
-            removing={removing}
-          />
-        </Paper>
+        {folders.length === 0 && rows.length === 0 ? (
+          <Text c="dimmed">{t("library.empty_watched")}</Text>
+        ) : (
+          <Accordion multiple defaultValue={accordionValues}>
+            {folders.map(folder => (
+              <Accordion.Item key={folder.id} value={folder.id}>
+                <Accordion.Control icon={<IconFolder size={16} />}>
+                  <Group justify="space-between" pr="sm" wrap="nowrap">
+                    <Text fw={600}>{folder.title}</Text>
+                    <Text size="sm" c="dimmed">
+                      {(grouped.byFolder.get(folder.id) ?? []).length}
+                    </Text>
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Group justify="flex-end" mb="xs">
+                    <ActionIcon
+                      color="red"
+                      variant="subtle"
+                      aria-label={t("common.delete")}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            t("library.watched_folder_delete_confirm")
+                          )
+                        ) {
+                          void deleteFolder(folder.id)
+                            .unwrap()
+                            .then(() => {
+                              notifications.show({
+                                title: t("library.watched_folder_deleted"),
+                                message: "",
+                                color: "green"
+                              })
+                            })
+                            .catch(() => {
+                              notifications.show({
+                                title: t("library.error"),
+                                message: "",
+                                color: "red"
+                              })
+                            })
+                        }
+                      }}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Group>
+                  <Paper withBorder p="sm">
+                    <WatchedRowsTable
+                      rows={grouped.byFolder.get(folder.id) ?? []}
+                      folders={folders}
+                      t={t}
+                      onRemove={onRemove}
+                      onMove={onMove}
+                      removing={removing}
+                    />
+                  </Paper>
+                </Accordion.Panel>
+              </Accordion.Item>
+            ))}
+            <Accordion.Item value="__unfiled">
+              <Accordion.Control>
+                <Group justify="space-between" pr="sm">
+                  <Text fw={600}>{t("library.watched_unfiled")}</Text>
+                  <Text size="sm" c="dimmed">
+                    {grouped.unfiled.length}
+                  </Text>
+                </Group>
+              </Accordion.Control>
+              <Accordion.Panel>
+                <Paper withBorder p="sm">
+                  {grouped.unfiled.length === 0 && folders.length > 0 ? (
+                    <Text c="dimmed" size="sm">
+                      {t("library.empty_watched")}
+                    </Text>
+                  ) : (
+                    <WatchedRowsTable
+                      rows={grouped.unfiled}
+                      folders={folders}
+                      t={t}
+                      onRemove={onRemove}
+                      onMove={onMove}
+                      removing={removing}
+                    />
+                  )}
+                </Paper>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
+        )}
       </ScrollArea>
+      <Modal
+        opened={opened}
+        onClose={close}
+        title={t("library.watched_new_folder")}
+      >
+        <Stack>
+          <TextInput
+            label={t("library.watched_folder_name")}
+            value={folderTitle}
+            onChange={e => setFolderTitle(e.currentTarget.value)}
+            data-autofocus
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                void onCreate()
+              }
+            }}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={close}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => void onCreate()}
+              loading={createState.isLoading}
+              disabled={!folderTitle.trim()}
+            >
+              {t("common.save")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }

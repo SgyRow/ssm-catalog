@@ -302,6 +302,84 @@ async def test_add_section_to_type(auth_api_client, db_session):
     assert resp.json()["sections"][-1]["title"] == "Размер"
 
 
+async def test_add_section_at_position(auth_api_client, db_session):
+    client = auth_api_client.test_client
+
+    resp = await client.post(
+        "/msp/types",
+        json={"name": "ЕДК-вставка", "sections": [{"title": "A"}, {"title": "B"}, {"title": "C"}]},
+    )
+    assert resp.status_code == 201, resp.text
+    type_id = resp.json()["id"]
+
+    # Insert between the first and the second section.
+    resp = await client.post(
+        f"/msp/types/{type_id}/sections", json={"title": "X", "index": 1}
+    )
+    assert resp.status_code == 201, resp.text
+    resp = await client.get(f"/msp/types/{type_id}")
+    assert resp.status_code == 200, resp.text
+    assert [s["title"] for s in resp.json()["sections"]] == ["A", "X", "B", "C"]
+
+    # Insert at the very beginning.
+    resp = await client.post(
+        f"/msp/types/{type_id}/sections", json={"title": "0", "index": 0}
+    )
+    assert resp.status_code == 201, resp.text
+
+    # Out-of-range index clamps to the end (same as omitting index).
+    resp = await client.post(
+        f"/msp/types/{type_id}/sections", json={"title": "Z", "index": 99}
+    )
+    assert resp.status_code == 201, resp.text
+    resp = await client.get(f"/msp/types/{type_id}")
+    assert [s["title"] for s in resp.json()["sections"]] == ["0", "A", "X", "B", "C", "Z"]
+    sort_orders = [s["sort_order"] for s in resp.json()["sections"]]
+    assert sort_orders == list(range(len(sort_orders)))
+
+
+async def test_reorder_type_sections(auth_api_client, db_session):
+    client = auth_api_client.test_client
+
+    resp = await client.post(
+        "/msp/types",
+        json={
+            "name": "ЕДК-перенос",
+            "sections": [{"title": "A"}, {"title": "B"}, {"title": "C"}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    type_id = resp.json()["id"]
+    by_title = {s["title"]: s["id"] for s in resp.json()["sections"]}
+
+    # Move "C" to the front.
+    resp = await client.post(
+        f"/msp/types/{type_id}/sections/reorder",
+        json={"order": [by_title["C"], by_title["A"], by_title["B"]]},
+    )
+    assert resp.status_code == 200, resp.text
+    assert [s["title"] for s in resp.json()["sections"]] == ["C", "A", "B"]
+
+    # The persisted order survives a refetch.
+    resp = await client.get(f"/msp/types/{type_id}")
+    assert resp.status_code == 200, resp.text
+    assert [s["title"] for s in resp.json()["sections"]] == ["C", "A", "B"]
+
+    # An invalid order (missing id) is rejected with 400.
+    resp = await client.post(
+        f"/msp/types/{type_id}/sections/reorder",
+        json={"order": [by_title["C"], by_title["A"]]},
+    )
+    assert resp.status_code == 400, resp.text
+
+    # A type that does not exist -> 404.
+    resp = await client.post(
+        "/msp/types/00000000-0000-4000-8000-000000000000/sections/reorder",
+        json={"order": []},
+    )
+    assert resp.status_code == 404, resp.text
+
+
 async def test_delete_type(auth_api_client, db_session):
     client = auth_api_client.test_client
 

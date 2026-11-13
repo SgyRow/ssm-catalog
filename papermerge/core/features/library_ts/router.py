@@ -334,6 +334,135 @@ async def remove_watched(
     await db_session.commit()
 
 
+@router.patch("/watched/{node_id}", status_code=204)
+@router.patch("/watched/{node_id}/", status_code=204)
+async def move_watched(
+    node_id: uuid.UUID,
+    body: lib_schema.WatchedMoveIn,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    error = await lib_api.move_watched(
+        db_session, user.id, node_id, body.folder_id
+    )
+    if error == "not_watched":
+        raise HTTPException(status_code=404, detail="Watched item not found")
+    if error == "folder_not_found":
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_move",
+        resource_type="node",
+        resource_id=node_id,
+        detail=lib_api.audit_detail_json(
+            {"folder_id": str(body.folder_id) if body.folder_id else None}
+        ),
+    )
+    await db_session.commit()
+
+
+@router.get(
+    "/watched-folders",
+    response_model=list[lib_schema.WatchedFolderOut],
+)
+@router.get(
+    "/watched-folders/",
+    response_model=list[lib_schema.WatchedFolderOut],
+)
+async def list_watched_folders(
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    rows = await lib_api.list_watched_folders(db_session, user.id)
+    return rows
+
+
+@router.post(
+    "/watched-folders",
+    response_model=lib_schema.WatchedFolderOut,
+    status_code=201,
+)
+@router.post(
+    "/watched-folders/",
+    response_model=lib_schema.WatchedFolderOut,
+    status_code=201,
+)
+async def create_watched_folder(
+    body: lib_schema.WatchedFolderCreate,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    row, error = await lib_api.create_watched_folder(
+        db_session, user.id, body.title
+    )
+    if error == "empty_title":
+        raise HTTPException(status_code=422, detail="title must not be empty")
+    if error == "duplicate_title":
+        raise HTTPException(status_code=409, detail="Folder already exists")
+    if error == "folder_limit":
+        raise HTTPException(status_code=400, detail="Folder limit reached")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_folder_create",
+        resource_type="watched_folder",
+        resource_id=row.id,
+        detail=lib_api.audit_detail_json({"title": row.title}),
+    )
+    await db_session.commit()
+    await db_session.refresh(row)
+    return row
+
+
+@router.patch(
+    "/watched-folders/{folder_id}",
+    response_model=lib_schema.WatchedFolderOut,
+)
+@router.patch(
+    "/watched-folders/{folder_id}/",
+    response_model=lib_schema.WatchedFolderOut,
+)
+async def rename_watched_folder(
+    folder_id: uuid.UUID,
+    body: lib_schema.WatchedFolderUpdate,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    row, error = await lib_api.rename_watched_folder(
+        db_session, user.id, folder_id, body.title
+    )
+    if error == "not_found":
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if error == "empty_title":
+        raise HTTPException(status_code=422, detail="title must not be empty")
+    if error == "duplicate_title":
+        raise HTTPException(status_code=409, detail="Folder already exists")
+    await db_session.commit()
+    await db_session.refresh(row)
+    return row
+
+
+@router.delete("/watched-folders/{folder_id}", status_code=204)
+@router.delete("/watched-folders/{folder_id}/", status_code=204)
+async def delete_watched_folder(
+    folder_id: uuid.UUID,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    ok = await lib_api.delete_watched_folder(db_session, user.id, folder_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_folder_delete",
+        resource_type="watched_folder",
+        resource_id=folder_id,
+    )
+    await db_session.commit()
+
+
 @router.get("/recent", response_model=list[lib_schema.RecentRowOut])
 @router.get("/recent/", response_model=list[lib_schema.RecentRowOut])
 async def list_recent(

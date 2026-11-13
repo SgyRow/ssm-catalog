@@ -34,11 +34,29 @@ class UserFavorite(Base):
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
 
+class UserWatchedFolder(Base):
+    __tablename__ = "user_watched_folders"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(200))
+    sort_index: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "title", name="uq_user_watched_folder_title"),
+    )
+
+
 class UserWatched(Base):
     __tablename__ = "user_watched"
 
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     node_id: Mapped[UUID] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True)
+    folder_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("user_watched_folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
 

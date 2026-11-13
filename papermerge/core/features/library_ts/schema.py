@@ -50,6 +50,28 @@ class WatchedRowOut(BaseModel):
     ctype: str
     created_at: datetime
     in_trash: bool = False
+    folder_id: UUID | None = None
+
+
+class WatchedFolderOut(BaseModel):
+    id: UUID
+    title: str
+    sort_index: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WatchedFolderCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+class WatchedFolderUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+class WatchedMoveIn(BaseModel):
+    folder_id: UUID | None = None
 
 
 class RecentOut(BaseModel):
