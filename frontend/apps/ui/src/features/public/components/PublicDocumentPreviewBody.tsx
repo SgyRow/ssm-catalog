@@ -18,21 +18,24 @@ import {rtfToPlainText} from "@/utils/rtfToPlainText"
 type Props = {
   downloadUrl: string
   fileName: string
+  fill?: boolean
 }
 
 const PREVIEW_HEIGHT = "75vh"
 
 function ScrollPane({
   children,
-  className
+  className,
+  fill
 }: {
   children: React.ReactNode
   className?: string
+  fill?: boolean
 }) {
   return (
     <Box
-      className={`${classes.scrollPane} ${className ?? ""}`}
-      style={{height: PREVIEW_HEIGHT, border: "1px solid #ccc"}}
+      className={`${classes.scrollPane} ${fill ? classes.fillPane : ""} ${className ?? ""}`}
+      style={fill ? undefined : {height: PREVIEW_HEIGHT, border: "1px solid #ccc"}}
     >
       {children}
     </Box>
@@ -41,7 +44,8 @@ function ScrollPane({
 
 export default function PublicDocumentPreviewBody({
   downloadUrl,
-  fileName
+  fileName,
+  fill = false
 }: Props) {
   const {t} = useTranslation()
   const objectUrlRef = useRef<string>()
@@ -140,7 +144,13 @@ export default function PublicDocumentPreviewBody({
   }, [objectURL, category, t])
 
   if (loading) {
-    return <Loader p="md" />
+    return fill ? (
+      <Box className={classes.fillRoot} p="md">
+        <Loader />
+      </Box>
+    ) : (
+      <Loader p="md" />
+    )
   }
 
   if (error || !objectURL) {
@@ -156,15 +166,15 @@ export default function PublicDocumentPreviewBody({
       <iframe
         title={t("public.document.preview")}
         src={objectURL}
-        className={classes.frame}
-        style={{height: PREVIEW_HEIGHT}}
+        className={`${classes.frame} ${fill ? classes.fillFrame : ""}`}
+        style={fill ? undefined : {height: PREVIEW_HEIGHT}}
       />
     )
   }
 
   if (chrome === "docx") {
     return (
-      <ScrollPane className={classes.docxScrollPane}>
+      <ScrollPane fill={fill} className={classes.docxScrollPane}>
         <DocxPreviewCore
           objectURL={objectURL}
           embedScroll={false}
@@ -177,7 +187,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "video") {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <Box className={classes.mediaWrap}>
           <video controls src={objectURL} className={classes.videoStandalone}>
             {t("blobPreview.videoUnsupported")}
@@ -189,7 +199,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "audio") {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <Box className={classes.mediaWrap}>
           <audio controls src={objectURL} className={classes.audioStandalone}>
             {t("blobPreview.audioUnsupported")}
@@ -201,7 +211,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "text" && textContent === null) {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <Loader p="md" />
       </ScrollPane>
     )
@@ -209,7 +219,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "text" && textContent !== null) {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <TextStandalonePreview mode="pane">{textContent}</TextStandalonePreview>
       </ScrollPane>
     )
@@ -217,7 +227,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "rtf" && textContent === null) {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <Loader p="md" />
       </ScrollPane>
     )
@@ -225,7 +235,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "rtf" && textContent !== null) {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <TextStandalonePreview mode="pane">{textContent}</TextStandalonePreview>
       </ScrollPane>
     )
@@ -233,7 +243,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "html" && htmlContent === null) {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <Loader p="md" />
       </ScrollPane>
     )
@@ -241,12 +251,12 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "html" && htmlContent !== null) {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <iframe
           title={fileName || "html"}
           srcDoc={htmlContent}
           sandbox=""
-          className={classes.htmlIframe}
+          className={`${classes.htmlIframe} ${fill ? classes.fillFrame : ""}`}
         />
       </ScrollPane>
     )
@@ -254,7 +264,7 @@ export default function PublicDocumentPreviewBody({
 
   if (category === "word-doc") {
     return (
-      <ScrollPane>
+      <ScrollPane fill={fill}>
         <Stack gap="sm" p="md">
           <Text>{t("blobPreview.legacyDoc")}</Text>
           <Text size="sm" c="dimmed">
@@ -266,7 +276,7 @@ export default function PublicDocumentPreviewBody({
   }
 
   return (
-    <ScrollPane>
+    <ScrollPane fill={fill}>
       <Stack gap="sm" p="md">
         <Text>{t("blobPreview.unsupported", {name: fileName || "file"})}</Text>
         <Text size="sm" c="dimmed">
