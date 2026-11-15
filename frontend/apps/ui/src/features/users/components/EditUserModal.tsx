@@ -32,8 +32,8 @@ export default function EditUserModal({
   opened
 }: EditUserModalArgs) {
   const {t} = useTranslation()
-  const {data: allRoles = []} = useGetRolesQuery()
-  const {data, isLoading, isSuccess} = useGetUserQuery(userId)
+  const {data: allRoles = []} = useGetRolesQuery(undefined, {skip: !opened})
+  const {data, isLoading, isSuccess} = useGetUserQuery(userId, {skip: !opened})
   const [updateUser, {isLoading: isLoadingUserUpdate}] = useEditUserMutation()
 
   const [roles, setRoles] = useState<string[]>(

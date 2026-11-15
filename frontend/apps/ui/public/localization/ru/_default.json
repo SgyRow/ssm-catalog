@@ -1054,6 +1054,7 @@
   "nodes.load_folder_error": "Не удалось загрузить папку (HTTP {{status}}). Убедитесь, что сервер запущен и адрес API верный.",
   "nodes.load_folder_error_generic": "{{message}}",
   "users.list_empty": "Пользователей пока нет",
+  "users.details.load_error": "Не удалось загрузить карточку пользователя.",
   "groups.list_empty": "Групп пока нет",
   "search.nothing_found": "Ничего не найдено",
   "search.placeholder": "Поиск",

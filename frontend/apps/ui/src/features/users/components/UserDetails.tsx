@@ -1,5 +1,6 @@
 import {Link, useNavigation} from "react-router-dom"
-import {Breadcrumbs, Box, LoadingOverlay, Group, Loader} from "@mantine/core"
+import {Breadcrumbs, Box, LoadingOverlay, Group, Loader, Text} from "@mantine/core"
+import {useTranslation} from "react-i18next"
 
 import {useGetUserQuery} from "@/features/users/apiSlice"
 import type {UserDetails} from "@/types"
@@ -14,7 +15,16 @@ interface UserDetailsArgs {
 }
 
 export default function UserDetailsComponent({userId}: UserDetailsArgs) {
-  const {data} = useGetUserQuery(userId)
+  const {t} = useTranslation()
+  const {data, isError} = useGetUserQuery(userId, {skip: !userId})
+
+  if (isError) {
+    return (
+      <Text c="red" p="md">
+        {t("users.details.load_error")}
+      </Text>
+    )
+  }
 
   if (data == null) {
     return (
