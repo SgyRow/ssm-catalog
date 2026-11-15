@@ -172,80 +172,89 @@ export default function HandbookArticlePage() {
       .filter(Boolean)
       .join(" · ")
     return (
-      <>
-        <Group justify="space-between" align="center" wrap="nowrap" gap="sm">
-          <Group
-            align="center"
-            gap={6}
-            wrap="nowrap"
-            style={{flex: 1, minWidth: 0}}
-          >
-            <IconFile size={18} style={{flexShrink: 0}} />
-            {canManage ? (
-              <TextInput
-                value={title}
-                onChange={e => {
-                  setTitle(e.currentTarget.value)
-                  setSavedFlash(false)
-                }}
-                size="sm"
-                style={{flex: 1, minWidth: 0}}
-              />
-            ) : (
-              <Text
-                size="lg"
-                fw={600}
-                lineClamp={1}
-                style={{flex: 1, minWidth: 0}}
-              >
-                {data.title}
-              </Text>
-            )}
-          </Group>
-          <Group gap="xs" wrap="nowrap" style={{flexShrink: 0}}>
-            {canManage ? (
-              <Button
-                size="xs"
-                variant="subtle"
-                color={savedFlash ? "green" : undefined}
-                leftSection={savedFlash ? <IconCheck size={14} /> : undefined}
-                onClick={() => void save()}
-                loading={saving}
-              >
-                {savedFlash ? t("handbook.saved") : t("common.save")}
-              </Button>
-            ) : null}
-            {canManage ? (
-              <Button
-                size="xs"
-                variant="subtle"
-                leftSection={<IconUpload size={14} />}
-                onClick={() => replaceInput.current?.click()}
-                loading={replacing}
-              >
-                {t("handbook.doc_replace")}
-              </Button>
-            ) : null}
-            <Button
-              size="xs"
-              variant="light"
-              component="a"
-              href={file.url}
-              target="_blank"
-              rel="noreferrer"
-              leftSection={<IconDownload size={14} />}
+      <div className={articleClasses.filePage}>
+        <div className={articleClasses.fileChrome}>
+          <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
+            <Group
+              align="center"
+              gap={6}
+              wrap="nowrap"
+              style={{flex: 1, minWidth: 0}}
             >
-              {t("handbook.doc_download")}
-            </Button>
+              <Anchor component={Link} to="/handbook" size="sm">
+                {t("handbook.back")}
+              </Anchor>
+              <Text c="dimmed" size="sm">
+                /
+              </Text>
+              <IconFile size={16} style={{flexShrink: 0}} />
+              {canManage ? (
+                <TextInput
+                  value={title}
+                  onChange={e => {
+                    setTitle(e.currentTarget.value)
+                    setSavedFlash(false)
+                  }}
+                  size="xs"
+                  style={{flex: 1, minWidth: 0}}
+                />
+              ) : (
+                <Text
+                  size="sm"
+                  fw={600}
+                  lineClamp={1}
+                  title={meta}
+                  style={{flex: 1, minWidth: 0}}
+                >
+                  {data.title}
+                </Text>
+              )}
+            </Group>
+            <Group gap={4} wrap="nowrap" style={{flexShrink: 0}}>
+              {canManage ? (
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  color={savedFlash ? "green" : undefined}
+                  leftSection={savedFlash ? <IconCheck size={14} /> : undefined}
+                  onClick={() => void save()}
+                  loading={saving}
+                >
+                  {savedFlash ? t("handbook.saved") : t("common.save")}
+                </Button>
+              ) : null}
+              {canManage ? (
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  leftSection={<IconUpload size={14} />}
+                  onClick={() => replaceInput.current?.click()}
+                  loading={replacing}
+                >
+                  {t("handbook.doc_replace")}
+                </Button>
+              ) : null}
+              <Button
+                size="compact-xs"
+                variant="light"
+                component="a"
+                href={file.url}
+                target="_blank"
+                rel="noreferrer"
+                leftSection={<IconDownload size={14} />}
+              >
+                {t("handbook.doc_download")}
+              </Button>
+            </Group>
           </Group>
-        </Group>
-        <Text size="xs" c="dimmed" truncate>
-          {meta}
-        </Text>
-        <PublicDocumentPreviewBody
-          downloadUrl={file.url}
-          fileName={file.filename}
-        />
+        </div>
+        <div className={articleClasses.filePreview}>
+          <PublicDocumentPreviewBody
+            fill
+            downloadUrl={file.url}
+            fileName={file.filename}
+          />
+        </div>
         {canManage ? (
           <input
             ref={replaceInput}
@@ -258,8 +267,12 @@ export default function HandbookArticlePage() {
             }}
           />
         ) : null}
-      </>
+      </div>
     )
+  }
+
+  if (data.kind === "file") {
+    return <div className={classes.page}>{renderFile()}</div>
   }
 
   return (
@@ -268,46 +281,40 @@ export default function HandbookArticlePage() {
         <Anchor component={Link} to="/handbook" size="sm">
           {t("handbook.back")}
         </Anchor>
-        {data.kind === "file" ? (
-          renderFile()
+        {canManage ? (
+          <TextInput
+            value={title}
+            onChange={e => {
+              setTitle(e.currentTarget.value)
+              setSavedFlash(false)
+            }}
+            size="md"
+          />
         ) : (
+          <Title order={3}>{data.title}</Title>
+        )}
+        <Text size="sm" c="dimmed">
+          {formatApiDateTimeCompact(data.updated_at)}
+          {data.author_username ? ` · ${data.author_username}` : ""}
+        </Text>
+        {canManage ? (
           <>
-            {canManage ? (
-              <TextInput
-                value={title}
-                onChange={e => {
-                  setTitle(e.currentTarget.value)
-                  setSavedFlash(false)
-                }}
-                size="md"
-              />
-            ) : (
-              <Title order={3}>{data.title}</Title>
-            )}
-            <Text size="sm" c="dimmed">
-              {formatApiDateTimeCompact(data.updated_at)}
-              {data.author_username ? ` · ${data.author_username}` : ""}
-            </Text>
-            {canManage ? (
-              <>
-                <HandbookEditor
-                  articleId={data.id}
-                  html={body}
-                  onChange={html => {
-                    bodyRef.current = html
-                    setBody(html)
-                    setSavedFlash(false)
-                  }}
-                />
-                {saveButton}
-              </>
-            ) : (
-              <div
-                className={articleClasses.article}
-                dangerouslySetInnerHTML={{__html: data.body || ""}}
-              />
-            )}
+            <HandbookEditor
+              articleId={data.id}
+              html={body}
+              onChange={html => {
+                bodyRef.current = html
+                setBody(html)
+                setSavedFlash(false)
+              }}
+            />
+            {saveButton}
           </>
+        ) : (
+          <div
+            className={articleClasses.article}
+            dangerouslySetInnerHTML={{__html: data.body || ""}}
+          />
         )}
       </Stack>
     </div>

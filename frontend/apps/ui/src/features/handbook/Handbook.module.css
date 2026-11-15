@@ -34,3 +34,24 @@
   background: light-dark(#f8f9fa, var(--mantine-color-dark-5));
   color: inherit;
 }
+
+.filePage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.fileChrome {
+  flex: 0 0 auto;
+  padding: 2px 6px 4px;
+}
+
+.filePreview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  outline: 1px solid light-dark(#ccc, #666);
+}
