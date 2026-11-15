@@ -47,7 +47,8 @@ export default function UserForm({user}: Args) {
       <MultiSelect
         label={t("users.form.roles")}
         readOnly={true}
-        value={user?.roles.map(r => r.name)}
+        data={user?.roles?.map(r => r.name) || []}
+        value={user?.roles?.map(r => r.name) || []}
       />
     </Stack>
   )

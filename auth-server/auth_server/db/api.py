@@ -3,7 +3,7 @@ import logging
 
 from typing import Tuple
 from passlib.hash import pbkdf2_sha256
-from sqlalchemy import select, func, text
+from sqlalchemy import insert, select, func, text
 from sqlalchemy.orm import Session
 from sqlalchemy import delete
 
@@ -248,11 +248,16 @@ def create_user(
     session.flush()
     session.commit()
 
-    stmt = select(orm.Role).where(orm.Role.name.in_(role_names))
-    roles = session.execute(stmt).scalars().all()
-    db_user.roles = roles
-
-    session.commit()
+    if role_names:
+        stmt = select(orm.Role).where(orm.Role.name.in_(role_names))
+        roles = session.execute(stmt).scalars().all()
+        for role in roles:
+            session.execute(
+                insert(orm.users_roles_association).values(
+                    user_id=db_user.id, role_id=role.id
+                )
+            )
+        session.commit()
 
     return schema.User.model_validate(db_user)
 

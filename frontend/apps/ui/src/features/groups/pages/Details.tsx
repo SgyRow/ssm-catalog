@@ -1,4 +1,4 @@
-import {useParams} from "react-router"
+import {useParams} from "react-router-dom"
 import {GroupDetails} from "@/features/groups/components"
 
 export default function GroupDetailsPage() {

@@ -5,7 +5,7 @@ from typing import Tuple
 
 from passlib.hash import pbkdf2_sha256
 from sqlalchemy import select, func, text
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from papermerge.core import orm, schema
@@ -107,28 +107,38 @@ async def get_user_group_inboxes(
     return models, None
 
 
-async def get_user_details(
-    db_session: AsyncSession, user_id: uuid.UUID
-) -> Tuple[schema.UserDetails | None, err_schema.Error | None]:
-    stmt = select(User).options(
-        selectinload(User.roles).selectinload(orm.Role.permissions),
-        selectinload(orm.User.groups)
-    ).where(User.id == user_id)
+def _user_details_load_options():
+    """Eager-load roles/groups without the reverse user collections.
 
-    params = {"id": user_id}
+    Passing ORM ``Role``/``Group`` objects into Pydantic can traverse
+    ``Role.users`` / ``Group.users`` and recurse (User → Role → User…).
+    That only shows up once a role is shared by more than one account.
+    """
+    return (
+        selectinload(User.roles).options(
+            selectinload(orm.Role.permissions),
+            noload(orm.Role.users),
+        ),
+        selectinload(User.groups).options(
+            noload(orm.Group.users),
+            noload(orm.Group.nodes),
+        ),
+        noload(User.nodes),
+        noload(User.home_folder),
+        noload(User.inbox_folder),
+    )
 
-    try:
-        db_user = (await db_session.scalars(stmt, params)).one()
-    except Exception as e:
-        error = err_schema.Error(messages=[str(e)])
-        return None, error
 
-    scopes = set()
-    for role in db_user.roles:
-        for perm in role.permissions:
-            scopes.add(perm.codename)
-
-    result = schema.UserDetails(
+def _to_user_details(
+    db_user: User, scopes: list[str] | None = None
+) -> schema.UserDetails:
+    if scopes is None:
+        collected: set[str] = set()
+        for role in db_user.roles:
+            for perm in role.permissions:
+                collected.add(perm.codename)
+        scopes = sorted(collected)
+    return schema.UserDetails(
         id=db_user.id,
         username=db_user.username,
         email=db_user.email,
@@ -141,13 +151,40 @@ async def get_user_details(
         is_superuser=db_user.is_superuser,
         is_active=db_user.is_active,
         scopes=sorted(scopes),
-        groups=db_user.groups,
-        roles=db_user.roles,
+        groups=[
+            schema.Group(
+                id=g.id,
+                name=g.name,
+                delete_me=g.delete_me,
+                delete_special_folders=g.delete_special_folders,
+                home_folder_id=g.home_folder_id,
+                inbox_folder_id=g.inbox_folder_id,
+            )
+            for g in db_user.groups
+        ],
+        roles=[schema.Role(id=r.id, name=r.name) for r in db_user.roles],
     )
 
-    model_user = schema.UserDetails.model_validate(result)
 
-    return model_user, None
+async def get_user_details(
+    db_session: AsyncSession, user_id: uuid.UUID
+) -> Tuple[schema.UserDetails | None, err_schema.Error | None]:
+    stmt = select(User).options(*_user_details_load_options()).where(User.id == user_id)
+
+    try:
+        db_user = (await db_session.execute(stmt)).unique().scalar_one_or_none()
+    except Exception as e:
+        error = err_schema.Error(messages=[str(e)])
+        return None, error
+
+    if db_user is None:
+        return None, err_schema.Error(messages=[f"User with ID {user_id} not found"])
+
+    try:
+        return _to_user_details(db_user), None
+    except Exception as e:
+        logger.exception("Failed to serialize user details for %s", user_id)
+        return None, err_schema.Error(messages=[str(e)])
 
 
 async def get_users(
@@ -282,13 +319,13 @@ async def update_user(
     roles = []
     scopes = set()
 
-    stmt = select(orm.User).options(
-        selectinload(orm.User.roles),
-        selectinload(orm.User.roles).selectinload(orm.Role.permissions),
-        selectinload(orm.User.groups)
-    ).where(orm.User.id == user_id)
+    stmt = (
+        select(orm.User)
+        .options(*_user_details_load_options())
+        .where(orm.User.id == user_id)
+    )
 
-    user = (await db_session.execute(stmt)).scalar_one()
+    user = (await db_session.execute(stmt)).unique().scalar_one()
     if attrs.username is not None:
         user.username = attrs.username
 
@@ -327,28 +364,19 @@ async def update_user(
         error = err_schema.Error(messages=[str(e)])
         return None, error
 
-    stmt = select(orm.User).options(
-        selectinload(orm.User.roles),
-        selectinload(orm.User.roles).selectinload(orm.Role.permissions),
-        selectinload(orm.User.groups)
-    ).where(orm.User.id == user_id)
+    stmt = (
+        select(orm.User)
+        .options(*_user_details_load_options())
+        .where(orm.User.id == user_id)
+    )
 
-    user = (await db_session.execute(stmt)).scalar_one()
+    user = (await db_session.execute(stmt)).unique().scalar_one()
 
     for role in list(user.roles):
         for perm in list(role.permissions):
             scopes.add(perm.codename)
 
-    stmt = select(orm.User).options(
-        selectinload(orm.User.roles), selectinload(orm.User.groups)
-    ).where(
-        orm.User.id == user_id
-    )
-    db_user = (await db_session.execute(stmt)).scalar_one()
-
-    model_user = schema.UserDetails.model_validate(db_user)
-
-    return model_user, None
+    return _to_user_details(user, scopes=sorted(scopes)), None
 
 
 async def get_user_scopes_from_db_roles(

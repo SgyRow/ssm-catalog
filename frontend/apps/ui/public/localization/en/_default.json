@@ -1056,6 +1056,7 @@
   "nodes.load_folder_error": "Could not load folder contents (HTTP {{status}}). Ensure the backend is running and the API URL is correct.",
   "nodes.load_folder_error_generic": "{{message}}",
   "users.list_empty": "There are currently no users",
+  "users.details.load_error": "Could not load this user account.",
   "groups.list_empty": "There are currently no groups",
   "search.nothing_found": "Nothing was found",
   "search.placeholder": "Search",
