@@ -2,6 +2,10 @@
   padding: 0.3rem;
   position: relative;
   margin-top: 0.2rem;
+  flex-shrink: 0;
+  min-width: 8.5rem;
+  max-width: min(24rem, 100%);
+  width: max-content;
 
   &:hover {
     background-color: #8ed2fe66;
@@ -10,19 +14,26 @@
 
   .title {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    justify-content: flex-start;
     gap: 0.25rem;
-    width: 8rem;
+    width: 100%;
 
     span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
       min-width: 0;
+      text-align: left;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
     }
   }
 
   a {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
     color: light-dark(var(--mantine-color-pmg-9), var(--mantine-color-pmg-2));
   }
 }
