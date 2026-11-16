@@ -134,3 +134,29 @@
   white-space: normal;
   word-break: break-word;
 }
+
+/* Document viewer only: cap the file-name crumb so a long title
+   ellipsizes instead of stretching across the whole viewer. */
+.viewer .segment:last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(36rem, 100%);
+  overflow: hidden;
+}
+
+.viewer .current {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer .current > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
