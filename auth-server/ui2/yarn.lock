@@ -931,12 +931,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@mantine/hooks@npm:^8.2.4":
-  version: 8.2.4
-  resolution: "@mantine/hooks@npm:8.2.4"
+"@mantine/hooks@npm:^9.8.0":
+  version: 9.8.0
+  resolution: "@mantine/hooks@npm:9.8.0"
   peerDependencies:
-    react: ^18.x || ^19.x
-  checksum: 10c0/5321d21256eb02ad79ae4f221ab16c449814dd411ebc849297f4928abd818a29f5453e9a0e0b40d62b6d17e3261de214e8bed722d8f4c5dfce71a9d6c364f537
+    react: ^19.2.0
+  checksum: 10c0/ba53b359c0564e3bf2c6e3506b538b569620f7459c806d7853a821bb7718594e3a27e1a62e1c35a21f1fe1b33a1c5c77d5604146578cf99eec405b61b29eded4
   languageName: node
   linkType: hard
 
@@ -4820,7 +4820,7 @@ __metadata:
     "@ianvs/prettier-plugin-sort-imports": "npm:^4.6.1"
     "@mantine/core": "npm:^8.2.4"
     "@mantine/form": "npm:^8.2.4"
-    "@mantine/hooks": "npm:^8.2.4"
+    "@mantine/hooks": "npm:^9.8.0"
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/jest-dom": "npm:^7.0.1"
     "@testing-library/react": "npm:^16.3.0"
