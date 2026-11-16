@@ -206,7 +206,12 @@ export default function BreadcrumbsComponent({
       className={className}
       style={{minWidth: 0, width: "100%"}}
     >
-      <div ref={barRef} className={classes.bar}>
+      <div
+        ref={barRef}
+        className={
+          leaf === "document" ? `${classes.bar} ${classes.viewer}` : classes.bar
+        }
+      >
         <div className={classes.measure} aria-hidden>
           {displayItems.map((item, index) => (
             <span
