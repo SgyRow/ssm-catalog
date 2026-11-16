@@ -5,7 +5,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, delete, exists, func, or_, select, update
+from sqlalchemy import and_, delete, exists, func, literal, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from papermerge.core import orm
@@ -118,7 +118,9 @@ async def list_favorites_enriched(db_session: AsyncSession, user_id: UUID):
     )
     rows = (await db_session.execute(stmt)).all()
     out: list[lib_schema.FavoriteRowOut] = []
+    node_ids: list[UUID] = []
     for fav, title, ctype, deleted_at in rows:
+        node_ids.append(fav.node_id)
         out.append(
             lib_schema.FavoriteRowOut(
                 node_id=fav.node_id,
@@ -129,6 +131,11 @@ async def list_favorites_enriched(db_session: AsyncSession, user_id: UUID):
                 folder_id=fav.folder_id,
             )
         )
+    sources = await _msp_sources_for_nodes(db_session, node_ids)
+    for row in out:
+        source = sources.get(row.node_id)
+        if source is not None:
+            row.msp_id, row.msp_title = source
     out.extend(await list_favorite_msp_sections_enriched(db_session, user_id))
     out.sort(key=lambda row: row.created_at, reverse=True)
     await _apply_in_portal(db_session, out)
@@ -252,6 +259,61 @@ async def move_favorite(
             return "folder_not_found"
     fav.folder_id = folder_id
     return None
+
+
+async def _msp_sources_for_nodes(
+    db_session: AsyncSession, node_ids: list[UUID]
+) -> dict[UUID, tuple[UUID, str]]:
+    """Map each node to the nearest measure (МСП) it belongs to.
+
+    A node belongs to a measure when the measure's anchor folder is the node
+    itself or one of its ancestors. Returns ``node_id -> (msp_id, msp_title)``;
+    nodes outside any measure are absent from the mapping.
+    """
+    if not node_ids:
+        return {}
+    from papermerge.core.features.msp.db import orm as msp_orm
+
+    nodes = orm.Node.__table__
+    chain = (
+        select(
+            nodes.c.id.label("start_id"),
+            nodes.c.id.label("node_id"),
+            nodes.c.parent_id,
+            literal(0).label("depth"),
+        )
+        .where(nodes.c.id.in_(node_ids))
+        .cte(recursive=True)
+    )
+    chain = chain.union_all(
+        select(
+            chain.c.start_id,
+            nodes.c.id,
+            nodes.c.parent_id,
+            chain.c.depth + 1,
+        )
+        .join(chain, chain.c.parent_id == nodes.c.id)
+        .where(chain.c.depth < 32)
+    )
+    matched = (
+        await db_session.execute(
+            select(
+                chain.c.start_id,
+                msp_orm.Msp.id,
+                nodes.c.title,
+                chain.c.depth,
+            )
+            .select_from(chain)
+            .join(msp_orm.Msp, msp_orm.Msp.node_id == chain.c.node_id)
+            .join(nodes, nodes.c.id == chain.c.node_id)
+            .order_by(chain.c.depth)
+        )
+    ).all()
+    sources: dict[UUID, tuple[UUID, str]] = {}
+    for start_id, msp_id, msp_title, _depth in matched:
+        if start_id not in sources:
+            sources[start_id] = (msp_id, msp_title)
+    return sources
 
 
 async def _apply_in_portal(db_session: AsyncSession, rows) -> None:
@@ -572,7 +634,9 @@ async def list_watched_enriched(
     )
     rows = (await db_session.execute(stmt)).all()
     out: list[lib_schema.WatchedRowOut] = []
+    node_ids: list[UUID] = []
     for watched, title, ctype, deleted_at in rows:
+        node_ids.append(watched.node_id)
         out.append(
             lib_schema.WatchedRowOut(
                 node_id=watched.node_id,
@@ -583,6 +647,11 @@ async def list_watched_enriched(
                 folder_id=watched.folder_id,
             )
         )
+    sources = await _msp_sources_for_nodes(db_session, node_ids)
+    for row in out:
+        source = sources.get(row.node_id)
+        if source is not None:
+            row.msp_id, row.msp_title = source
     out.extend(await list_watched_msp_sections_enriched(db_session, user_id))
     out.sort(key=lambda row: row.created_at, reverse=True)
     await _apply_in_portal(db_session, out)

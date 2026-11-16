@@ -4,6 +4,7 @@ export type LibraryItemRow = {
   ctype: string
   in_portal?: boolean
   msp_id?: string | null
+  msp_title?: string | null
   type_section_id?: string | null
 }
 

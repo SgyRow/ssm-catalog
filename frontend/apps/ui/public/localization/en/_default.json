@@ -834,6 +834,7 @@
   "library.col_actions": "Actions",
   "library.col_viewed": "Viewed",
   "library.in_trash": "In trash",
+  "library.msp_source": "Measure: {{title}}",
   "library.remove_favorite": "Remove from favorites",
   "library.removed_favorite": "Removed from favorites",
   "library.empty_favorites": "No favorites yet",

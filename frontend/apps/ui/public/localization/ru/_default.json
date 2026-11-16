@@ -832,6 +832,7 @@
   "library.col_actions": "Действия",
   "library.col_viewed": "Просмотрено",
   "library.in_trash": "В корзине",
+  "library.msp_source": "Мера: {{title}}",
   "library.remove_favorite": "Убрать из избранного",
   "library.removed_favorite": "Удалено из избранного",
   "library.empty_favorites": "Нет избранных материалов",
