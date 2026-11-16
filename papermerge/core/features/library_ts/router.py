@@ -284,6 +284,103 @@ async def delete_favorite_folder(
     await db_session.commit()
 
 
+@router.post("/msp-section-favorites", status_code=204)
+@router.post("/msp-section-favorites/", status_code=204)
+async def add_favorite_msp_section(
+    body: lib_schema.MspSectionBookmarkIn,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    node_id, error = await lib_api._msp_section_bookmark_target(
+        db_session, body.msp_id, body.type_section_id
+    )
+    if error == "msp_not_found":
+        raise HTTPException(status_code=404, detail="Measure not found")
+    if error == "section_not_found" or node_id is None:
+        raise HTTPException(status_code=404, detail="Section not found")
+    await dbapi_common.require_node_perm(
+        db_session, node_id=node_id, codename=scopes.NODE_VIEW, user_id=user.id
+    )
+    await lib_api.add_favorite_msp_section(
+        db_session, user.id, body.msp_id, body.type_section_id
+    )
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="favorite_add",
+        resource_type="msp_section",
+        resource_id=body.type_section_id,
+        detail=lib_api.audit_detail_json({"msp_id": str(body.msp_id)}),
+    )
+    await db_session.commit()
+
+
+@router.delete(
+    "/msp-section-favorites/{msp_id}/{type_section_id}",
+    status_code=204,
+)
+@router.delete(
+    "/msp-section-favorites/{msp_id}/{type_section_id}/",
+    status_code=204,
+)
+async def remove_favorite_msp_section(
+    msp_id: uuid.UUID,
+    type_section_id: uuid.UUID,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    await lib_api.remove_favorite_msp_section(
+        db_session, user.id, msp_id, type_section_id
+    )
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="favorite_remove",
+        resource_type="msp_section",
+        resource_id=type_section_id,
+        detail=lib_api.audit_detail_json({"msp_id": str(msp_id)}),
+    )
+    await db_session.commit()
+
+
+@router.patch(
+    "/msp-section-favorites/{msp_id}/{type_section_id}",
+    status_code=204,
+)
+@router.patch(
+    "/msp-section-favorites/{msp_id}/{type_section_id}/",
+    status_code=204,
+)
+async def move_favorite_msp_section(
+    msp_id: uuid.UUID,
+    type_section_id: uuid.UUID,
+    body: lib_schema.FavoriteMoveIn,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    error = await lib_api.move_favorite_msp_section(
+        db_session, user.id, msp_id, type_section_id, body.folder_id
+    )
+    if error == "not_favorite":
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    if error == "folder_not_found":
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="favorite_move",
+        resource_type="msp_section",
+        resource_id=type_section_id,
+        detail=lib_api.audit_detail_json(
+            {
+                "msp_id": str(msp_id),
+                "folder_id": str(body.folder_id) if body.folder_id else None,
+            }
+        ),
+    )
+    await db_session.commit()
+
+
 @router.get("/watched", response_model=list[lib_schema.WatchedRowOut])
 @router.get("/watched/", response_model=list[lib_schema.WatchedRowOut])
 async def list_watched(
@@ -357,6 +454,103 @@ async def move_watched(
         resource_id=node_id,
         detail=lib_api.audit_detail_json(
             {"folder_id": str(body.folder_id) if body.folder_id else None}
+        ),
+    )
+    await db_session.commit()
+
+
+@router.post("/msp-section-watched", status_code=204)
+@router.post("/msp-section-watched/", status_code=204)
+async def add_watched_msp_section(
+    body: lib_schema.MspSectionBookmarkIn,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    node_id, error = await lib_api._msp_section_bookmark_target(
+        db_session, body.msp_id, body.type_section_id
+    )
+    if error == "msp_not_found":
+        raise HTTPException(status_code=404, detail="Measure not found")
+    if error == "section_not_found" or node_id is None:
+        raise HTTPException(status_code=404, detail="Section not found")
+    await dbapi_common.require_node_perm(
+        db_session, node_id=node_id, codename=scopes.NODE_VIEW, user_id=user.id
+    )
+    await lib_api.add_watched_msp_section(
+        db_session, user.id, body.msp_id, body.type_section_id
+    )
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_add",
+        resource_type="msp_section",
+        resource_id=body.type_section_id,
+        detail=lib_api.audit_detail_json({"msp_id": str(body.msp_id)}),
+    )
+    await db_session.commit()
+
+
+@router.delete(
+    "/msp-section-watched/{msp_id}/{type_section_id}",
+    status_code=204,
+)
+@router.delete(
+    "/msp-section-watched/{msp_id}/{type_section_id}/",
+    status_code=204,
+)
+async def remove_watched_msp_section(
+    msp_id: uuid.UUID,
+    type_section_id: uuid.UUID,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    await lib_api.remove_watched_msp_section(
+        db_session, user.id, msp_id, type_section_id
+    )
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_remove",
+        resource_type="msp_section",
+        resource_id=type_section_id,
+        detail=lib_api.audit_detail_json({"msp_id": str(msp_id)}),
+    )
+    await db_session.commit()
+
+
+@router.patch(
+    "/msp-section-watched/{msp_id}/{type_section_id}",
+    status_code=204,
+)
+@router.patch(
+    "/msp-section-watched/{msp_id}/{type_section_id}/",
+    status_code=204,
+)
+async def move_watched_msp_section(
+    msp_id: uuid.UUID,
+    type_section_id: uuid.UUID,
+    body: lib_schema.WatchedMoveIn,
+    user: Annotated[schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])],
+    db_session: AsyncSession = Depends(get_db),
+):
+    error = await lib_api.move_watched_msp_section(
+        db_session, user.id, msp_id, type_section_id, body.folder_id
+    )
+    if error == "not_watched":
+        raise HTTPException(status_code=404, detail="Watched item not found")
+    if error == "folder_not_found":
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await lib_api.add_audit(
+        db_session,
+        user_id=user.id,
+        action="watched_move",
+        resource_type="msp_section",
+        resource_id=type_section_id,
+        detail=lib_api.audit_detail_json(
+            {
+                "msp_id": str(msp_id),
+                "folder_id": str(body.folder_id) if body.folder_id else None,
+            }
         ),
     )
     await db_session.commit()

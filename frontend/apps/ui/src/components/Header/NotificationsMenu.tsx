@@ -4,6 +4,7 @@ import {
   useGetLibraryNotificationsQuery,
   useMarkLibraryNotificationReadMutation
 } from "@/features/library/libraryApiSlice"
+import {watchedChangeHref} from "@/features/library/libraryItem"
 import {USER_ME} from "@/scopes"
 import {selectCurrentUser} from "@/slices/currentUser"
 import type {User} from "@/types"
@@ -32,6 +33,10 @@ import {subscribeNotificationsMenu} from "@/components/Header/notificationsMenuC
 type NotificationPayload = {
   document_id?: string
   document_version_id?: string
+  node_id?: string
+  msp_id?: string
+  type_section_id?: string
+  in_portal?: boolean
   title?: string
   finished_at?: string
   news_id?: string
@@ -153,7 +158,13 @@ const NotificationsMenu: React.FC = () => {
 
     if (kind === "watched_document_changed") {
       const title = parsed?.title?.trim() ?? ""
-      const documentId = parsed?.document_id?.trim() ?? ""
+      const href = watchedChangeHref({
+        document_id: parsed?.document_id?.trim(),
+        node_id: parsed?.node_id?.trim(),
+        type_section_id: parsed?.type_section_id?.trim(),
+        in_portal: parsed?.in_portal,
+        msp_id: parsed?.msp_id?.trim()
+      })
       return {
         title: t("library.notification.watched_document_changed.title"),
         message: title
@@ -161,7 +172,8 @@ const NotificationsMenu: React.FC = () => {
               title
             })
           : t("library.notification.watched_document_changed.message_no_title"),
-        documentId: documentId || undefined
+        documentId: parsed?.document_id?.trim() || undefined,
+        itemHref: href
       }
     }
 
@@ -236,15 +248,19 @@ const NotificationsMenu: React.FC = () => {
                       {item.message ? (
                         <Text size="sm">{item.message}</Text>
                       ) : null}
-                      {item.documentId ? (
+                      {item.itemHref || item.documentId ? (
                         <Button
                           size="xs"
                           variant="subtle"
                           p={0}
                           justify="flex-start"
-                          onClick={() => navigate(`/document/${item.documentId}`)}
+                          onClick={() =>
+                            navigate(
+                              item.itemHref || `/document/${item.documentId}`
+                            )
+                          }
                         >
-                          Открыть документ
+                          {t("library.notification.open_item")}
                         </Button>
                       ) : null}
                       {item.feedPath ? (

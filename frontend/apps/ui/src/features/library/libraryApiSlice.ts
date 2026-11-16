@@ -31,6 +31,9 @@ export type FavoriteRow = {
   created_at: string
   in_trash: boolean
   folder_id: string | null
+  in_portal?: boolean
+  msp_id?: string | null
+  type_section_id?: string | null
 }
 
 export type FavoriteFolder = {
@@ -54,6 +57,14 @@ export type WatchedRow = {
   created_at: string
   in_trash: boolean
   folder_id: string | null
+  in_portal?: boolean
+  msp_id?: string | null
+  type_section_id?: string | null
+}
+
+export type MspSectionBookmark = {
+  mspId: string
+  typeSectionId: string
 }
 
 export type RecentRow = {
@@ -165,6 +176,32 @@ export const apiSliceWithLibrary = apiSlice.injectEndpoints({
         {type: "LibraryFavorites", id: "LIST"}
       ]
     }),
+    addLibraryFavoriteMspSection: builder.mutation<void, MspSectionBookmark>({
+      query: ({mspId, typeSectionId}) => ({
+        url: "/library/msp-section-favorites/",
+        method: "POST",
+        body: {msp_id: mspId, type_section_id: typeSectionId}
+      }),
+      invalidatesTags: [{type: "LibraryFavorites", id: "LIST"}]
+    }),
+    removeLibraryFavoriteMspSection: builder.mutation<void, MspSectionBookmark>({
+      query: ({mspId, typeSectionId}) => ({
+        url: `/library/msp-section-favorites/${mspId}/${typeSectionId}/`,
+        method: "DELETE"
+      }),
+      invalidatesTags: [{type: "LibraryFavorites", id: "LIST"}]
+    }),
+    moveLibraryFavoriteMspSection: builder.mutation<
+      void,
+      MspSectionBookmark & {folderId: string | null}
+    >({
+      query: ({mspId, typeSectionId, folderId}) => ({
+        url: `/library/msp-section-favorites/${mspId}/${typeSectionId}/`,
+        method: "PATCH",
+        body: {folder_id: folderId}
+      }),
+      invalidatesTags: [{type: "LibraryFavorites", id: "LIST"}]
+    }),
     getLibraryWatched: builder.query<WatchedRow[], void>({
       query: () => "/library/watched/",
       providesTags: [{type: "LibraryWatched", id: "LIST"}]
@@ -218,6 +255,32 @@ export const apiSliceWithLibrary = apiSlice.injectEndpoints({
         {type: "LibraryWatchedFolders", id: "LIST"},
         {type: "LibraryWatched", id: "LIST"}
       ]
+    }),
+    addLibraryWatchedMspSection: builder.mutation<void, MspSectionBookmark>({
+      query: ({mspId, typeSectionId}) => ({
+        url: "/library/msp-section-watched/",
+        method: "POST",
+        body: {msp_id: mspId, type_section_id: typeSectionId}
+      }),
+      invalidatesTags: [{type: "LibraryWatched", id: "LIST"}]
+    }),
+    removeLibraryWatchedMspSection: builder.mutation<void, MspSectionBookmark>({
+      query: ({mspId, typeSectionId}) => ({
+        url: `/library/msp-section-watched/${mspId}/${typeSectionId}/`,
+        method: "DELETE"
+      }),
+      invalidatesTags: [{type: "LibraryWatched", id: "LIST"}]
+    }),
+    moveLibraryWatchedMspSection: builder.mutation<
+      void,
+      MspSectionBookmark & {folderId: string | null}
+    >({
+      query: ({mspId, typeSectionId, folderId}) => ({
+        url: `/library/msp-section-watched/${mspId}/${typeSectionId}/`,
+        method: "PATCH",
+        body: {folder_id: folderId}
+      }),
+      invalidatesTags: [{type: "LibraryWatched", id: "LIST"}]
     }),
     getLibraryRecent: builder.query<RecentRow[], void>({
       query: () => "/library/recent/",
@@ -437,6 +500,9 @@ export const {
   useGetLibraryFavoriteFoldersQuery,
   useCreateLibraryFavoriteFolderMutation,
   useDeleteLibraryFavoriteFolderMutation,
+  useAddLibraryFavoriteMspSectionMutation,
+  useRemoveLibraryFavoriteMspSectionMutation,
+  useMoveLibraryFavoriteMspSectionMutation,
   useGetLibraryWatchedQuery,
   useAddLibraryWatchedMutation,
   useRemoveLibraryWatchedMutation,
@@ -444,6 +510,9 @@ export const {
   useGetLibraryWatchedFoldersQuery,
   useCreateLibraryWatchedFolderMutation,
   useDeleteLibraryWatchedFolderMutation,
+  useAddLibraryWatchedMspSectionMutation,
+  useRemoveLibraryWatchedMspSectionMutation,
+  useMoveLibraryWatchedMspSectionMutation,
   useGetLibraryRecentQuery,
   useGetLibraryTrashQuery,
   useRestoreLibraryTrashMutation,

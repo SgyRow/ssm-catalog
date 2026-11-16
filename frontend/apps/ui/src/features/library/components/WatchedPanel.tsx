@@ -4,11 +4,18 @@ import {
   useDeleteLibraryWatchedFolderMutation,
   useGetLibraryWatchedFoldersQuery,
   useGetLibraryWatchedQuery,
+  useMoveLibraryWatchedMspSectionMutation,
   useMoveLibraryWatchedMutation,
+  useRemoveLibraryWatchedMspSectionMutation,
   useRemoveLibraryWatchedMutation,
   type WatchedFolder,
   type WatchedRow
 } from "@/features/library/libraryApiSlice"
+import {
+  isMspSectionRow,
+  libraryItemHref,
+  libraryItemKey
+} from "@/features/library/libraryItem"
 import {formatNodeDisplayTitle} from "@/utils"
 import {
   Accordion,
@@ -36,10 +43,6 @@ import {Link} from "react-router-dom"
 
 const LIBRARY_PANEL_SCROLL_HEIGHT = "calc(100dvh - 18rem)"
 
-function openHref(ctype: string, id: string) {
-  return ctype === "folder" ? `/folder/${id}` : `/document/${id}`
-}
-
 function resolveTypeLabel(ctype: string, title: string, t: TFunction): string {
   if (ctype !== "document") {
     return t(`library.ctype_${ctype}`, {defaultValue: ctype})
@@ -59,8 +62,8 @@ function WatchedRowsTable({
   rows: WatchedRow[]
   folders: WatchedFolder[]
   t: TFunction
-  onRemove: (nodeId: string) => Promise<void>
-  onMove: (nodeId: string, folderId: string | null) => Promise<void>
+  onRemove: (row: WatchedRow) => Promise<void>
+  onMove: (row: WatchedRow, folderId: string | null) => Promise<void>
   removing: boolean
 }) {
   if (rows.length === 0) {
@@ -81,9 +84,9 @@ function WatchedRowsTable({
       </Table.Thead>
       <Table.Tbody>
         {rows.map(row => (
-          <Table.Tr key={row.node_id}>
+          <Table.Tr key={libraryItemKey(row)}>
             <Table.Td>
-              <Anchor component={Link} to={openHref(row.ctype, row.node_id)}>
+              <Anchor component={Link} to={libraryItemHref(row)}>
                 {formatNodeDisplayTitle(row.title, row.ctype)}
               </Anchor>
               {row.in_trash ? (
@@ -103,14 +106,14 @@ function WatchedRowsTable({
                       </Button>
                     </Menu.Target>
                     <Menu.Dropdown>
-                      <Menu.Item onClick={() => void onMove(row.node_id, null)}>
+                      <Menu.Item onClick={() => void onMove(row, null)}>
                         {t("library.watched_unfiled")}
                       </Menu.Item>
                       {folders.map(folder => (
                         <Menu.Item
                           key={folder.id}
                           disabled={row.folder_id === folder.id}
-                          onClick={() => void onMove(row.node_id, folder.id)}
+                          onClick={() => void onMove(row, folder.id)}
                         >
                           {folder.title}
                         </Menu.Item>
@@ -123,7 +126,7 @@ function WatchedRowsTable({
                   variant="light"
                   color="red"
                   loading={removing}
-                  onClick={() => void onRemove(row.node_id)}
+                  onClick={() => void onRemove(row)}
                 >
                   {t("library.remove_watched")}
                 </Button>
@@ -141,8 +144,11 @@ export default function WatchedPanel() {
   const {data, isLoading, isError} = useGetLibraryWatchedQuery()
   const {data: foldersData, isLoading: foldersLoading} =
     useGetLibraryWatchedFoldersQuery()
-  const [remove, {isLoading: removing}] = useRemoveLibraryWatchedMutation()
+  const [remove, {isLoading: removingNode}] = useRemoveLibraryWatchedMutation()
+  const [removeSection, {isLoading: removingSection}] =
+    useRemoveLibraryWatchedMspSectionMutation()
   const [moveWatched] = useMoveLibraryWatchedMutation()
+  const [moveSection] = useMoveLibraryWatchedMspSectionMutation()
   const [createFolder, createState] = useCreateLibraryWatchedFolderMutation()
   const [deleteFolder] = useDeleteLibraryWatchedFolderMutation()
   const [opened, {open, close}] = useDisclosure(false)
@@ -166,9 +172,18 @@ export default function WatchedPanel() {
     return {byFolder, unfiled}
   }, [rows])
 
-  const onRemove = async (nodeId: string) => {
+  const removing = removingNode || removingSection
+
+  const onRemove = async (row: WatchedRow) => {
     try {
-      await remove(nodeId).unwrap()
+      if (isMspSectionRow(row) && row.msp_id && row.type_section_id) {
+        await removeSection({
+          mspId: row.msp_id,
+          typeSectionId: row.type_section_id
+        }).unwrap()
+      } else {
+        await remove(row.node_id).unwrap()
+      }
       notifications.show({
         title: t("library.removed_watched"),
         message: "",
@@ -179,9 +194,17 @@ export default function WatchedPanel() {
     }
   }
 
-  const onMove = async (nodeId: string, folderId: string | null) => {
+  const onMove = async (row: WatchedRow, folderId: string | null) => {
     try {
-      await moveWatched({nodeId, folderId}).unwrap()
+      if (isMspSectionRow(row) && row.msp_id && row.type_section_id) {
+        await moveSection({
+          mspId: row.msp_id,
+          typeSectionId: row.type_section_id,
+          folderId
+        }).unwrap()
+      } else {
+        await moveWatched({nodeId: row.node_id, folderId}).unwrap()
+      }
       notifications.show({
         title: t("library.watched_moved"),
         message: "",

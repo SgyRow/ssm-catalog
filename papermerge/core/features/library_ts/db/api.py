@@ -25,6 +25,7 @@ PORTAL_FEED_PUBLISHED_KIND = "portal_feed_published"
 FEEDBACK_MESSAGE_KIND = "feedback_message"
 FEEDBACK_WISH_KIND = "feedback_wish"
 WATCHED_DOCUMENT_CHANGED_KIND = "watched_document_changed"
+MSP_SECTION_CTYPE = "msp_section"
 
 
 def audit_detail_json(data: object) -> str:
@@ -128,6 +129,9 @@ async def list_favorites_enriched(db_session: AsyncSession, user_id: UUID):
                 folder_id=fav.folder_id,
             )
         )
+    out.extend(await list_favorite_msp_sections_enriched(db_session, user_id))
+    out.sort(key=lambda row: row.created_at, reverse=True)
+    await _apply_in_portal(db_session, out)
     return out
 
 
@@ -250,6 +254,275 @@ async def move_favorite(
     return None
 
 
+async def _apply_in_portal(db_session: AsyncSession, rows) -> None:
+    from papermerge.core.features.portal.db import api as portal_dbapi
+
+    node_ids = [row.node_id for row in rows]
+    if not node_ids:
+        return
+    root_id = await portal_dbapi.get_portal_root_id(db_session)
+    if root_id is None:
+        return
+    subtree = await portal_dbapi.get_portal_subtree_node_ids(db_session, root_id)
+    for row in rows:
+        row.in_portal = row.node_id in subtree
+
+
+def _msp_section_row_title(
+    section_title: str | None, type_title: str | None, msp_title: str
+) -> str:
+    heading = (section_title or type_title or "").strip() or msp_title
+    if heading and heading != msp_title:
+        return f"{heading} — {msp_title}"
+    return msp_title
+
+
+async def _list_msp_section_bookmarks(
+    db_session: AsyncSession,
+    user_id: UUID,
+    *,
+    table,
+):
+    from papermerge.core.features.msp.db import orm as msp_orm
+
+    stmt = (
+        select(
+            table,
+            msp_orm.Msp.node_id,
+            orm.Node.title,
+            orm.Node.deleted_at,
+            msp_orm.MspSection.title,
+            msp_orm.MspTypeSection.title,
+        )
+        .join(msp_orm.Msp, msp_orm.Msp.id == table.msp_id)
+        .join(orm.Node, orm.Node.id == msp_orm.Msp.node_id)
+        .join(
+            msp_orm.MspTypeSection,
+            msp_orm.MspTypeSection.id == table.type_section_id,
+        )
+        .outerjoin(
+            msp_orm.MspSection,
+            and_(
+                msp_orm.MspSection.msp_id == table.msp_id,
+                msp_orm.MspSection.type_section_id == table.type_section_id,
+            ),
+        )
+        .where(table.user_id == user_id)
+    )
+    return (await db_session.execute(stmt)).all()
+
+
+async def list_favorite_msp_sections_enriched(
+    db_session: AsyncSession, user_id: UUID
+):
+    from papermerge.core.features.library_ts import schema as lib_schema
+
+    rows = await _list_msp_section_bookmarks(
+        db_session, user_id, table=lib_orm.UserFavoriteMspSection
+    )
+    out: list[lib_schema.FavoriteRowOut] = []
+    for bookmark, node_id, msp_title, deleted_at, section_title, type_title in rows:
+        out.append(
+            lib_schema.FavoriteRowOut(
+                node_id=node_id,
+                title=_msp_section_row_title(section_title, type_title, msp_title),
+                ctype=MSP_SECTION_CTYPE,
+                created_at=bookmark.created_at,
+                in_trash=deleted_at is not None,
+                folder_id=bookmark.folder_id,
+                msp_id=bookmark.msp_id,
+                type_section_id=bookmark.type_section_id,
+            )
+        )
+    return out
+
+
+async def list_watched_msp_sections_enriched(
+    db_session: AsyncSession, user_id: UUID
+):
+    from papermerge.core.features.library_ts import schema as lib_schema
+
+    rows = await _list_msp_section_bookmarks(
+        db_session, user_id, table=lib_orm.UserWatchedMspSection
+    )
+    out: list[lib_schema.WatchedRowOut] = []
+    for bookmark, node_id, msp_title, deleted_at, section_title, type_title in rows:
+        out.append(
+            lib_schema.WatchedRowOut(
+                node_id=node_id,
+                title=_msp_section_row_title(section_title, type_title, msp_title),
+                ctype=MSP_SECTION_CTYPE,
+                created_at=bookmark.created_at,
+                in_trash=deleted_at is not None,
+                folder_id=bookmark.folder_id,
+                msp_id=bookmark.msp_id,
+                type_section_id=bookmark.type_section_id,
+            )
+        )
+    return out
+
+
+async def _msp_section_bookmark_target(
+    db_session: AsyncSession, msp_id: UUID, type_section_id: UUID
+) -> tuple[UUID | None, str | None]:
+    from papermerge.core.features.msp.db import orm as msp_orm
+
+    msp = await db_session.scalar(
+        select(msp_orm.Msp).where(msp_orm.Msp.id == msp_id)
+    )
+    if msp is None:
+        return None, "msp_not_found"
+    belongs = await db_session.scalar(
+        select(msp_orm.MspTypeSection.id).where(
+            msp_orm.MspTypeSection.id == type_section_id,
+            msp_orm.MspTypeSection.msp_type_id == msp.msp_type_id,
+        )
+    )
+    if belongs is None:
+        return None, "section_not_found"
+    return msp.node_id, None
+
+
+async def add_favorite_msp_section(
+    db_session: AsyncSession,
+    user_id: UUID,
+    msp_id: UUID,
+    type_section_id: UUID,
+) -> str | None:
+    _, error = await _msp_section_bookmark_target(
+        db_session, msp_id, type_section_id
+    )
+    if error:
+        return error
+    existing = await db_session.scalar(
+        select(lib_orm.UserFavoriteMspSection).where(
+            lib_orm.UserFavoriteMspSection.user_id == user_id,
+            lib_orm.UserFavoriteMspSection.msp_id == msp_id,
+            lib_orm.UserFavoriteMspSection.type_section_id == type_section_id,
+        )
+    )
+    if existing:
+        return None
+    db_session.add(
+        lib_orm.UserFavoriteMspSection(
+            user_id=user_id,
+            msp_id=msp_id,
+            type_section_id=type_section_id,
+            created_at=_utc_naive_now(),
+        )
+    )
+    return None
+
+
+async def remove_favorite_msp_section(
+    db_session: AsyncSession,
+    user_id: UUID,
+    msp_id: UUID,
+    type_section_id: UUID,
+) -> None:
+    await db_session.execute(
+        delete(lib_orm.UserFavoriteMspSection).where(
+            lib_orm.UserFavoriteMspSection.user_id == user_id,
+            lib_orm.UserFavoriteMspSection.msp_id == msp_id,
+            lib_orm.UserFavoriteMspSection.type_section_id == type_section_id,
+        )
+    )
+
+
+async def move_favorite_msp_section(
+    db_session: AsyncSession,
+    user_id: UUID,
+    msp_id: UUID,
+    type_section_id: UUID,
+    folder_id: UUID | None,
+) -> str | None:
+    row = await db_session.scalar(
+        select(lib_orm.UserFavoriteMspSection).where(
+            lib_orm.UserFavoriteMspSection.user_id == user_id,
+            lib_orm.UserFavoriteMspSection.msp_id == msp_id,
+            lib_orm.UserFavoriteMspSection.type_section_id == type_section_id,
+        )
+    )
+    if row is None:
+        return "not_favorite"
+    if folder_id is not None:
+        folder = await get_favorite_folder(db_session, user_id, folder_id)
+        if folder is None:
+            return "folder_not_found"
+    row.folder_id = folder_id
+    return None
+
+
+async def add_watched_msp_section(
+    db_session: AsyncSession,
+    user_id: UUID,
+    msp_id: UUID,
+    type_section_id: UUID,
+) -> str | None:
+    _, error = await _msp_section_bookmark_target(
+        db_session, msp_id, type_section_id
+    )
+    if error:
+        return error
+    existing = await db_session.scalar(
+        select(lib_orm.UserWatchedMspSection).where(
+            lib_orm.UserWatchedMspSection.user_id == user_id,
+            lib_orm.UserWatchedMspSection.msp_id == msp_id,
+            lib_orm.UserWatchedMspSection.type_section_id == type_section_id,
+        )
+    )
+    if existing:
+        return None
+    db_session.add(
+        lib_orm.UserWatchedMspSection(
+            user_id=user_id,
+            msp_id=msp_id,
+            type_section_id=type_section_id,
+            created_at=_utc_naive_now(),
+        )
+    )
+    return None
+
+
+async def remove_watched_msp_section(
+    db_session: AsyncSession,
+    user_id: UUID,
+    msp_id: UUID,
+    type_section_id: UUID,
+) -> None:
+    await db_session.execute(
+        delete(lib_orm.UserWatchedMspSection).where(
+            lib_orm.UserWatchedMspSection.user_id == user_id,
+            lib_orm.UserWatchedMspSection.msp_id == msp_id,
+            lib_orm.UserWatchedMspSection.type_section_id == type_section_id,
+        )
+    )
+
+
+async def move_watched_msp_section(
+    db_session: AsyncSession,
+    user_id: UUID,
+    msp_id: UUID,
+    type_section_id: UUID,
+    folder_id: UUID | None,
+) -> str | None:
+    row = await db_session.scalar(
+        select(lib_orm.UserWatchedMspSection).where(
+            lib_orm.UserWatchedMspSection.user_id == user_id,
+            lib_orm.UserWatchedMspSection.msp_id == msp_id,
+            lib_orm.UserWatchedMspSection.type_section_id == type_section_id,
+        )
+    )
+    if row is None:
+        return "not_watched"
+    if folder_id is not None:
+        folder = await get_watched_folder(db_session, user_id, folder_id)
+        if folder is None:
+            return "folder_not_found"
+    row.folder_id = folder_id
+    return None
+
+
 async def add_watched(
     db_session: AsyncSession, user_id: UUID, node_id: UUID
 ) -> None:
@@ -310,6 +583,9 @@ async def list_watched_enriched(
                 folder_id=watched.folder_id,
             )
         )
+    out.extend(await list_watched_msp_sections_enriched(db_session, user_id))
+    out.sort(key=lambda row: row.created_at, reverse=True)
+    await _apply_in_portal(db_session, out)
     return out
 
 
@@ -434,20 +710,15 @@ async def move_watched(
     return None
 
 
-async def notify_watched_document_changed(
+async def _emit_watched_change(
     db_session: AsyncSession,
     *,
-    document_id: UUID,
-    title: str,
+    user_ids: set[UUID],
+    payload: dict,
     exclude_user_id: UUID | None = None,
 ) -> None:
-    """Notify users who have the document in their watch list about a new version."""
-    stmt = select(lib_orm.UserWatched.user_id).where(
-        lib_orm.UserWatched.node_id == document_id
-    )
-    watcher_ids = list((await db_session.scalars(stmt)).all())
-    payload = audit_detail_json({"document_id": str(document_id), "title": title})
-    for uid in watcher_ids:
+    body = audit_detail_json(payload)
+    for uid in user_ids:
         if uid == exclude_user_id:
             continue
         db_session.add(
@@ -455,9 +726,140 @@ async def notify_watched_document_changed(
                 id=uuid.uuid4(),
                 user_id=uid,
                 kind=WATCHED_DOCUMENT_CHANGED_KIND,
-                payload=payload,
+                payload=body,
                 created_at=_utc_naive_now(),
             )
+        )
+
+
+async def notify_watched_document_changed(
+    db_session: AsyncSession,
+    *,
+    document_id: UUID,
+    title: str,
+    exclude_user_id: UUID | None = None,
+) -> None:
+    """Notify users who watch the document or an ancestor folder."""
+    watcher_ids: set[UUID] = set(
+        (
+            await db_session.scalars(
+                select(lib_orm.UserWatched.user_id).where(
+                    lib_orm.UserWatched.node_id == document_id
+                )
+            )
+        ).all()
+    )
+    ancestors = await db_common.get_ancestors(
+        db_session, document_id, include_self=False
+    )
+    ancestor_ids = [node_id for node_id, _ in ancestors]
+    if ancestor_ids:
+        watcher_ids.update(
+            (
+                await db_session.scalars(
+                    select(lib_orm.UserWatched.user_id).where(
+                        lib_orm.UserWatched.node_id.in_(ancestor_ids)
+                    )
+                )
+            ).all()
+        )
+    if not watcher_ids:
+        return
+    from papermerge.core.features.portal.db import api as portal_dbapi
+
+    root_id = await portal_dbapi.get_portal_root_id(db_session)
+    in_portal = bool(
+        root_id
+        and await portal_dbapi.is_node_under_portal_root(
+            db_session, document_id, root_id
+        )
+    )
+    await _emit_watched_change(
+        db_session,
+        user_ids=watcher_ids,
+        payload={
+            "document_id": str(document_id),
+            "node_id": str(document_id),
+            "title": title,
+            "in_portal": in_portal,
+        },
+        exclude_user_id=exclude_user_id,
+    )
+
+
+async def notify_watched_msp_changed(
+    db_session: AsyncSession,
+    *,
+    msp_id: UUID,
+    node_id: UUID,
+    title: str,
+    changed_type_section_ids: list[UUID],
+    exclude_user_id: UUID | None = None,
+) -> None:
+    """Notify users watching the measure folder or one of its changed sections."""
+    notified: set[UUID] = set()
+    from papermerge.core.features.portal.db import api as portal_dbapi
+
+    root_id = await portal_dbapi.get_portal_root_id(db_session)
+    in_portal = bool(
+        root_id
+        and await portal_dbapi.is_node_under_portal_root(
+            db_session, node_id, root_id
+        )
+    )
+    if changed_type_section_ids:
+        section_watchers = (
+            await db_session.execute(
+                select(
+                    lib_orm.UserWatchedMspSection.user_id,
+                    lib_orm.UserWatchedMspSection.type_section_id,
+                ).where(
+                    lib_orm.UserWatchedMspSection.msp_id == msp_id,
+                    lib_orm.UserWatchedMspSection.type_section_id.in_(
+                        changed_type_section_ids
+                    ),
+                )
+            )
+        ).all()
+        by_user: dict[UUID, UUID] = {}
+        for uid, type_section_id in section_watchers:
+            by_user.setdefault(uid, type_section_id)
+        for uid, type_section_id in by_user.items():
+            await _emit_watched_change(
+                db_session,
+                user_ids={uid},
+                payload={
+                    "node_id": str(node_id),
+                    "msp_id": str(msp_id),
+                    "type_section_id": str(type_section_id),
+                    "title": title,
+                    "in_portal": in_portal,
+                },
+                exclude_user_id=exclude_user_id,
+            )
+            notified.add(uid)
+
+    node_watchers = set(
+        (
+            await db_session.scalars(
+                select(lib_orm.UserWatched.user_id).where(
+                    lib_orm.UserWatched.node_id == node_id
+                )
+            )
+        ).all()
+    )
+    remaining = node_watchers - notified
+    if remaining:
+        await _emit_watched_change(
+            db_session,
+            user_ids=remaining,
+            payload={
+                "node_id": str(node_id),
+                "msp_id": str(msp_id),
+                "title": title,
+                "in_portal": in_portal,
+            },
+            exclude_user_id=exclude_user_id,
         )
 
 
