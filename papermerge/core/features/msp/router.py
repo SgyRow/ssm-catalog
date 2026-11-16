@@ -33,6 +33,7 @@ from papermerge.core.features.msp.schema import (
     MspTypeSectionRead,
     UpdateMsp,
 )
+from papermerge.core.features.library_ts.db import api as lib_ts_api
 from papermerge.core.features.nodes.db import orm as nodes_orm
 from papermerge.core.routers.common import OPEN_API_GENERIC_JSON_DETAIL
 
@@ -408,12 +409,39 @@ async def update_msp(
         codename=scopes.NODE_UPDATE,
         user_id=user.id,
     )
+    old_title = await _node_title(db_session, msp.node_id)
+    old_sections = {
+        s.type_section_id: (s.title, s.body or "")
+        for s in msp.sections
+        if s.type_section_id
+    }
     updated = await api.update_msp(
         db_session, msp_id=msp_id, title=payload.title, sections=payload.sections
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Measure not found")
     title = await _node_title(db_session, updated.node_id)
+    changed_type_section_ids = []
+    if payload.sections is not None:
+        new_sections = {
+            s.type_section_id: (s.title, s.body or "")
+            for s in updated.sections
+            if s.type_section_id
+        }
+        for key in set(old_sections) | set(new_sections):
+            if key and old_sections.get(key) != new_sections.get(key):
+                changed_type_section_ids.append(key)
+    title_changed = bool(payload.title and payload.title.strip() != old_title)
+    if changed_type_section_ids or title_changed:
+        await lib_ts_api.notify_watched_msp_changed(
+            db_session,
+            msp_id=updated.id,
+            node_id=updated.node_id,
+            title=title,
+            changed_type_section_ids=changed_type_section_ids,
+            exclude_user_id=user.id,
+        )
+        await db_session.commit()
     return _msp_read(updated, title=title)
 
 

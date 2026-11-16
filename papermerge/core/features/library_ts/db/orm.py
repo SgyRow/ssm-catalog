@@ -60,6 +60,46 @@ class UserWatched(Base):
     created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
 
 
+class UserFavoriteMspSection(Base):
+    """Favorite keyed by measure + type section (stable across section rewrites)."""
+
+    __tablename__ = "user_favorite_msp_sections"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    msp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("msps.id", ondelete="CASCADE"), primary_key=True
+    )
+    type_section_id: Mapped[UUID] = mapped_column(
+        ForeignKey("msp_type_sections.id", ondelete="CASCADE"), primary_key=True
+    )
+    folder_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("user_favorite_folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+
+class UserWatchedMspSection(Base):
+    __tablename__ = "user_watched_msp_sections"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    msp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("msps.id", ondelete="CASCADE"), primary_key=True
+    )
+    type_section_id: Mapped[UUID] = mapped_column(
+        ForeignKey("msp_type_sections.id", ondelete="CASCADE"), primary_key=True
+    )
+    folder_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("user_watched_folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(insert_default=func.now())
+
+
 class UserRecentDocument(Base):
     __tablename__ = "user_recent_documents"
 

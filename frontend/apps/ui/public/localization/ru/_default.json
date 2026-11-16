@@ -875,6 +875,8 @@
   "library.load_error": "Не удалось загрузить данные",
   "library.error": "Ошибка",
   "library.ctype_folder": "Папка",
+  "library.ctype_msp_section": "Раздел меры",
+  "library.notification.open_item": "Открыть",
   "library.filetype_pdf-pages": "Документ PDF",
   "library.filetype_video": "Видео",
   "library.filetype_audio": "Аудио",

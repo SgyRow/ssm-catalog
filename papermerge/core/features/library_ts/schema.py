@@ -21,6 +21,9 @@ class FavoriteRowOut(BaseModel):
     created_at: datetime
     in_trash: bool = False
     folder_id: UUID | None = None
+    in_portal: bool = False
+    msp_id: UUID | None = None
+    type_section_id: UUID | None = None
 
 
 class FavoriteFolderOut(BaseModel):
@@ -44,6 +47,11 @@ class FavoriteMoveIn(BaseModel):
     folder_id: UUID | None = None
 
 
+class MspSectionBookmarkIn(BaseModel):
+    msp_id: UUID
+    type_section_id: UUID
+
+
 class WatchedRowOut(BaseModel):
     node_id: UUID
     title: str
@@ -51,6 +59,9 @@ class WatchedRowOut(BaseModel):
     created_at: datetime
     in_trash: bool = False
     folder_id: UUID | None = None
+    in_portal: bool = False
+    msp_id: UUID | None = None
+    type_section_id: UUID | None = None
 
 
 class WatchedFolderOut(BaseModel):

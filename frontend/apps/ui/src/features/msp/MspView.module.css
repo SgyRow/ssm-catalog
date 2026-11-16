@@ -78,6 +78,24 @@
   vertical-align: top;
 }
 
+.sectionHead {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.sectionHead :global(.mantine-Accordion-control) {
+  flex: 1;
+  min-width: 0;
+}
+
+.sectionActions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-right: 10px;
+}
+
 .nodeTitleWrap {
   flex: 1;
   min-width: 0;

@@ -877,6 +877,8 @@
   "library.load_error": "Failed to load",
   "library.error": "Error",
   "library.ctype_folder": "Folder",
+  "library.ctype_msp_section": "Measure section",
+  "library.notification.open_item": "Open",
   "library.filetype_pdf-pages": "PDF",
   "library.filetype_video": "Video",
   "library.filetype_audio": "Audio",

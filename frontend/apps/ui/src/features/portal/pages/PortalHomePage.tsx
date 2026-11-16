@@ -5,6 +5,7 @@ import {
   useGetLibraryNotificationsQuery,
   useMarkLibraryNotificationReadMutation
 } from "@/features/library/libraryApiSlice"
+import {libraryItemHref, libraryItemKey} from "@/features/library/libraryItem"
 import {useGetHandbookArticlesQuery} from "@/features/handbook/handbookApiSlice"
 import {
   useGetPortalFeedQuery,
@@ -364,21 +365,19 @@ export default function PortalHomePage() {
                 ) : (
                   favoriteRows.map(row => (
                     <Link
-                      key={row.node_id}
+                      key={libraryItemKey(row)}
                       className={classes.row}
-                      to={
-                        row.ctype === "folder"
-                          ? `/folder/${row.node_id}`
-                          : `/document/${row.node_id}`
-                      }
+                      to={libraryItemHref(row)}
                     >
                       <IconStar className={classes.star} size={18} fill="currentColor" />
                       <span className={classes.grow}>
                         {formatNodeDisplayTitle(row.title, row.ctype)}
                         <span className={classes.sub}>
-                          {row.ctype === "folder"
-                            ? t("portal.type_folder")
-                            : t("portal.type_document")}
+                          {row.ctype === "msp_section"
+                            ? t("library.ctype_msp_section")
+                            : row.ctype === "folder"
+                              ? t("portal.type_folder")
+                              : t("portal.type_document")}
                         </span>
                       </span>
                     </Link>

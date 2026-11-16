@@ -7,6 +7,11 @@ import {
   type Msp,
   type MspType
 } from "@/features/msp/mspApiSlice"
+import LibraryBookmarkButtons from "@/features/library/components/LibraryBookmarkButtons"
+import {
+  mspSectionHashId,
+  parseMspSectionHash
+} from "@/features/library/libraryItem"
 import {useGetPortalNodesQuery} from "@/features/portal/portalApiSlice"
 import {formatNodeDisplayTitle} from "@/utils"
 import type {NodeType} from "@/types"
@@ -33,7 +38,7 @@ import {
   IconPencil
 } from "@tabler/icons-react"
 import {useCallback, useEffect, useMemo, useState} from "react"
-import {Link} from "react-router-dom"
+import {Link, useLocation} from "react-router-dom"
 import {useTranslation} from "react-i18next"
 
 import classes from "./MspView.module.css"
@@ -73,59 +78,64 @@ function NodeRow({
   const {t} = useTranslation()
   const isFolder = row.ctype === "folder"
   const nav = childNav?.(row)
-  const inner = (
-    <Group wrap="nowrap" gap="md" justify="space-between" align="flex-start">
-      <Group wrap="nowrap" gap="md" align="flex-start" style={{flex: 1, minWidth: 0}}>
-        <ThemeIcon
-          variant="light"
-          color={isFolder ? "yellow" : "gray"}
-          size="lg"
-          radius="md"
-          aria-hidden
-          style={{flexShrink: 0}}
-        >
-          {isFolder ? (
-            <IconFolder size={20} stroke={1.5} />
-          ) : (
-            <IconFile size={20} stroke={1.5} />
-          )}
-        </ThemeIcon>
-        <div className={classes.nodeTitleWrap}>
-          <Text fw={600} size="md" className={classes.nodeTitle}>
-            {formatNodeDisplayTitle(row.title, row.ctype)}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {isFolder
-              ? t("msp.view.item_folder")
-              : t("msp.view.item_document")}
-          </Text>
-        </div>
-      </Group>
-      <IconChevronRight
-        size={18}
-        stroke={1.5}
-        color="var(--mantine-color-dimmed)"
-        style={{flexShrink: 0, marginTop: 4}}
+  const titleBlock = (
+    <Group wrap="nowrap" gap="md" align="flex-start" style={{flex: 1, minWidth: 0}}>
+      <ThemeIcon
+        variant="light"
+        color={isFolder ? "yellow" : "gray"}
+        size="lg"
+        radius="md"
         aria-hidden
-      />
+        style={{flexShrink: 0}}
+      >
+        {isFolder ? (
+          <IconFolder size={20} stroke={1.5} />
+        ) : (
+          <IconFile size={20} stroke={1.5} />
+        )}
+      </ThemeIcon>
+      <div className={classes.nodeTitleWrap}>
+        <Text fw={600} size="md" className={classes.nodeTitle}>
+          {formatNodeDisplayTitle(row.title, row.ctype)}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {isFolder
+            ? t("msp.view.item_folder")
+            : t("msp.view.item_document")}
+        </Text>
+      </div>
     </Group>
   )
   return (
     <Paper withBorder p="md" radius="md">
-      {nav ? (
-        <Anchor
-          component={Link}
-          to={nav.to}
-          state={nav.state}
-          underline="never"
-          c="var(--mantine-color-text)"
-          display="block"
-        >
-          {inner}
-        </Anchor>
-      ) : (
-        inner
-      )}
+      <Group wrap="nowrap" gap="md" justify="space-between" align="flex-start">
+        {nav ? (
+          <Anchor
+            component={Link}
+            to={nav.to}
+            state={nav.state}
+            underline="never"
+            c="var(--mantine-color-text)"
+            style={{flex: 1, minWidth: 0}}
+          >
+            {titleBlock}
+          </Anchor>
+        ) : (
+          titleBlock
+        )}
+        <Group gap="xs" wrap="nowrap" style={{flexShrink: 0}}>
+          <LibraryBookmarkButtons nodeId={row.id} size="sm" />
+          {nav ? (
+            <IconChevronRight
+              size={18}
+              stroke={1.5}
+              color="var(--mantine-color-dimmed)"
+              style={{marginTop: 4}}
+              aria-hidden
+            />
+          ) : null}
+        </Group>
+      </Group>
     </Paper>
   )
 }
@@ -150,22 +160,27 @@ function MspFolderSection({
   return (
     <Accordion chevronPosition="left" variant="separated">
       <Accordion.Item value={node.id}>
-        <Accordion.Control>
-          <Group gap="sm" wrap="nowrap">
-            <ThemeIcon
-              variant="light"
-              color="yellow"
-              size="md"
-              radius="md"
-              aria-hidden
-            >
-              <IconFolder size={18} stroke={1.5} />
-            </ThemeIcon>
-            <Text size="sm" fw={600}>
-              {node.title}
-            </Text>
-          </Group>
-        </Accordion.Control>
+        <div className={classes.sectionHead}>
+          <Accordion.Control>
+            <Group gap="sm" wrap="nowrap">
+              <ThemeIcon
+                variant="light"
+                color="yellow"
+                size="md"
+                radius="md"
+                aria-hidden
+              >
+                <IconFolder size={18} stroke={1.5} />
+              </ThemeIcon>
+              <Text size="sm" fw={600}>
+                {node.title}
+              </Text>
+            </Group>
+          </Accordion.Control>
+          <div className={classes.sectionActions}>
+            <LibraryBookmarkButtons nodeId={node.id} size="sm" />
+          </div>
+        </div>
         <Accordion.Panel>
           {isLoading ? (
             <Loader size="sm" my="xs" />
@@ -254,6 +269,11 @@ export default function MspView({
   canEdit?: boolean
 }) {
   const {t} = useTranslation()
+  const location = useLocation()
+  const hashSectionId = parseMspSectionHash(location.hash)
+  const [openedSections, setOpenedSections] = useState<string[]>(() =>
+    hashSectionId ? [hashSectionId] : []
+  )
   const [downloading, setDownloading] = useState(false)
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(msp.title)
@@ -381,6 +401,17 @@ export default function MspView({
     }
   }
 
+  useEffect(() => {
+    if (!hashSectionId) {
+      return
+    }
+    setOpenedSections(prev =>
+      prev.includes(hashSectionId) ? prev : [...prev, hashSectionId]
+    )
+    const el = document.getElementById(mspSectionHashId(hashSectionId))
+    el?.scrollIntoView({block: "start", behavior: "smooth"})
+  }, [hashSectionId])
+
   const onDownload = useCallback(async () => {
     setDownloading(true)
     try {
@@ -429,6 +460,7 @@ export default function MspView({
           )}
         </div>
         <Group gap="xs" wrap="nowrap">
+          <LibraryBookmarkButtons nodeId={msp.node_id} size="lg" />
           {canEdit && !editing ? (
             <Button
               variant="default"
@@ -552,22 +584,45 @@ export default function MspView({
           {visibleSections.length > 0 ? (
             <Accordion
               multiple
-              defaultValue={[]}
+              value={openedSections}
+              onChange={setOpenedSections}
               chevronPosition="left"
               variant="separated"
             >
-              {visibleSections.map(section => (
-                <Accordion.Item key={section.id} value={section.id}>
-                  <Accordion.Control>
-                    <Text size="sm" fw={600}>
-                      {section.title}
-                    </Text>
-                  </Accordion.Control>
-                  <Accordion.Panel>
-                    <MspRichTextView html={section.body ?? ""} />
-                  </Accordion.Panel>
-                </Accordion.Item>
-              ))}
+              {visibleSections.map(section => {
+                const sectionKey = section.type_section_id ?? section.id
+                return (
+                  <Accordion.Item
+                    key={section.id}
+                    value={sectionKey}
+                    id={
+                      section.type_section_id
+                        ? mspSectionHashId(section.type_section_id)
+                        : undefined
+                    }
+                  >
+                    <div className={classes.sectionHead}>
+                      <Accordion.Control>
+                        <Text size="sm" fw={600}>
+                          {section.title}
+                        </Text>
+                      </Accordion.Control>
+                      {section.type_section_id ? (
+                        <div className={classes.sectionActions}>
+                          <LibraryBookmarkButtons
+                            mspId={msp.id}
+                            typeSectionId={section.type_section_id}
+                            size="sm"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                    <Accordion.Panel>
+                      <MspRichTextView html={section.body ?? ""} />
+                    </Accordion.Panel>
+                  </Accordion.Item>
+                )
+              })}
             </Accordion>
           ) : null}
           {infoFolder ? (

@@ -1,6 +1,8 @@
 import {
+  useAddLibraryFavoriteMspSectionMutation,
   useAddLibraryFavoriteMutation,
   useGetLibraryFavoritesQuery,
+  useRemoveLibraryFavoriteMspSectionMutation,
   useRemoveLibraryFavoriteMutation
 } from "@/features/library/libraryApiSlice"
 import {ActionIcon, Tooltip} from "@mantine/core"
@@ -9,17 +11,40 @@ import {IconStar, IconStarFilled} from "@tabler/icons-react"
 import {useTranslation} from "react-i18next"
 
 interface Props {
-  nodeId: string
+  nodeId?: string
+  mspId?: string
+  typeSectionId?: string
+  size?: "sm" | "md" | "lg"
 }
 
-export default function LibraryFavoriteToggle({nodeId}: Props) {
+export default function LibraryFavoriteToggle({
+  nodeId,
+  mspId,
+  typeSectionId,
+  size = "lg"
+}: Props) {
   const {t} = useTranslation()
   const {data: favorites} = useGetLibraryFavoritesQuery()
-  const [addFav, {isLoading: adding}] = useAddLibraryFavoriteMutation()
-  const [removeFav, {isLoading: removing}] = useRemoveLibraryFavoriteMutation()
+  const [addFav, {isLoading: addingNode}] = useAddLibraryFavoriteMutation()
+  const [removeFav, {isLoading: removingNode}] =
+    useRemoveLibraryFavoriteMutation()
+  const [addSection, {isLoading: addingSection}] =
+    useAddLibraryFavoriteMspSectionMutation()
+  const [removeSection, {isLoading: removingSection}] =
+    useRemoveLibraryFavoriteMspSectionMutation()
 
-  const isFav = favorites?.some(f => f.node_id === nodeId) ?? false
-  const loading = adding || removing
+  const isSection = Boolean(mspId && typeSectionId)
+  const isFav =
+    favorites?.some(f =>
+      isSection
+        ? f.msp_id === mspId && f.type_section_id === typeSectionId
+        : f.node_id === nodeId && !f.type_section_id
+    ) ?? false
+  const loading = addingNode || removingNode || addingSection || removingSection
+
+  if (!isSection && !nodeId) {
+    return null
+  }
 
   return (
     <Tooltip
@@ -27,11 +52,24 @@ export default function LibraryFavoriteToggle({nodeId}: Props) {
       withArrow
     >
       <ActionIcon
-        size="lg"
+        size={size}
         variant="default"
         loading={loading}
-        onClick={async () => {
+        onClick={async event => {
+          event.preventDefault()
+          event.stopPropagation()
           try {
+            if (isSection && mspId && typeSectionId) {
+              if (isFav) {
+                await removeSection({mspId, typeSectionId}).unwrap()
+              } else {
+                await addSection({mspId, typeSectionId}).unwrap()
+              }
+              return
+            }
+            if (!nodeId) {
+              return
+            }
             if (isFav) {
               await removeFav(nodeId).unwrap()
             } else {
