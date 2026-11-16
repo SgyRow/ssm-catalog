@@ -29,7 +29,7 @@ keywords = [
 requires-python = ">=3.13,<4"
 dependencies = [
     "redis (>=5.3.1, <6)",
-    "celery[gevent,redis] (>=5.2)",
+    "celery[gevent,redis] (>=5.6.3)",
     "pyyaml (>=6.0.3)",
     "python-magic  (>=0.4)",
     "uritemplate (>=4.2.0)",
