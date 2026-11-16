@@ -514,7 +514,7 @@ export default function Commander() {
               {t("nodes.reorder.hint")}
             </Text>
           )}
-          <Group>
+          <Group align="flex-start" gap="sm">
             <NodesList
               items={visibleItems}
               onClick={onClick}

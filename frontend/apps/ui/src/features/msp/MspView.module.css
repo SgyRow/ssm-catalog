@@ -77,3 +77,15 @@
   padding: 6px 8px;
   vertical-align: top;
 }
+
+.nodeTitleWrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.nodeTitle {
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}

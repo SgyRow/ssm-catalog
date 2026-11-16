@@ -74,14 +74,15 @@ function NodeRow({
   const isFolder = row.ctype === "folder"
   const nav = childNav?.(row)
   const inner = (
-    <Group wrap="nowrap" gap="md" justify="space-between">
-      <Group wrap="nowrap" gap="md" style={{minWidth: 0}}>
+    <Group wrap="nowrap" gap="md" justify="space-between" align="flex-start">
+      <Group wrap="nowrap" gap="md" align="flex-start" style={{flex: 1, minWidth: 0}}>
         <ThemeIcon
           variant="light"
           color={isFolder ? "yellow" : "gray"}
           size="lg"
           radius="md"
           aria-hidden
+          style={{flexShrink: 0}}
         >
           {isFolder ? (
             <IconFolder size={20} stroke={1.5} />
@@ -89,8 +90,8 @@ function NodeRow({
             <IconFile size={20} stroke={1.5} />
           )}
         </ThemeIcon>
-        <div style={{minWidth: 0}}>
-          <Text fw={600} size="md" truncate="end">
+        <div className={classes.nodeTitleWrap}>
+          <Text fw={600} size="md" className={classes.nodeTitle}>
             {formatNodeDisplayTitle(row.title, row.ctype)}
           </Text>
           <Text size="xs" c="dimmed">
@@ -104,7 +105,7 @@ function NodeRow({
         size={18}
         stroke={1.5}
         color="var(--mantine-color-dimmed)"
-        style={{flexShrink: 0}}
+        style={{flexShrink: 0, marginTop: 4}}
         aria-hidden
       />
     </Group>
