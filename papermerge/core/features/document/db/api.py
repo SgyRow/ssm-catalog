@@ -1,6 +1,5 @@
 import io
 import logging
-import mimetypes
 import os
 from os.path import getsize
 import uuid
@@ -40,6 +39,10 @@ from papermerge.core.features.document.docx_convert import (
     DocxConversionError,
     convert_docx_to_pdf,
     is_docx_upload,
+)
+from papermerge.core.features.document.upload_pdf_convert import (
+    IMAGE_MIMES_IMG2PDF,
+    normalize_upload_content_type,
 )
 from papermerge.core.features.document.ordered_document_cfv import \
     OrderedDocumentCFV
@@ -613,27 +616,6 @@ def file_type(content_type: str) -> str:
         return parts[1]
 
     return "octet-stream"
-
-
-IMAGE_MIMES_IMG2PDF = frozenset(
-    {
-        constants.ContentType.IMAGE_JPEG,
-        constants.ContentType.IMAGE_PNG,
-        constants.ContentType.IMAGE_TIFF,
-        "image/jpg",
-    }
-)
-
-
-def normalize_upload_content_type(
-    content_type: str | None, file_name: str | None
-) -> str:
-    if content_type:
-        ct = content_type.split(";")[0].strip().lower()
-        if ct and ct != "application/octet-stream":
-            return ct
-    guessed, _ = mimetypes.guess_type(file_name or "")
-    return (guessed or "application/octet-stream").lower()
 
 
 def get_pdf_page_count(content: io.BytesIO | bytes) -> int:

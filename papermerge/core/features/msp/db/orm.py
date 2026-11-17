@@ -97,6 +97,12 @@ class Msp(Base):
         lazy="selectin",
         cascade="all, delete-orphan",
     )
+    normative_links: Mapped[list["MspNormativeLink"]] = relationship(
+        back_populates="msp",
+        order_by="MspNormativeLink.sort_order",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
 
 
 class MspSection(Base):
@@ -133,3 +139,35 @@ class MspSection(Base):
     )
 
     msp: Mapped["Msp"] = relationship(back_populates="sections")
+
+
+class MspNormativeLink(Base):
+    """Link from a measure to a central normative-act document.
+
+    The real PDF lives under the portal registry folder
+    (``Нормативные правовые документы``). Inside the measure UI the link is
+    shown under ``bucket`` (Федеральные / Региональные) as if it were a child
+    document — without copying the file into the measure folder.
+    """
+
+    __tablename__ = "msp_normative_links"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4)
+    msp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("msps.id", ondelete="CASCADE"), nullable=False
+    )
+    bucket: Mapped[str] = mapped_column(String(100), nullable=False)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False
+    )
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), insert_default=func.now(), nullable=False
+    )
+
+    msp: Mapped["Msp"] = relationship(
+        back_populates="normative_links",
+        lazy="selectin",
+    )

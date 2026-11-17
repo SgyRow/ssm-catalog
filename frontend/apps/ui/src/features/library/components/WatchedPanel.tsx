@@ -89,6 +89,11 @@ function WatchedRowsTable({
               <Anchor component={Link} to={libraryItemHref(row)}>
                 {formatNodeDisplayTitle(row.title, row.ctype)}
               </Anchor>
+              {row.msp_title ? (
+                <Text size="xs" c="dimmed">
+                  {t("library.msp_source", {title: row.msp_title})}
+                </Text>
+              ) : null}
               {row.in_trash ? (
                 <Text size="xs" c="dimmed">
                   {t("library.in_trash")}

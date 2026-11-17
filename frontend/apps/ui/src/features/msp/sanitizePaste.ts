@@ -42,6 +42,8 @@ const ALLOWED_TAGS = new Set([
   "FONT"
 ])
 
+const BLOCK_ALIGN = new Set(["align", "dir"])
+
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
   A: new Set(["href", "target", "rel", "title"]),
   IMG: new Set(["src", "alt", "width", "height"]),
@@ -50,7 +52,17 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   TABLE: new Set(["border", "cellpadding", "cellspacing", "width", "align"]),
   COL: new Set(["span", "width"]),
   OL: new Set(["start", "type"]),
+  UL: new Set(["type"]),
   FONT: new Set(["color", "size", "face"]),
+  P: BLOCK_ALIGN,
+  DIV: BLOCK_ALIGN,
+  H1: BLOCK_ALIGN,
+  H2: BLOCK_ALIGN,
+  H3: BLOCK_ALIGN,
+  H4: BLOCK_ALIGN,
+  H5: BLOCK_ALIGN,
+  H6: BLOCK_ALIGN,
+  BLOCKQUOTE: BLOCK_ALIGN,
   "*": new Set(["style"])
 }
 
@@ -64,6 +76,7 @@ const STYLE_PROPS = new Set([
   "font-family",
   "text-align",
   "text-decoration",
+  "text-decoration-line",
   "text-indent",
   "vertical-align",
   "width",
@@ -90,7 +103,9 @@ const STYLE_PROPS = new Set([
   "margin-bottom",
   "margin-left",
   "white-space",
-  "line-height"
+  "line-height",
+  "list-style-type",
+  "list-style"
 ])
 
 const SAFE_HREF = /^(https?:|mailto:|#)/i

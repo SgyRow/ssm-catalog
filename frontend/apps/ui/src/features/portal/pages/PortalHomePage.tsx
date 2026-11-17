@@ -26,6 +26,7 @@ import {drop_extension, formatNodeDisplayTitle} from "@/utils"
 import {formatApiDateTimeCompact} from "@/utils/formatDateTime"
 import {Loader, Text} from "@mantine/core"
 import {
+  IconApps,
   IconBell,
   IconBookmark,
   IconFolder,
@@ -227,13 +228,13 @@ export default function PortalHomePage() {
               </span>
             </span>
           </Link>
-          <Link className={classes.jump} to="/handbook">
+          <Link className={classes.jump} to="/services">
             <span className={classes.mark}>
-              <IconNotebook size={18} stroke={1.8} />
+              <IconApps size={18} stroke={1.8} />
             </span>
             <span>
               <span className={classes.jumpTitle}>
-                {t("handbook.title")}
+                {t("services.nav")}
               </span>
             </span>
           </Link>

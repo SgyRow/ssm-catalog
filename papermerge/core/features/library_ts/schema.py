@@ -23,6 +23,7 @@ class FavoriteRowOut(BaseModel):
     folder_id: UUID | None = None
     in_portal: bool = False
     msp_id: UUID | None = None
+    msp_title: str | None = None
     type_section_id: UUID | None = None
 
 
@@ -61,6 +62,7 @@ class WatchedRowOut(BaseModel):
     folder_id: UUID | None = None
     in_portal: bool = False
     msp_id: UUID | None = None
+    msp_title: str | None = None
     type_section_id: UUID | None = None
 
 

@@ -129,3 +129,31 @@ class MspRead(BaseModel):
     sections: list[MspSectionRead] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+
+
+# --------------------------------------------------------------------------- #
+# Normative links (central NPA registry → measure)
+# --------------------------------------------------------------------------- #
+class NormativeRegistryBucket(BaseModel):
+    title: str
+    folder_id: UUID
+
+
+class NormativeRegistryRead(BaseModel):
+    folder_id: UUID
+    title: str
+    buckets: list[NormativeRegistryBucket] = Field(default_factory=list)
+
+
+class MspNormativeLinkCreate(BaseModel):
+    document_id: UUID
+    bucket: str = Field(min_length=1, max_length=100)
+
+
+class MspNormativeLinkRead(BaseModel):
+    id: UUID
+    msp_id: UUID
+    bucket: str
+    document_id: UUID
+    title: str
+    sort_order: int

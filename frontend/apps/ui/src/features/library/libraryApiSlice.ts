@@ -33,6 +33,7 @@ export type FavoriteRow = {
   folder_id: string | null
   in_portal?: boolean
   msp_id?: string | null
+  msp_title?: string | null
   type_section_id?: string | null
 }
 
@@ -59,6 +60,7 @@ export type WatchedRow = {
   folder_id: string | null
   in_portal?: boolean
   msp_id?: string | null
+  msp_title?: string | null
   type_section_id?: string | null
 }
 

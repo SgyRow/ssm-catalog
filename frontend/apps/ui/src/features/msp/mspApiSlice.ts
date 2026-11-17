@@ -72,6 +72,31 @@ export type UpdateMspInput = {
   sections?: MspSectionInput[] | null
 }
 
+export type NormativeRegistryBucket = {
+  title: string
+  folder_id: string
+}
+
+export type NormativeRegistry = {
+  folder_id: string
+  title: string
+  buckets: NormativeRegistryBucket[]
+}
+
+export type MspNormativeLink = {
+  id: string
+  msp_id: string
+  bucket: string
+  document_id: string
+  title: string
+  sort_order: number
+}
+
+export type MspNormativeLinkCreate = {
+  document_id: string
+  bucket: string
+}
+
 const injected = apiSlice.injectEndpoints({
   endpoints: builder => ({
     // Types (виды мер)
@@ -187,6 +212,40 @@ const injected = apiSlice.injectEndpoints({
         method: "DELETE"
       }),
       invalidatesTags: ["Node", "Folder", {type: "Msp", id: "LIST"}]
+    }),
+
+    getNormativeRegistry: builder.query<NormativeRegistry, void>({
+      query: () => "/msp/normative-registry",
+      providesTags: [{type: "MspNormativeRegistry", id: "ROOT"}]
+    }),
+    listMspNormativeLinks: builder.query<MspNormativeLink[], string>({
+      query: mspId => `/msp/${mspId}/normative-links`,
+      providesTags: (_r, _e, mspId) => [{type: "MspNormativeLinks", id: mspId}]
+    }),
+    createMspNormativeLink: builder.mutation<
+      MspNormativeLink,
+      {msp_id: string} & MspNormativeLinkCreate
+    >({
+      query: ({msp_id, ...body}) => ({
+        url: `/msp/${msp_id}/normative-links`,
+        method: "POST",
+        body
+      }),
+      invalidatesTags: (_r, _e, {msp_id}) => [
+        {type: "MspNormativeLinks", id: msp_id}
+      ]
+    }),
+    deleteMspNormativeLink: builder.mutation<
+      void,
+      {msp_id: string; link_id: string}
+    >({
+      query: ({msp_id, link_id}) => ({
+        url: `/msp/${msp_id}/normative-links/${link_id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: (_r, _e, {msp_id}) => [
+        {type: "MspNormativeLinks", id: msp_id}
+      ]
     })
   })
 })
@@ -203,7 +262,11 @@ export const {
   useGetMspQuery,
   useGetMspByNodeQuery,
   useUpdateMspMutation,
-  useDeleteMspMutation
+  useDeleteMspMutation,
+  useGetNormativeRegistryQuery,
+  useListMspNormativeLinksQuery,
+  useCreateMspNormativeLinkMutation,
+  useDeleteMspNormativeLinkMutation
 } = injected
 
 // --------------------------------------------------------------------------- #

@@ -74,6 +74,8 @@ export const apiSlice = createApi({
     "Feedback",
     "MspType",
     "Msp",
+    "MspNormativeLinks",
+    "MspNormativeRegistry",
     "ExternalService"
   ],
   endpoints: _ => ({})

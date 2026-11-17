@@ -22,14 +22,31 @@ console = Console()
 @async_command
 async def portal_init():
     """Ensure portal group, root folder, and portal_settings row exist."""
+    from papermerge.core.features.msp.db import api as msp_dbapi
+
     async with AsyncSessionLocal() as db_session:
         root_id, group_id, err = await portal_dbapi.ensure_portal_bootstrap(db_session)
-    if err:
-        console.print(err, style="red")
-        raise typer.Exit(1)
+        if err:
+            console.print(err, style="red")
+            raise typer.Exit(1)
+        registry_id, buckets, reg_err = await msp_dbapi.ensure_normative_registry(
+            db_session
+        )
+        if reg_err:
+            console.print(
+                f"Normative registry skipped: {reg_err}", style="yellow"
+            )
+        else:
+            await db_session.commit()
     console.print(
         f"Portal ready: root_node_id={root_id} group_id={group_id}", style="green"
     )
+    if registry_id:
+        console.print(
+            f"Normative registry: folder_id={registry_id} "
+            f"buckets={list(buckets)}",
+            style="green",
+        )
 
 
 @news_app.command("ls")

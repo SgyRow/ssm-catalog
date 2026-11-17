@@ -55,6 +55,23 @@ async def msp_ls():
     console.print(table)
 
 
+@app.command("ensure-normative-registry")
+@async_command
+async def ensure_normative_registry():
+    """Create the central NPA folder under the portal root if missing."""
+    async with AsyncSessionLocal() as db_session:
+        registry_id, buckets, err = await msp_dbapi.ensure_normative_registry(
+            db_session
+        )
+        if err:
+            console.print(err, style="red")
+            raise typer.Exit(1)
+        await db_session.commit()
+    console.print(
+        f"Registry folder_id={registry_id} buckets={buckets}", style="green"
+    )
+
+
 @app.command("pdf")
 @async_command
 async def msp_pdf_render(

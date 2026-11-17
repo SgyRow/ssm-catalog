@@ -1,5 +1,6 @@
 import {isEmptyMspBody} from "@/features/msp/html"
 import {MspRichTextEditor, MspRichTextView} from "@/features/msp/MspRichText"
+import MspNormativeSection from "@/features/msp/MspNormativeSection"
 import {
   downloadMspPdf,
   useGetMspTypeQuery,
@@ -578,9 +579,12 @@ export default function MspView({
         </Text>
       ) : (
         <Stack gap="sm" className={classes.scroll}>
-          {normativeFolder ? (
-            <MspFolderSection node={normativeFolder} childNav={childNav} />
-          ) : null}
+          <MspNormativeSection
+            mspId={msp.id}
+            folderNode={normativeFolder}
+            childNav={childNav}
+            canEdit={canEdit}
+          />
           {visibleSections.length > 0 ? (
             <Accordion
               multiple

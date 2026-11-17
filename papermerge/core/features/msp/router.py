@@ -27,11 +27,19 @@ from papermerge.core.features.msp.schema import (
     NewMspTypeSection,
     ReorderMspTypeSections,
     UpdateMspType,
+    MspNormativeLinkCreate,
+    MspNormativeLinkRead,
     MspRead,
     MspSectionRead,
     MspTypeRead,
     MspTypeSectionRead,
+    NormativeRegistryBucket,
+    NormativeRegistryRead,
     UpdateMsp,
+)
+from papermerge.core.features.msp.folder_template import (
+    NORMATIVE_BUCKETS,
+    NORMATIVE_REGISTRY_FOLDER,
 )
 from papermerge.core.features.library_ts.db import api as lib_ts_api
 from papermerge.core.features.nodes.db import orm as nodes_orm
@@ -280,6 +288,184 @@ async def delete_msp_type(
     """Delete a measure type (its sections are removed too)."""
     _require_superuser(user)
     await api.delete_msp_type(db_session, msp_type_id)
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# Normative registry (central NPA store for new-template measures)
+# --------------------------------------------------------------------------- #
+@router.get(
+    "/normative-registry",
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Portal not configured",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+    },
+)
+async def get_normative_registry(
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> NormativeRegistryRead:
+    """Return (and create if missing) the central normative-acts folder tree."""
+    registry_id, buckets, err = await api.ensure_normative_registry(db_session)
+    if err or registry_id is None:
+        raise HTTPException(status_code=404, detail="Portal not configured")
+    await db_session.commit()
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=registry_id,
+        codename=scopes.NODE_VIEW,
+        user_id=user.id,
+    )
+    return NormativeRegistryRead(
+        folder_id=registry_id,
+        title=NORMATIVE_REGISTRY_FOLDER,
+        buckets=[
+            NormativeRegistryBucket(title=title, folder_id=buckets[title])
+            for title in NORMATIVE_BUCKETS
+            if title in buckets
+        ],
+    )
+
+
+@router.get(
+    "/{msp_id}/normative-links",
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        }
+    },
+)
+async def list_msp_normative_links(
+    msp_id: UUID,
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> list[MspNormativeLinkRead]:
+    """List normative-act links attached to a measure."""
+    msp = await _get_msp_or_404(db_session, msp_id)
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=msp.node_id,
+        codename=scopes.NODE_VIEW,
+        user_id=user.id,
+    )
+    rows = await api.list_normative_links(db_session, msp_id)
+    return [
+        MspNormativeLinkRead(
+            id=link.id,
+            msp_id=link.msp_id,
+            bucket=link.bucket,
+            document_id=link.document_id,
+            title=title,
+            sort_order=link.sort_order,
+        )
+        for link, title in rows
+    ]
+
+
+@router.post(
+    "/{msp_id}/normative-links",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid link",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+    },
+)
+async def create_msp_normative_link(
+    msp_id: UUID,
+    payload: MspNormativeLinkCreate,
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_UPDATE])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> MspNormativeLinkRead:
+    """Attach a document from the central registry to this measure."""
+    msp = await _get_msp_or_404(db_session, msp_id)
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=msp.node_id,
+        codename=scopes.NODE_UPDATE,
+        user_id=user.id,
+    )
+    link, err = await api.create_normative_link(
+        db_session,
+        msp_id=msp_id,
+        document_id=payload.document_id,
+        bucket=payload.bucket,
+    )
+    if err == "invalid_bucket":
+        raise HTTPException(status_code=400, detail="Invalid bucket")
+    if err == "document_not_found":
+        raise HTTPException(status_code=400, detail="Document not found")
+    if err == "document_not_in_registry":
+        raise HTTPException(
+            status_code=400,
+            detail="Document must be under the central normative registry",
+        )
+    if err == "already_linked":
+        raise HTTPException(status_code=400, detail="Document already linked")
+    if err or link is None:
+        raise HTTPException(status_code=400, detail=err or "Could not create link")
+    await db_session.commit()
+    title = await _node_title(db_session, link.document_id)
+    return MspNormativeLinkRead(
+        id=link.id,
+        msp_id=link.msp_id,
+        bucket=link.bucket,
+        document_id=link.document_id,
+        title=title,
+        sort_order=link.sort_order,
+    )
+
+
+@router.delete(
+    "/{msp_id}/normative-links/{link_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        }
+    },
+)
+async def delete_msp_normative_link(
+    msp_id: UUID,
+    link_id: UUID,
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_UPDATE])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove a normative-act link from a measure (does not delete the document)."""
+    msp = await _get_msp_or_404(db_session, msp_id)
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=msp.node_id,
+        codename=scopes.NODE_UPDATE,
+        user_id=user.id,
+    )
+    deleted = await api.delete_normative_link(
+        db_session, msp_id=msp_id, link_id=link_id
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Link not found")
+    await db_session.commit()
     return None
 
 

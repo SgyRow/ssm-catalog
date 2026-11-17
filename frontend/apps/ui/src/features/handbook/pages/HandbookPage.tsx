@@ -1,4 +1,5 @@
 import classes from "@/components/ViewportPage.module.css"
+import {uploadConvertsToPdf} from "@/features/document/documentPreview"
 import cardClasses from "@/features/handbook/Handbook.module.css"
 import {
   useCreateHandbookArticleMutation,
@@ -42,6 +43,13 @@ export default function HandbookPage() {
   }
 
   const onUploadDocument = async (file: File) => {
+    if (uploadConvertsToPdf(file.name)) {
+      notifications.show({
+        message: t("nodes.upload.pdf_conversion_notice"),
+        color: "blue",
+        autoClose: 6000
+      })
+    }
     try {
       const created = await createDocument(file).unwrap()
       navigate(`/handbook/${created.id}`)
