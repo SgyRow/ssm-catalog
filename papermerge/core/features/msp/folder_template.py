@@ -24,12 +24,25 @@ FolderSpec: TypeAlias = tuple[str, list["FolderSpec"]]
 NORMATIVE_FOLDER = "Нормативные правовые документы"
 INFORMATION_FOLDER = "Информационные материалы"
 
+# Central registry at the portal root: real NPA documents live here.
+# Measures only store links (msp_normative_links) into Федеральные/Региональные.
+# Title matches the in-measure normative folder name on purpose.
+NORMATIVE_REGISTRY_FOLDER = "Нормативные правовые документы"
+# Legacy title used briefly before the rename; still recognized for migration.
+NORMATIVE_REGISTRY_FOLDER_LEGACY = "Нормативно-правовые акты"
+NORMATIVE_BUCKET_FEDERAL = "Федеральные"
+NORMATIVE_BUCKET_REGIONAL = "Региональные"
+NORMATIVE_BUCKETS: tuple[str, ...] = (
+    NORMATIVE_BUCKET_FEDERAL,
+    NORMATIVE_BUCKET_REGIONAL,
+)
+
 MSP_DEFAULT_FOLDERS: list[FolderSpec] = [
     (
         NORMATIVE_FOLDER,
         [
-            ("Федеральные", []),
-            ("Региональные", []),
+            (NORMATIVE_BUCKET_FEDERAL, []),
+            (NORMATIVE_BUCKET_REGIONAL, []),
         ],
     ),
     (

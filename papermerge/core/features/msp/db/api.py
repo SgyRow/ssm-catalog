@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -365,3 +365,241 @@ async def delete_msp(db_session: AsyncSession, msp_id: UUID) -> None:
     await hard_delete_subtree(db_session, msp.node_id)
 
     await db_session.commit()
+
+
+# --------------------------------------------------------------------------- #
+# Normative registry + links
+# --------------------------------------------------------------------------- #
+async def _get_or_create_owned_folder(
+    db_session: AsyncSession,
+    *,
+    parent_id: UUID,
+    title: str,
+    group_id: UUID | None,
+    user_id: UUID | None,
+) -> UUID:
+    from papermerge.core.features.nodes.db.node_titles import (
+        find_folder_id_by_title,
+        next_sort_index,
+        revive_trashed_node,
+    )
+
+    existing = await find_folder_id_by_title(
+        db_session,
+        parent_id=parent_id,
+        title=title,
+        user_id=user_id,
+        group_id=group_id,
+        trashed=False,
+    )
+    if existing is not None:
+        return existing
+
+    trashed = await find_folder_id_by_title(
+        db_session,
+        parent_id=parent_id,
+        title=title,
+        user_id=user_id,
+        group_id=group_id,
+        trashed=True,
+    )
+    if trashed is not None:
+        await revive_trashed_node(db_session, trashed)
+        return trashed
+
+    folder_id = uuid.uuid4()
+    db_session.add(
+        nodes_orm.Folder(
+            id=folder_id,
+            user_id=user_id,
+            group_id=group_id,
+            title=title,
+            parent_id=parent_id,
+            ctype="folder",
+            sort_index=await next_sort_index(db_session, parent_id),
+        )
+    )
+    await db_session.flush()
+    return folder_id
+
+
+async def ensure_normative_registry(
+    db_session: AsyncSession,
+) -> tuple[UUID | None, dict[str, UUID], str | None]:
+    """Ensure the central NPA folder tree exists under the portal root.
+
+    Creates ``Нормативные правовые документы/{Федеральные,Региональные}``
+    if missing. Renames the legacy root title when found.
+    Returns ``(registry_folder_id, {bucket_title: folder_id}, error)``.
+    Does not commit — the caller owns the transaction.
+    """
+    from papermerge.core.features.nodes.db.node_titles import find_folder_id_by_title
+    from papermerge.core.features.portal.db import api as portal_dbapi
+
+    root_id = await portal_dbapi.get_portal_root_id(db_session)
+    group_id = await portal_dbapi.get_portal_group_id(db_session)
+    if root_id is None:
+        return None, {}, "portal_not_configured"
+    if group_id is None:
+        group_id = (
+            await db_session.execute(
+                select(nodes_orm.Node.group_id).where(nodes_orm.Node.id == root_id)
+            )
+        ).scalar_one_or_none()
+    if group_id is None:
+        return None, {}, "portal_not_configured"
+
+    # Prefer the canonical title; rename a leftover legacy folder if needed.
+    registry_id = await find_folder_id_by_title(
+        db_session,
+        parent_id=root_id,
+        title=folder_template.NORMATIVE_REGISTRY_FOLDER,
+        user_id=None,
+        group_id=group_id,
+        trashed=False,
+    )
+    if registry_id is None:
+        legacy_id = await find_folder_id_by_title(
+            db_session,
+            parent_id=root_id,
+            title=folder_template.NORMATIVE_REGISTRY_FOLDER_LEGACY,
+            user_id=None,
+            group_id=group_id,
+            trashed=False,
+        )
+        if legacy_id is not None:
+            await db_session.execute(
+                update(nodes_orm.Node)
+                .where(nodes_orm.Node.id == legacy_id)
+                .values(title=folder_template.NORMATIVE_REGISTRY_FOLDER)
+            )
+            await db_session.flush()
+            registry_id = legacy_id
+
+    if registry_id is None:
+        registry_id = await _get_or_create_owned_folder(
+            db_session,
+            parent_id=root_id,
+            title=folder_template.NORMATIVE_REGISTRY_FOLDER,
+            group_id=group_id,
+            user_id=None,
+        )
+    buckets: dict[str, UUID] = {}
+    for bucket in folder_template.NORMATIVE_BUCKETS:
+        buckets[bucket] = await _get_or_create_owned_folder(
+            db_session,
+            parent_id=registry_id,
+            title=bucket,
+            group_id=group_id,
+            user_id=None,
+        )
+    return registry_id, buckets, None
+
+
+async def list_normative_links(
+    db_session: AsyncSession, msp_id: UUID
+) -> list[tuple[orm.MspNormativeLink, str]]:
+    """Return ``(link, document_title)`` rows for a measure."""
+    stmt = (
+        select(orm.MspNormativeLink, nodes_orm.Node.title)
+        .join(nodes_orm.Node, nodes_orm.Node.id == orm.MspNormativeLink.document_id)
+        .where(
+            orm.MspNormativeLink.msp_id == msp_id,
+            nodes_orm.Node.deleted_at.is_(None),
+        )
+        .order_by(orm.MspNormativeLink.bucket, orm.MspNormativeLink.sort_order)
+    )
+    return list((await db_session.execute(stmt)).all())
+
+
+async def create_normative_link(
+    db_session: AsyncSession,
+    *,
+    msp_id: UUID,
+    document_id: UUID,
+    bucket: str,
+) -> tuple[orm.MspNormativeLink | None, str | None]:
+    """Attach a central registry document to a measure under ``bucket``.
+
+    Returns ``(link, error_code)``. Does not commit.
+    """
+    from papermerge.core.features.portal.db import api as portal_dbapi
+
+    bucket = bucket.strip()
+    if bucket not in folder_template.NORMATIVE_BUCKETS:
+        return None, "invalid_bucket"
+
+    msp = await get_msp(db_session, msp_id)
+    if msp is None:
+        return None, "msp_not_found"
+
+    doc = (
+        await db_session.execute(
+            select(nodes_orm.Node).where(
+                nodes_orm.Node.id == document_id,
+                nodes_orm.Node.ctype == "document",
+                nodes_orm.Node.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if doc is None:
+        return None, "document_not_found"
+
+    registry_id, _buckets, err = await ensure_normative_registry(db_session)
+    if err or registry_id is None:
+        return None, err or "portal_not_configured"
+
+    subtree = await portal_dbapi.get_portal_subtree_node_ids(db_session, registry_id)
+    if document_id not in subtree:
+        return None, "document_not_in_registry"
+
+    existing = (
+        await db_session.execute(
+            select(orm.MspNormativeLink).where(
+                orm.MspNormativeLink.msp_id == msp_id,
+                orm.MspNormativeLink.document_id == document_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return None, "already_linked"
+
+    max_order = (
+        await db_session.execute(
+            select(
+                func.coalesce(func.max(orm.MspNormativeLink.sort_order), -1)
+            ).where(
+                orm.MspNormativeLink.msp_id == msp_id,
+                orm.MspNormativeLink.bucket == bucket,
+            )
+        )
+    ).scalar_one()
+    sort_order = int(max_order) + 1
+
+    link = orm.MspNormativeLink(
+        msp_id=msp_id,
+        bucket=bucket,
+        document_id=document_id,
+        sort_order=sort_order,
+    )
+    db_session.add(link)
+    await db_session.flush()
+    return link, None
+
+
+async def delete_normative_link(
+    db_session: AsyncSession, *, msp_id: UUID, link_id: UUID
+) -> bool:
+    link = (
+        await db_session.execute(
+            select(orm.MspNormativeLink).where(
+                orm.MspNormativeLink.id == link_id,
+                orm.MspNormativeLink.msp_id == msp_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if link is None:
+        return False
+    await db_session.delete(link)
+    await db_session.flush()
+    return True

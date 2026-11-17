@@ -405,3 +405,98 @@ async def test_non_admin_cannot_create_type(db_session, make_user, login_as):
         json={"name": "Попытка", "sections": [{"title": "Раздел"}]},
     )
     assert resp.status_code == 403, resp.text
+
+
+async def test_normative_registry_and_links(
+    auth_api_client, db_session, user, make_document
+):
+    """Central NPA registry + attach/unlink links on a new-template measure."""
+    from papermerge.core.features.msp.db import api as msp_api
+    from papermerge.core.features.msp.folder_template import (
+        NORMATIVE_BUCKET_FEDERAL,
+        NORMATIVE_REGISTRY_FOLDER,
+    )
+    from papermerge.core.features.portal.db import api as portal_dbapi
+
+    client = auth_api_client.test_client
+
+    root_id, group_id, err = await portal_dbapi.ensure_portal_bootstrap(db_session)
+    assert err is None and root_id and group_id
+
+    # Superuser can view portal-owned nodes via NODE_VIEW / portal.view paths;
+    # grant access by also ensuring registry then creating a doc under it.
+    registry_id, buckets, reg_err = await msp_api.ensure_normative_registry(db_session)
+    assert reg_err is None and registry_id
+    await db_session.commit()
+
+    federal_id = buckets[NORMATIVE_BUCKET_FEDERAL]
+    federal_folder = (
+        await db_session.scalars(
+            select(nodes_orm.Folder).where(nodes_orm.Folder.id == federal_id)
+        )
+    ).one()
+    doc = await make_document(title="ФЗ-тест.pdf", parent=federal_folder, user=user)
+    await db_session.commit()
+
+    resp = await client.get("/msp/normative-registry")
+    assert resp.status_code == 200, resp.text
+    reg = resp.json()
+    assert reg["title"] == NORMATIVE_REGISTRY_FOLDER
+    assert {b["title"] for b in reg["buckets"]} == {"Федеральные", "Региональные"}
+
+    resp = await client.post(
+        "/msp/types",
+        json={"name": "ЕДК-НПА", "sections": [{"title": "Приём"}]},
+    )
+    assert resp.status_code == 201, resp.text
+    type_id = resp.json()["id"]
+
+    resp = await client.post(
+        "/msp/",
+        json={
+            "parent_id": str(user.home_folder_id),
+            "title": "Мера со ссылками НПА",
+            "msp_type_id": type_id,
+            "sections": [{"title": "Приём", "body": "Текст"}],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    msp_id = resp.json()["id"]
+
+    resp = await client.post(
+        f"/msp/{msp_id}/normative-links",
+        json={"document_id": str(doc.id), "bucket": "Федеральные"},
+    )
+    assert resp.status_code == 201, resp.text
+    link = resp.json()
+    assert link["document_id"] == str(doc.id)
+    assert link["bucket"] == "Федеральные"
+    assert link["title"] == "ФЗ-тест.pdf"
+    link_id = link["id"]
+
+    resp = await client.get(f"/msp/{msp_id}/normative-links")
+    assert resp.status_code == 200, resp.text
+    assert len(resp.json()) == 1
+
+    # Duplicate attach is rejected.
+    resp = await client.post(
+        f"/msp/{msp_id}/normative-links",
+        json={"document_id": str(doc.id), "bucket": "Региональные"},
+    )
+    assert resp.status_code == 400, resp.text
+
+    resp = await client.delete(f"/msp/{msp_id}/normative-links/{link_id}")
+    assert resp.status_code == 204
+
+    resp = await client.get(f"/msp/{msp_id}/normative-links")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == []
+
+    # Document itself still exists under the registry.
+    still = (
+        await db_session.scalars(
+            select(nodes_orm.Node).where(nodes_orm.Node.id == doc.id)
+        )
+    ).one_or_none()
+    assert still is not None
+    assert still.parent_id == federal_id
