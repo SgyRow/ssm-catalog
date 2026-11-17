@@ -145,15 +145,31 @@ class NormativeRegistryRead(BaseModel):
     buckets: list[NormativeRegistryBucket] = Field(default_factory=list)
 
 
-class MspNormativeLinkCreate(BaseModel):
-    document_id: UUID
-    bucket: str = Field(min_length=1, max_length=100)
+class MspNormativeFolderCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+
+
+class MspNormativeFolderUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
 
 
 class MspNormativeLinkRead(BaseModel):
     id: UUID
     msp_id: UUID
-    bucket: str
+    folder_id: UUID
     document_id: UUID
     title: str
     sort_order: int
+
+
+class MspNormativeFolderRead(BaseModel):
+    id: UUID
+    msp_id: UUID
+    title: str
+    sort_order: int
+    links: list[MspNormativeLinkRead] = Field(default_factory=list)
+
+
+class MspNormativeLinkCreate(BaseModel):
+    document_id: UUID
+    folder_id: UUID

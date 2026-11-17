@@ -86,15 +86,27 @@ export type NormativeRegistry = {
 export type MspNormativeLink = {
   id: string
   msp_id: string
-  bucket: string
+  folder_id: string
   document_id: string
   title: string
   sort_order: number
 }
 
+export type MspNormativeFolder = {
+  id: string
+  msp_id: string
+  title: string
+  sort_order: number
+  links: MspNormativeLink[]
+}
+
 export type MspNormativeLinkCreate = {
   document_id: string
-  bucket: string
+  folder_id: string
+}
+
+export type MspNormativeFolderCreate = {
+  title: string
 }
 
 const injected = apiSlice.injectEndpoints({
@@ -218,9 +230,47 @@ const injected = apiSlice.injectEndpoints({
       query: () => "/msp/normative-registry",
       providesTags: [{type: "MspNormativeRegistry", id: "ROOT"}]
     }),
-    listMspNormativeLinks: builder.query<MspNormativeLink[], string>({
-      query: mspId => `/msp/${mspId}/normative-links`,
+    listMspNormativeFolders: builder.query<MspNormativeFolder[], string>({
+      query: mspId => `/msp/${mspId}/normative-folders`,
       providesTags: (_r, _e, mspId) => [{type: "MspNormativeLinks", id: mspId}]
+    }),
+    createMspNormativeFolder: builder.mutation<
+      MspNormativeFolder,
+      {msp_id: string} & MspNormativeFolderCreate
+    >({
+      query: ({msp_id, ...body}) => ({
+        url: `/msp/${msp_id}/normative-folders`,
+        method: "POST",
+        body
+      }),
+      invalidatesTags: (_r, _e, {msp_id}) => [
+        {type: "MspNormativeLinks", id: msp_id}
+      ]
+    }),
+    updateMspNormativeFolder: builder.mutation<
+      MspNormativeFolder,
+      {msp_id: string; folder_id: string; title: string}
+    >({
+      query: ({msp_id, folder_id, title}) => ({
+        url: `/msp/${msp_id}/normative-folders/${folder_id}`,
+        method: "PATCH",
+        body: {title}
+      }),
+      invalidatesTags: (_r, _e, {msp_id}) => [
+        {type: "MspNormativeLinks", id: msp_id}
+      ]
+    }),
+    deleteMspNormativeFolder: builder.mutation<
+      void,
+      {msp_id: string; folder_id: string}
+    >({
+      query: ({msp_id, folder_id}) => ({
+        url: `/msp/${msp_id}/normative-folders/${folder_id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: (_r, _e, {msp_id}) => [
+        {type: "MspNormativeLinks", id: msp_id}
+      ]
     }),
     createMspNormativeLink: builder.mutation<
       MspNormativeLink,
@@ -264,7 +314,10 @@ export const {
   useUpdateMspMutation,
   useDeleteMspMutation,
   useGetNormativeRegistryQuery,
-  useListMspNormativeLinksQuery,
+  useListMspNormativeFoldersQuery,
+  useCreateMspNormativeFolderMutation,
+  useUpdateMspNormativeFolderMutation,
+  useDeleteMspNormativeFolderMutation,
   useCreateMspNormativeLinkMutation,
   useDeleteMspNormativeLinkMutation
 } = injected

@@ -1,9 +1,13 @@
 import NormativeLinkPickerModal from "@/features/msp/NormativeLinkPickerModal"
 import {
+  useCreateMspNormativeFolderMutation,
   useCreateMspNormativeLinkMutation,
+  useDeleteMspNormativeFolderMutation,
   useDeleteMspNormativeLinkMutation,
   useGetNormativeRegistryQuery,
-  useListMspNormativeLinksQuery,
+  useListMspNormativeFoldersQuery,
+  useUpdateMspNormativeFolderMutation,
+  type MspNormativeFolder,
   type MspNormativeLink
 } from "@/features/msp/mspApiSlice"
 import LibraryBookmarkButtons from "@/features/library/components/LibraryBookmarkButtons"
@@ -16,20 +20,27 @@ import {
   Button,
   Group,
   Loader,
+  Modal,
   Paper,
   Stack,
   Text,
+  TextInput,
   ThemeIcon
 } from "@mantine/core"
 import {notifications} from "@mantine/notifications"
-import {IconFile, IconFolder, IconLink, IconTrash} from "@tabler/icons-react"
+import {
+  IconFile,
+  IconFolder,
+  IconFolderPlus,
+  IconLink,
+  IconPencil,
+  IconTrash
+} from "@tabler/icons-react"
 import {useMemo, useState} from "react"
 import {Link} from "react-router-dom"
 import {useTranslation} from "react-i18next"
 
 import classes from "./MspView.module.css"
-
-const DEFAULT_BUCKETS = ["Федеральные", "Региональные"] as const
 
 type ChildNav = {
   to: string
@@ -126,50 +137,116 @@ export default function MspNormativeSection({
   canEdit = false
 }: Props) {
   const {t} = useTranslation()
-  const {data: links = [], isLoading} = useListMspNormativeLinksQuery(mspId)
+  const {data: folders = [], isLoading} = useListMspNormativeFoldersQuery(mspId)
   const {data: registry} = useGetNormativeRegistryQuery(undefined, {
     skip: !canEdit
   })
+  const [createFolder, {isLoading: creatingFolder}] =
+    useCreateMspNormativeFolderMutation()
+  const [updateFolder, {isLoading: renamingFolder}] =
+    useUpdateMspNormativeFolderMutation()
+  const [deleteFolder, {isLoading: deletingFolder}] =
+    useDeleteMspNormativeFolderMutation()
   const [createLink, {isLoading: linking}] = useCreateMspNormativeLinkMutation()
   const [deleteLink, {isLoading: unlinking}] =
     useDeleteMspNormativeLinkMutation()
-  const [pickerBucket, setPickerBucket] = useState<string | null>(null)
 
-  const byBucket = useMemo(() => {
-    const map = new Map<string, MspNormativeLink[]>()
-    for (const bucket of DEFAULT_BUCKETS) {
-      map.set(bucket, [])
-    }
-    for (const link of links) {
-      const list = map.get(link.bucket) ?? []
-      list.push(link)
-      map.set(link.bucket, list)
-    }
-    return map
-  }, [links])
-
-  const buckets = useMemo(() => {
-    const titles = new Set<string>([...DEFAULT_BUCKETS])
-    for (const link of links) {
-      titles.add(link.bucket)
-    }
-    return [...titles]
-  }, [links])
-
-  const excludeIds = useMemo(
-    () => new Set(links.map(l => l.document_id)),
-    [links]
+  const [pickerFolder, setPickerFolder] = useState<MspNormativeFolder | null>(
+    null
   )
+  const [folderModal, setFolderModal] = useState<
+    | {mode: "create"}
+    | {mode: "rename"; folder: MspNormativeFolder}
+    | null
+  >(null)
+  const [folderTitleDraft, setFolderTitleDraft] = useState("")
+
+  const excludeIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const folder of folders) {
+      for (const link of folder.links) {
+        ids.add(link.document_id)
+      }
+    }
+    return ids
+  }, [folders])
+
+  const openCreateFolder = () => {
+    setFolderTitleDraft("")
+    setFolderModal({mode: "create"})
+  }
+
+  const openRenameFolder = (folder: MspNormativeFolder) => {
+    setFolderTitleDraft(folder.title)
+    setFolderModal({mode: "rename", folder})
+  }
+
+  const saveFolderModal = async () => {
+    const title = folderTitleDraft.trim()
+    if (!title || !folderModal) {
+      return
+    }
+    try {
+      if (folderModal.mode === "create") {
+        await createFolder({msp_id: mspId, title}).unwrap()
+        notifications.show({
+          color: "green",
+          message: t("msp.normative.folder_created")
+        })
+      } else {
+        await updateFolder({
+          msp_id: mspId,
+          folder_id: folderModal.folder.id,
+          title
+        }).unwrap()
+        notifications.show({
+          color: "green",
+          message: t("msp.normative.folder_renamed")
+        })
+      }
+      setFolderModal(null)
+    } catch {
+      notifications.show({
+        color: "red",
+        message: t("msp.normative.folder_save_error")
+      })
+    }
+  }
+
+  const onDeleteFolder = async (folder: MspNormativeFolder) => {
+    if (
+      !window.confirm(
+        t("msp.normative.folder_delete_confirm", {title: folder.title})
+      )
+    ) {
+      return
+    }
+    try {
+      await deleteFolder({
+        msp_id: mspId,
+        folder_id: folder.id
+      }).unwrap()
+      notifications.show({
+        color: "green",
+        message: t("msp.normative.folder_deleted")
+      })
+    } catch {
+      notifications.show({
+        color: "red",
+        message: t("msp.normative.folder_delete_error")
+      })
+    }
+  }
 
   const onAttach = async (document: {id: string; title: string}) => {
-    if (!pickerBucket) {
+    if (!pickerFolder) {
       return
     }
     try {
       await createLink({
         msp_id: mspId,
         document_id: document.id,
-        bucket: pickerBucket
+        folder_id: pickerFolder.id
       }).unwrap()
       notifications.show({
         color: "green",
@@ -222,15 +299,36 @@ export default function MspNormativeSection({
                 </Text>
               </Group>
             </Accordion.Control>
-            {folderNode ? (
-              <div className={classes.sectionActions}>
-                <LibraryBookmarkButtons nodeId={folderNode.id} size="sm" />
-              </div>
-            ) : null}
+            <div className={classes.sectionActions}>
+              <Group gap="xs" wrap="nowrap">
+                {canEdit ? (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconFolderPlus size={14} />}
+                    loading={creatingFolder}
+                    onClick={e => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      openCreateFolder()
+                    }}
+                  >
+                    {t("msp.normative.add_folder")}
+                  </Button>
+                ) : null}
+                {folderNode ? (
+                  <LibraryBookmarkButtons nodeId={folderNode.id} size="sm" />
+                ) : null}
+              </Group>
+            </div>
           </div>
           <Accordion.Panel>
             {isLoading ? (
               <Loader size="sm" my="xs" />
+            ) : folders.length === 0 ? (
+              <Text size="xs" c="dimmed">
+                {t("msp.view.folder_empty")}
+              </Text>
             ) : (
               <Accordion
                 multiple
@@ -238,79 +336,142 @@ export default function MspNormativeSection({
                 variant="separated"
                 defaultValue={[]}
               >
-                {buckets.map(bucket => {
-                  const bucketLinks = byBucket.get(bucket) ?? []
-                  return (
-                    <Accordion.Item key={bucket} value={bucket}>
-                      <div className={classes.sectionHead}>
-                        <Accordion.Control>
-                          <Group gap="sm" wrap="nowrap">
-                            <ThemeIcon
-                              variant="light"
-                              color="yellow"
-                              size="sm"
-                              radius="md"
-                              aria-hidden
-                            >
-                              <IconFolder size={14} stroke={1.5} />
-                            </ThemeIcon>
-                            <Text size="sm" fw={600}>
-                              {bucket}
-                            </Text>
-                          </Group>
-                        </Accordion.Control>
-                        {canEdit ? (
-                          <div className={classes.sectionActions}>
+                {folders.map(folder => (
+                  <Accordion.Item key={folder.id} value={folder.id}>
+                    <div className={classes.sectionHead}>
+                      <Accordion.Control>
+                        <Group gap="sm" wrap="nowrap">
+                          <ThemeIcon
+                            variant="light"
+                            color="yellow"
+                            size="sm"
+                            radius="md"
+                            aria-hidden
+                          >
+                            <IconFolder size={14} stroke={1.5} />
+                          </ThemeIcon>
+                          <Text size="sm" fw={600}>
+                            {folder.title}
+                          </Text>
+                        </Group>
+                      </Accordion.Control>
+                      {canEdit ? (
+                        <div className={classes.sectionActions}>
+                          <Group gap={4} wrap="nowrap">
                             <Button
                               size="xs"
                               variant="light"
                               leftSection={<IconLink size={14} />}
-                              loading={linking && pickerBucket === bucket}
+                              loading={
+                                linking && pickerFolder?.id === folder.id
+                              }
                               onClick={e => {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                setPickerBucket(bucket)
+                                setPickerFolder(folder)
                               }}
                             >
                               {t("msp.normative.attach")}
                             </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                      <Accordion.Panel>
-                        {bucketLinks.length === 0 ? (
-                          <Text size="xs" c="dimmed">
-                            {t("msp.view.folder_empty")}
-                          </Text>
-                        ) : (
-                          <Stack gap="xs">
-                            {bucketLinks.map(link => (
-                              <LinkRow
-                                key={link.id}
-                                link={link}
-                                childNav={childNav}
-                                canEdit={canEdit}
-                                unlinking={unlinking}
-                                onUnlink={() => void onUnlink(link.id)}
-                              />
-                            ))}
-                          </Stack>
-                        )}
-                      </Accordion.Panel>
-                    </Accordion.Item>
-                  )
-                })}
+                            <ActionIcon
+                              variant="subtle"
+                              aria-label={t("msp.normative.rename_folder")}
+                              onClick={e => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                openRenameFolder(folder)
+                              }}
+                            >
+                              <IconPencil size={14} stroke={1.5} />
+                            </ActionIcon>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              aria-label={t("msp.normative.delete_folder")}
+                              loading={deletingFolder}
+                              onClick={e => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                void onDeleteFolder(folder)
+                              }}
+                            >
+                              <IconTrash size={14} stroke={1.5} />
+                            </ActionIcon>
+                          </Group>
+                        </div>
+                      ) : null}
+                    </div>
+                    <Accordion.Panel>
+                      {folder.links.length === 0 ? (
+                        <Text size="xs" c="dimmed">
+                          {t("msp.view.folder_empty")}
+                        </Text>
+                      ) : (
+                        <Stack gap="xs">
+                          {folder.links.map(link => (
+                            <LinkRow
+                              key={link.id}
+                              link={link}
+                              childNav={childNav}
+                              canEdit={canEdit}
+                              unlinking={unlinking}
+                              onUnlink={() => void onUnlink(link.id)}
+                            />
+                          ))}
+                        </Stack>
+                      )}
+                    </Accordion.Panel>
+                  </Accordion.Item>
+                ))}
               </Accordion>
             )}
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>
-      {canEdit && registry && pickerBucket ? (
+
+      <Modal
+        opened={folderModal !== null}
+        onClose={() => setFolderModal(null)}
+        title={
+          folderModal?.mode === "rename"
+            ? t("msp.normative.rename_folder")
+            : t("msp.normative.add_folder")
+        }
+      >
+        <Stack gap="sm">
+          <TextInput
+            label={t("msp.normative.folder_title")}
+            value={folderTitleDraft}
+            onChange={e => setFolderTitleDraft(e.currentTarget.value)}
+            data-autofocus
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                void saveFolderModal()
+              }
+            }}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setFolderModal(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              loading={creatingFolder || renamingFolder}
+              disabled={!folderTitleDraft.trim()}
+              onClick={() => void saveFolderModal()}
+            >
+              {t("common.save")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {canEdit && registry && pickerFolder ? (
         <NormativeLinkPickerModal
-          opened={pickerBucket !== null}
-          onClose={() => setPickerBucket(null)}
+          opened={pickerFolder !== null}
+          onClose={() => setPickerFolder(null)}
           registry={registry}
-          bucketTitle={pickerBucket}
+          bucketTitle={pickerFolder.title}
           excludeDocumentIds={excludeIds}
           onPick={doc => void onAttach(doc)}
         />
