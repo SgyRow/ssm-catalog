@@ -1,4 +1,5 @@
 import classes from "@/components/ViewportPage.module.css"
+import {uploadConvertsToPdf} from "@/features/document/documentPreview"
 import articleClasses from "@/features/handbook/Handbook.module.css"
 import HandbookEditor from "@/features/handbook/components/HandbookEditor"
 import {
@@ -123,6 +124,13 @@ export default function HandbookArticlePage() {
   const onReplace = async (file: File) => {
     if (!articleId) {
       return
+    }
+    if (uploadConvertsToPdf(file.name)) {
+      notifications.show({
+        message: t("nodes.upload.pdf_conversion_notice"),
+        color: "blue",
+        autoClose: 6000
+      })
     }
     try {
       await replaceDocument({id: articleId, file}).unwrap()

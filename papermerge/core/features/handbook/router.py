@@ -9,6 +9,10 @@ from papermerge.core import exceptions as exc
 from papermerge.core import schema
 from papermerge.core.db.engine import get_db
 from papermerge.core.features.auth import get_current_user, scopes
+from papermerge.core.features.document.upload_pdf_convert import (
+    UploadPdfConversionError,
+    convert_upload_to_pdf_payload,
+)
 from papermerge.core.features.handbook import schema as hb_schema
 from papermerge.core.features.handbook.db import api as hb_api
 
@@ -21,6 +25,33 @@ def _can_manage(user: schema.User) -> bool:
     if user.is_superuser:
         return True
     return scopes.PORTAL_FEED_MANAGE in (user.scopes or [])
+
+
+async def _prepare_document_upload(
+    file: UploadFile,
+) -> tuple[bytes, str, str]:
+    """
+    Read upload and convert to PDF when the library would.
+
+    Returns ``(data, stored_filename, content_type)``.
+    """
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_ASSET_BYTES:
+        raise HTTPException(status_code=400, detail="File is too large")
+    original_name = (file.filename or "file").strip() or "file"
+    try:
+        data, stored_name, content_type = await convert_upload_to_pdf_payload(
+            data=data,
+            file_name=original_name,
+            content_type=file.content_type,
+        )
+    except UploadPdfConversionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if len(data) > MAX_ASSET_BYTES:
+        raise HTTPException(status_code=400, detail="File is too large")
+    return data, stored_name, content_type
 
 
 @router.get("", response_model=list[hb_schema.HandbookArticleOut])
@@ -59,13 +90,7 @@ async def create_handbook_document(
 ) -> hb_schema.HandbookArticleOut:
     if not _can_manage(user):
         raise exc.HTTP403Forbidden()
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="Empty file")
-    if len(data) > MAX_ASSET_BYTES:
-        raise HTTPException(status_code=400, detail="File is too large")
-    filename = (file.filename or "file").strip() or "file"
-    content_type = file.content_type or "application/octet-stream"
+    data, filename, content_type = await _prepare_document_upload(file)
     row = await hb_api.create_file_document(
         db_session,
         title=filename,
@@ -89,13 +114,7 @@ async def replace_handbook_document(
 ) -> hb_schema.HandbookArticleOut:
     if not _can_manage(user):
         raise exc.HTTP403Forbidden()
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="Empty file")
-    if len(data) > MAX_ASSET_BYTES:
-        raise HTTPException(status_code=400, detail="File is too large")
-    filename = (file.filename or "file").strip() or "file"
-    content_type = file.content_type or "application/octet-stream"
+    data, filename, content_type = await _prepare_document_upload(file)
     row = await hb_api.replace_file_document(
         db_session,
         article_id,
