@@ -485,81 +485,88 @@ export default function MspView({
 
       {editing ? (
         <>
-          <Text size="xs" c="dimmed" mb="xs">
-            {t("msp.form.rename_hint")}
-          </Text>
-          <Accordion
-            multiple
-            defaultValue={[]}
-            chevronPosition="left"
-            variant="separated"
-            className={classes.scroll}
-          >
-            {editFields.map(field => (
-              <Accordion.Item key={field.key} value={field.key}>
-                <Accordion.Control>
-                  <Group justify="space-between" wrap="nowrap" gap="sm">
-                    <Text size="sm" fw={600}>
-                      {(titles[field.key] ?? field.title).trim() || field.title}
-                    </Text>
-                    {isEmptyMspBody(bodies[field.key] ?? "") ? (
-                      <Text size="xs" c="dimmed">
-                        {t("msp.form.empty_section")}
+          <Stack gap="sm" className={classes.scroll}>
+            <MspNormativeSection
+              mspId={msp.id}
+              folderNode={normativeFolder}
+              childNav={childNav}
+              canEdit
+            />
+            <Text size="xs" c="dimmed">
+              {t("msp.form.rename_hint")}
+            </Text>
+            <Accordion
+              multiple
+              defaultValue={[]}
+              chevronPosition="left"
+              variant="separated"
+            >
+              {editFields.map(field => (
+                <Accordion.Item key={field.key} value={field.key}>
+                  <Accordion.Control>
+                    <Group justify="space-between" wrap="nowrap" gap="sm">
+                      <Text size="sm" fw={600}>
+                        {(titles[field.key] ?? field.title).trim() || field.title}
                       </Text>
-                    ) : hiddenMap[field.key] ? (
-                      <Text size="xs" c="dimmed">
-                        {t("msp.form.hidden_section")}
-                      </Text>
-                    ) : (
-                      <Text size="xs" c="dimmed">
-                        {t("msp.form.filled_section")}
-                      </Text>
-                    )}
-                  </Group>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <TextInput
-                    label={t("msp.form.section_title")}
-                    placeholder={field.title}
-                    value={titles[field.key] ?? field.title}
-                    onChange={e => {
-                      const value = e.target.value
-                      setTitles(prev => ({
-                        ...prev,
-                        [field.key]: value
-                      }))
-                    }}
-                    mb="xs"
-                  />
-                  <Group mb="xs">
-                    <Switch
-                      size="sm"
-                      label={t("msp.form.visible")}
-                      labelPosition="right"
-                      checked={hiddenMap[field.key] ?? field.hidden}
+                      {isEmptyMspBody(bodies[field.key] ?? "") ? (
+                        <Text size="xs" c="dimmed">
+                          {t("msp.form.empty_section")}
+                        </Text>
+                      ) : hiddenMap[field.key] ? (
+                        <Text size="xs" c="dimmed">
+                          {t("msp.form.hidden_section")}
+                        </Text>
+                      ) : (
+                        <Text size="xs" c="dimmed">
+                          {t("msp.form.filled_section")}
+                        </Text>
+                      )}
+                    </Group>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    <TextInput
+                      label={t("msp.form.section_title")}
+                      placeholder={field.title}
+                      value={titles[field.key] ?? field.title}
                       onChange={e => {
-                        const next = e.target.checked
-                        setHiddenMap(prev => ({
+                        const value = e.target.value
+                        setTitles(prev => ({
                           ...prev,
-                          [field.key]: next
+                          [field.key]: value
                         }))
                       }}
+                      mb="xs"
                     />
-                  </Group>
-                  <MspRichTextEditor
-                    value={bodies[field.key] ?? ""}
-                    placeholder={t("msp.form.body_placeholder")}
-                    onChange={html =>
-                      setBodies(prev => ({
-                        ...prev,
-                        [field.key]: html
-                      }))
-                    }
-                  />
-                </Accordion.Panel>
-              </Accordion.Item>
-            ))}
-          </Accordion>
+                    <Group mb="xs">
+                      <Switch
+                        size="sm"
+                        label={t("msp.form.visible")}
+                        labelPosition="right"
+                        checked={hiddenMap[field.key] ?? field.hidden}
+                        onChange={e => {
+                          const next = e.target.checked
+                          setHiddenMap(prev => ({
+                            ...prev,
+                            [field.key]: next
+                          }))
+                        }}
+                      />
+                    </Group>
+                    <MspRichTextEditor
+                      value={bodies[field.key] ?? ""}
+                      placeholder={t("msp.form.body_placeholder")}
+                      onChange={html =>
+                        setBodies(prev => ({
+                          ...prev,
+                          [field.key]: html
+                        }))
+                      }
+                    />
+                  </Accordion.Panel>
+                </Accordion.Item>
+              ))}
+            </Accordion>
+          </Stack>
           <Group justify="flex-end" className={classes.footer}>
             <Button variant="default" onClick={cancelEdit} disabled={saving}>
               {t("common.cancel")}
@@ -583,7 +590,7 @@ export default function MspView({
             mspId={msp.id}
             folderNode={normativeFolder}
             childNav={childNav}
-            canEdit={canEdit}
+            canEdit={false}
           />
           {visibleSections.length > 0 ? (
             <Accordion

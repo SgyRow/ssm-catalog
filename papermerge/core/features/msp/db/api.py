@@ -271,6 +271,8 @@ async def create_msp(
         section.msp_id = msp.id
         db_session.add(section)
 
+    await ensure_default_normative_folders(db_session, msp.id)
+
     await db_session.commit()
     created = await get_msp(db_session, msp.id)
     return created, folder.id, None
@@ -428,8 +430,8 @@ async def ensure_normative_registry(
 ) -> tuple[UUID | None, dict[str, UUID], str | None]:
     """Ensure the central NPA folder tree exists under the portal root.
 
-    Creates ``Нормативные правовые документы/{Федеральные,Региональные}``
-    if missing. Renames the legacy root title when found.
+    Creates ``Нормативные правовые акты/{Федеральные,Региональные}``
+    if missing. Renames a legacy root title when found.
     Returns ``(registry_folder_id, {bucket_title: folder_id}, error)``.
     Does not commit — the caller owns the transaction.
     """
@@ -459,15 +461,17 @@ async def ensure_normative_registry(
         trashed=False,
     )
     if registry_id is None:
-        legacy_id = await find_folder_id_by_title(
-            db_session,
-            parent_id=root_id,
-            title=folder_template.NORMATIVE_REGISTRY_FOLDER_LEGACY,
-            user_id=None,
-            group_id=group_id,
-            trashed=False,
-        )
-        if legacy_id is not None:
+        for legacy_title in folder_template.NORMATIVE_REGISTRY_FOLDER_LEGACY:
+            legacy_id = await find_folder_id_by_title(
+                db_session,
+                parent_id=root_id,
+                title=legacy_title,
+                user_id=None,
+                group_id=group_id,
+                trashed=False,
+            )
+            if legacy_id is None:
+                continue
             await db_session.execute(
                 update(nodes_orm.Node)
                 .where(nodes_orm.Node.id == legacy_id)
@@ -475,6 +479,7 @@ async def ensure_normative_registry(
             )
             await db_session.flush()
             registry_id = legacy_id
+            break
 
     if registry_id is None:
         registry_id = await _get_or_create_owned_folder(
@@ -496,6 +501,128 @@ async def ensure_normative_registry(
     return registry_id, buckets, None
 
 
+async def ensure_default_normative_folders(
+    db_session: AsyncSession, msp_id: UUID
+) -> list[orm.MspNormativeFolder]:
+    """Create Федеральные/Региональные virtual folders when the measure has none."""
+    existing = await list_normative_folders(db_session, msp_id)
+    if existing:
+        return existing
+    created: list[orm.MspNormativeFolder] = []
+    for i, title in enumerate(folder_template.NORMATIVE_BUCKETS):
+        folder = orm.MspNormativeFolder(
+            msp_id=msp_id, title=title, sort_order=i
+        )
+        db_session.add(folder)
+        created.append(folder)
+    await db_session.flush()
+    return created
+
+
+async def list_normative_folders(
+    db_session: AsyncSession, msp_id: UUID
+) -> list[orm.MspNormativeFolder]:
+    stmt = (
+        select(orm.MspNormativeFolder)
+        .options(selectinload(orm.MspNormativeFolder.links))
+        .where(orm.MspNormativeFolder.msp_id == msp_id)
+        .order_by(orm.MspNormativeFolder.sort_order, orm.MspNormativeFolder.title)
+    )
+    return list((await db_session.execute(stmt)).scalars().all())
+
+
+async def create_normative_folder(
+    db_session: AsyncSession, *, msp_id: UUID, title: str
+) -> tuple[orm.MspNormativeFolder | None, str | None]:
+    title = title.strip()
+    if not title:
+        return None, "invalid_title"
+    msp = await get_msp(db_session, msp_id)
+    if msp is None:
+        return None, "msp_not_found"
+
+    dup = (
+        await db_session.execute(
+            select(orm.MspNormativeFolder).where(
+                orm.MspNormativeFolder.msp_id == msp_id,
+                orm.MspNormativeFolder.title == title,
+            )
+        )
+    ).scalar_one_or_none()
+    if dup is not None:
+        return None, "duplicate_title"
+
+    max_order = (
+        await db_session.execute(
+            select(
+                func.coalesce(func.max(orm.MspNormativeFolder.sort_order), -1)
+            ).where(orm.MspNormativeFolder.msp_id == msp_id)
+        )
+    ).scalar_one()
+    folder = orm.MspNormativeFolder(
+        msp_id=msp_id, title=title, sort_order=int(max_order) + 1
+    )
+    db_session.add(folder)
+    await db_session.flush()
+    return folder, None
+
+
+async def update_normative_folder(
+    db_session: AsyncSession,
+    *,
+    msp_id: UUID,
+    folder_id: UUID,
+    title: str,
+) -> tuple[orm.MspNormativeFolder | None, str | None]:
+    title = title.strip()
+    if not title:
+        return None, "invalid_title"
+    folder = (
+        await db_session.execute(
+            select(orm.MspNormativeFolder).where(
+                orm.MspNormativeFolder.id == folder_id,
+                orm.MspNormativeFolder.msp_id == msp_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if folder is None:
+        return None, "folder_not_found"
+
+    dup = (
+        await db_session.execute(
+            select(orm.MspNormativeFolder).where(
+                orm.MspNormativeFolder.msp_id == msp_id,
+                orm.MspNormativeFolder.title == title,
+                orm.MspNormativeFolder.id != folder_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if dup is not None:
+        return None, "duplicate_title"
+
+    folder.title = title
+    await db_session.flush()
+    return folder, None
+
+
+async def delete_normative_folder(
+    db_session: AsyncSession, *, msp_id: UUID, folder_id: UUID
+) -> bool:
+    folder = (
+        await db_session.execute(
+            select(orm.MspNormativeFolder).where(
+                orm.MspNormativeFolder.id == folder_id,
+                orm.MspNormativeFolder.msp_id == msp_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if folder is None:
+        return False
+    await db_session.delete(folder)
+    await db_session.flush()
+    return True
+
+
 async def list_normative_links(
     db_session: AsyncSession, msp_id: UUID
 ) -> list[tuple[orm.MspNormativeLink, str]]:
@@ -507,7 +634,10 @@ async def list_normative_links(
             orm.MspNormativeLink.msp_id == msp_id,
             nodes_orm.Node.deleted_at.is_(None),
         )
-        .order_by(orm.MspNormativeLink.bucket, orm.MspNormativeLink.sort_order)
+        .order_by(
+            orm.MspNormativeLink.folder_id,
+            orm.MspNormativeLink.sort_order,
+        )
     )
     return list((await db_session.execute(stmt)).all())
 
@@ -517,21 +647,28 @@ async def create_normative_link(
     *,
     msp_id: UUID,
     document_id: UUID,
-    bucket: str,
+    folder_id: UUID,
 ) -> tuple[orm.MspNormativeLink | None, str | None]:
-    """Attach a central registry document to a measure under ``bucket``.
+    """Attach a central registry document to a virtual normative folder.
 
     Returns ``(link, error_code)``. Does not commit.
     """
     from papermerge.core.features.portal.db import api as portal_dbapi
 
-    bucket = bucket.strip()
-    if bucket not in folder_template.NORMATIVE_BUCKETS:
-        return None, "invalid_bucket"
-
     msp = await get_msp(db_session, msp_id)
     if msp is None:
         return None, "msp_not_found"
+
+    folder = (
+        await db_session.execute(
+            select(orm.MspNormativeFolder).where(
+                orm.MspNormativeFolder.id == folder_id,
+                orm.MspNormativeFolder.msp_id == msp_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if folder is None:
+        return None, "folder_not_found"
 
     doc = (
         await db_session.execute(
@@ -570,7 +707,7 @@ async def create_normative_link(
                 func.coalesce(func.max(orm.MspNormativeLink.sort_order), -1)
             ).where(
                 orm.MspNormativeLink.msp_id == msp_id,
-                orm.MspNormativeLink.bucket == bucket,
+                orm.MspNormativeLink.folder_id == folder_id,
             )
         )
     ).scalar_one()
@@ -578,7 +715,7 @@ async def create_normative_link(
 
     link = orm.MspNormativeLink(
         msp_id=msp_id,
-        bucket=bucket,
+        folder_id=folder_id,
         document_id=document_id,
         sort_order=sort_order,
     )

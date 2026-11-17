@@ -27,6 +27,9 @@ from papermerge.core.features.msp.schema import (
     NewMspTypeSection,
     ReorderMspTypeSections,
     UpdateMspType,
+    MspNormativeFolderCreate,
+    MspNormativeFolderRead,
+    MspNormativeFolderUpdate,
     MspNormativeLinkCreate,
     MspNormativeLinkRead,
     MspRead,
@@ -335,8 +338,47 @@ async def get_normative_registry(
     )
 
 
+def _link_read(link: orm.MspNormativeLink, title: str) -> MspNormativeLinkRead:
+    return MspNormativeLinkRead(
+        id=link.id,
+        msp_id=link.msp_id,
+        folder_id=link.folder_id,
+        document_id=link.document_id,
+        title=title,
+        sort_order=link.sort_order,
+    )
+
+
+async def _folder_reads(
+    db_session: AsyncSession, msp_id: UUID
+) -> list[MspNormativeFolderRead]:
+    await api.ensure_default_normative_folders(db_session, msp_id)
+    folders = await api.list_normative_folders(db_session, msp_id)
+    link_rows = await api.list_normative_links(db_session, msp_id)
+    titles = {link.id: title for link, title in link_rows}
+    result: list[MspNormativeFolderRead] = []
+    for folder in folders:
+        cleaned = []
+        for link in sorted(folder.links, key=lambda x: x.sort_order):
+            doc_title = titles.get(link.id)
+            if doc_title is None:
+                # Soft-deleted / missing document — skip.
+                continue
+            cleaned.append(_link_read(link, doc_title))
+        result.append(
+            MspNormativeFolderRead(
+                id=folder.id,
+                msp_id=folder.msp_id,
+                title=folder.title,
+                sort_order=folder.sort_order,
+                links=cleaned,
+            )
+        )
+    return result
+
+
 @router.get(
-    "/{msp_id}/normative-links",
+    "/{msp_id}/normative-folders",
     responses={
         status.HTTP_403_FORBIDDEN: {
             "description": "No permission",
@@ -344,14 +386,14 @@ async def get_normative_registry(
         }
     },
 )
-async def list_msp_normative_links(
+async def list_msp_normative_folders(
     msp_id: UUID,
     user: Annotated[
         core_schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])
     ],
     db_session: AsyncSession = Depends(get_db),
-) -> list[MspNormativeLinkRead]:
-    """List normative-act links attached to a measure."""
+) -> list[MspNormativeFolderRead]:
+    """List virtual normative folders (with links) for a measure."""
     msp = await _get_msp_or_404(db_session, msp_id)
     await dbapi_common.require_node_perm(
         db_session,
@@ -359,18 +401,145 @@ async def list_msp_normative_links(
         codename=scopes.NODE_VIEW,
         user_id=user.id,
     )
-    rows = await api.list_normative_links(db_session, msp_id)
-    return [
-        MspNormativeLinkRead(
-            id=link.id,
-            msp_id=link.msp_id,
-            bucket=link.bucket,
-            document_id=link.document_id,
-            title=title,
-            sort_order=link.sort_order,
-        )
-        for link, title in rows
-    ]
+    folders = await _folder_reads(db_session, msp_id)
+    await db_session.commit()
+    return folders
+
+
+@router.post(
+    "/{msp_id}/normative-folders",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid folder",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+    },
+)
+async def create_msp_normative_folder(
+    msp_id: UUID,
+    payload: MspNormativeFolderCreate,
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_UPDATE])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> MspNormativeFolderRead:
+    """Create a virtual subfolder under the measure's normative section."""
+    msp = await _get_msp_or_404(db_session, msp_id)
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=msp.node_id,
+        codename=scopes.NODE_UPDATE,
+        user_id=user.id,
+    )
+    await api.ensure_default_normative_folders(db_session, msp_id)
+    folder, err = await api.create_normative_folder(
+        db_session, msp_id=msp_id, title=payload.title
+    )
+    if err == "duplicate_title":
+        raise HTTPException(status_code=400, detail="Folder title already exists")
+    if err or folder is None:
+        raise HTTPException(status_code=400, detail=err or "Could not create folder")
+    await db_session.commit()
+    return MspNormativeFolderRead(
+        id=folder.id,
+        msp_id=folder.msp_id,
+        title=folder.title,
+        sort_order=folder.sort_order,
+        links=[],
+    )
+
+
+@router.patch(
+    "/{msp_id}/normative-folders/{folder_id}",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid folder",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        },
+    },
+)
+async def update_msp_normative_folder(
+    msp_id: UUID,
+    folder_id: UUID,
+    payload: MspNormativeFolderUpdate,
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_UPDATE])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> MspNormativeFolderRead:
+    """Rename a virtual normative folder."""
+    msp = await _get_msp_or_404(db_session, msp_id)
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=msp.node_id,
+        codename=scopes.NODE_UPDATE,
+        user_id=user.id,
+    )
+    folder, err = await api.update_normative_folder(
+        db_session, msp_id=msp_id, folder_id=folder_id, title=payload.title
+    )
+    if err == "folder_not_found":
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if err == "duplicate_title":
+        raise HTTPException(status_code=400, detail="Folder title already exists")
+    if err or folder is None:
+        raise HTTPException(status_code=400, detail=err or "Could not update folder")
+    await db_session.commit()
+    folders = await _folder_reads(db_session, msp_id)
+    for item in folders:
+        if item.id == folder_id:
+            return item
+    return MspNormativeFolderRead(
+        id=folder.id,
+        msp_id=folder.msp_id,
+        title=folder.title,
+        sort_order=folder.sort_order,
+        links=[],
+    )
+
+
+@router.delete(
+    "/{msp_id}/normative-folders/{folder_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        }
+    },
+)
+async def delete_msp_normative_folder(
+    msp_id: UUID,
+    folder_id: UUID,
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_UPDATE])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a virtual folder and its links (documents stay in the registry)."""
+    msp = await _get_msp_or_404(db_session, msp_id)
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=msp.node_id,
+        codename=scopes.NODE_UPDATE,
+        user_id=user.id,
+    )
+    deleted = await api.delete_normative_folder(
+        db_session, msp_id=msp_id, folder_id=folder_id
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await db_session.commit()
+    return None
 
 
 @router.post(
@@ -395,7 +564,7 @@ async def create_msp_normative_link(
     ],
     db_session: AsyncSession = Depends(get_db),
 ) -> MspNormativeLinkRead:
-    """Attach a document from the central registry to this measure."""
+    """Attach a document from the central registry to a virtual folder."""
     msp = await _get_msp_or_404(db_session, msp_id)
     await dbapi_common.require_node_perm(
         db_session,
@@ -407,10 +576,10 @@ async def create_msp_normative_link(
         db_session,
         msp_id=msp_id,
         document_id=payload.document_id,
-        bucket=payload.bucket,
+        folder_id=payload.folder_id,
     )
-    if err == "invalid_bucket":
-        raise HTTPException(status_code=400, detail="Invalid bucket")
+    if err == "folder_not_found":
+        raise HTTPException(status_code=400, detail="Folder not found")
     if err == "document_not_found":
         raise HTTPException(status_code=400, detail="Document not found")
     if err == "document_not_in_registry":
@@ -424,14 +593,7 @@ async def create_msp_normative_link(
         raise HTTPException(status_code=400, detail=err or "Could not create link")
     await db_session.commit()
     title = await _node_title(db_session, link.document_id)
-    return MspNormativeLinkRead(
-        id=link.id,
-        msp_id=link.msp_id,
-        bucket=link.bucket,
-        document_id=link.document_id,
-        title=title,
-        sort_order=link.sort_order,
-    )
+    return _link_read(link, title)
 
 
 @router.delete(

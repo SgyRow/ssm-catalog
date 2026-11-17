@@ -463,34 +463,60 @@ async def test_normative_registry_and_links(
     assert resp.status_code == 201, resp.text
     msp_id = resp.json()["id"]
 
+    resp = await client.get(f"/msp/{msp_id}/normative-folders")
+    assert resp.status_code == 200, resp.text
+    folders = resp.json()
+    assert {f["title"] for f in folders} == {"Федеральные", "Региональные"}
+    federal_folder_id = next(f["id"] for f in folders if f["title"] == "Федеральные")
+
+    resp = await client.post(
+        f"/msp/{msp_id}/normative-folders",
+        json={"title": "Консультационные письма"},
+    )
+    assert resp.status_code == 201, resp.text
+    custom_folder_id = resp.json()["id"]
+
+    resp = await client.patch(
+        f"/msp/{msp_id}/normative-folders/{custom_folder_id}",
+        json={"title": "Письма МСЗ"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["title"] == "Письма МСЗ"
+
     resp = await client.post(
         f"/msp/{msp_id}/normative-links",
-        json={"document_id": str(doc.id), "bucket": "Федеральные"},
+        json={"document_id": str(doc.id), "folder_id": federal_folder_id},
     )
     assert resp.status_code == 201, resp.text
     link = resp.json()
     assert link["document_id"] == str(doc.id)
-    assert link["bucket"] == "Федеральные"
+    assert link["folder_id"] == federal_folder_id
     assert link["title"] == "ФЗ-тест.pdf"
     link_id = link["id"]
 
-    resp = await client.get(f"/msp/{msp_id}/normative-links")
+    resp = await client.get(f"/msp/{msp_id}/normative-folders")
     assert resp.status_code == 200, resp.text
-    assert len(resp.json()) == 1
+    federal = next(f for f in resp.json() if f["id"] == federal_folder_id)
+    assert len(federal["links"]) == 1
 
     # Duplicate attach is rejected.
     resp = await client.post(
         f"/msp/{msp_id}/normative-links",
-        json={"document_id": str(doc.id), "bucket": "Региональные"},
+        json={"document_id": str(doc.id), "folder_id": custom_folder_id},
     )
     assert resp.status_code == 400, resp.text
 
     resp = await client.delete(f"/msp/{msp_id}/normative-links/{link_id}")
     assert resp.status_code == 204
 
-    resp = await client.get(f"/msp/{msp_id}/normative-links")
+    resp = await client.delete(
+        f"/msp/{msp_id}/normative-folders/{custom_folder_id}"
+    )
+    assert resp.status_code == 204
+
+    resp = await client.get(f"/msp/{msp_id}/normative-folders")
     assert resp.status_code == 200, resp.text
-    assert resp.json() == []
+    assert {f["title"] for f in resp.json()} == {"Федеральные", "Региональные"}
 
     # Document itself still exists under the registry.
     still = (
