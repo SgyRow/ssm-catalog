@@ -277,6 +277,15 @@ export default function MspNormativeSection({
 
   const sectionTitle =
     folderNode?.title ?? t("msp.normative.section_title")
+  // View shows a folder only after a document is linked to it. Edit keeps
+  // every folder so the first document can be attached.
+  const visibleFolders = canEdit
+    ? folders
+    : folders.filter(folder => folder.links.length > 0)
+
+  if (!canEdit && (isLoading || visibleFolders.length === 0)) {
+    return null
+  }
 
   return (
     <>
@@ -325,7 +334,7 @@ export default function MspNormativeSection({
           <Accordion.Panel>
             {isLoading ? (
               <Loader size="sm" my="xs" />
-            ) : folders.length === 0 ? (
+            ) : visibleFolders.length === 0 ? (
               <Text size="xs" c="dimmed">
                 {t("msp.view.folder_empty")}
               </Text>
@@ -336,7 +345,7 @@ export default function MspNormativeSection({
                 variant="separated"
                 defaultValue={[]}
               >
-                {folders.map(folder => (
+                {visibleFolders.map(folder => (
                   <Accordion.Item key={folder.id} value={folder.id}>
                     <div className={classes.sectionHead}>
                       <Accordion.Control>

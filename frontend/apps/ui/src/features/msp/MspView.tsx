@@ -14,6 +14,10 @@ import {
   parseMspSectionHash
 } from "@/features/library/libraryItem"
 import {useGetPortalNodesQuery} from "@/features/portal/portalApiSlice"
+import {
+  HideEmptyFolders,
+  INFORMATION_FOLDER
+} from "@/features/msp/occupiedFolders"
 import {formatNodeDisplayTitle} from "@/utils"
 import type {NodeType} from "@/types"
 import {
@@ -21,7 +25,6 @@ import {
   Anchor,
   Button,
   Group,
-  Loader,
   Paper,
   Skeleton,
   Stack,
@@ -49,8 +52,6 @@ const NORMATIVE_FOLDERS = new Set([
   "Нормативные правовые документы",
   "Нормативно-правовые документы"
 ])
-const INFORMATION_FOLDER = "Информационные материалы"
-
 /**
  * Document-like rendering of a measure: each filled section is shown as a
  * titled block of paragraphs. Users with update permission can edit the
@@ -142,8 +143,8 @@ function NodeRow({
 }
 
 /**
- * One of the standard measure folders (normative documents / information
- * materials) rendered as an accordion with the folder contents inside.
+ * Informational materials: the section and each category folder appear in
+ * the measure view only when they already contain a file.
  */
 function MspFolderSection({
   node,
@@ -152,53 +153,51 @@ function MspFolderSection({
   node: NodeType
   childNav?: (node: NodeType) => ChildNav
 }) {
-  const {t} = useTranslation()
-  const {data, isLoading} = useGetPortalNodesQuery({
+  const {data, isLoading, isError} = useGetPortalNodesQuery({
     parentId: node.id,
     page_size: 100
   })
   const items = data?.items ?? []
+
   return (
-    <Accordion chevronPosition="left" variant="separated">
-      <Accordion.Item value={node.id}>
-        <div className={classes.sectionHead}>
-          <Accordion.Control>
-            <Group gap="sm" wrap="nowrap">
-              <ThemeIcon
-                variant="light"
-                color="yellow"
-                size="md"
-                radius="md"
-                aria-hidden
-              >
-                <IconFolder size={18} stroke={1.5} />
-              </ThemeIcon>
-              <Text size="sm" fw={600}>
-                {node.title}
-              </Text>
-            </Group>
-          </Accordion.Control>
-          <div className={classes.sectionActions}>
-            <LibraryBookmarkButtons nodeId={node.id} size="sm" />
-          </div>
-        </div>
-        <Accordion.Panel>
-          {isLoading ? (
-            <Loader size="sm" my="xs" />
-          ) : items.length === 0 ? (
-            <Text size="xs" c="dimmed">
-              {t("msp.view.folder_empty")}
-            </Text>
-          ) : (
-            <Stack gap="xs">
-              {items.map(row => (
-                <NodeRow key={row.id} row={row} childNav={childNav} />
-              ))}
-            </Stack>
-          )}
-        </Accordion.Panel>
-      </Accordion.Item>
-    </Accordion>
+    <HideEmptyFolders items={items} enabled={!isError}>
+      {({pending, visible}) =>
+        isLoading || pending || visible.length === 0 ? null : (
+          <Accordion chevronPosition="left" variant="separated">
+            <Accordion.Item value={node.id}>
+              <div className={classes.sectionHead}>
+                <Accordion.Control>
+                  <Group gap="sm" wrap="nowrap">
+                    <ThemeIcon
+                      variant="light"
+                      color="yellow"
+                      size="md"
+                      radius="md"
+                      aria-hidden
+                    >
+                      <IconFolder size={18} stroke={1.5} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={600}>
+                      {node.title}
+                    </Text>
+                  </Group>
+                </Accordion.Control>
+                <div className={classes.sectionActions}>
+                  <LibraryBookmarkButtons nodeId={node.id} size="sm" />
+                </div>
+              </div>
+              <Accordion.Panel>
+                <Stack gap="xs">
+                  {visible.map(row => (
+                    <NodeRow key={row.id} row={row} childNav={childNav} />
+                  ))}
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
+        )
+      }
+    </HideEmptyFolders>
   )
 }
 

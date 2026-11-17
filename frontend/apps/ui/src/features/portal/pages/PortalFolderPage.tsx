@@ -3,6 +3,10 @@ import {useGetFolderQuery} from "@/features/nodes/apiSlice"
 import PortalFolderTree from "@/features/portal/components/PortalFolderTree"
 import {useGetPortalNodesQuery, useGetPortalRootQuery} from "@/features/portal/portalApiSlice"
 import MspView from "@/features/msp/MspView"
+import {
+  HideEmptyFolders,
+  INFORMATION_FOLDER
+} from "@/features/msp/occupiedFolders"
 import {useGetMspByNodeQuery} from "@/features/msp/mspApiSlice"
 import {
   makePortalDocumentNavState,
@@ -219,17 +223,28 @@ export default function PortalFolderPage() {
               })}
             />
           </Paper>
-        ) : catalogItems.length === 0 ? (
-          <Paper withBorder p="xl" radius="md">
-            <Text c="dimmed" ta="center">
-              {t("portal.folder_empty")}
-            </Text>
-          </Paper>
         ) : (
-          <CatalogNodeList
+          <HideEmptyFolders
             items={catalogItems}
-            documentNavState={documentNavState}
-          />
+            enabled={folderMeta?.title === INFORMATION_FOLDER}
+          >
+            {({pending, visible}) =>
+              pending ? (
+                <Loader />
+              ) : visible.length === 0 ? (
+                <Paper withBorder p="xl" radius="md">
+                  <Text c="dimmed" ta="center">
+                    {t("portal.folder_empty")}
+                  </Text>
+                </Paper>
+              ) : (
+                <CatalogNodeList
+                  items={visible}
+                  documentNavState={documentNavState}
+                />
+              )
+            }
+          </HideEmptyFolders>
         )}
       </Stack>
     </Group>

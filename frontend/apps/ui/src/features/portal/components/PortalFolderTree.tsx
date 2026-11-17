@@ -17,6 +17,10 @@ import {useNavigate} from "react-router-dom"
 
 import {useLazyGetPortalNodesQuery} from "@/features/portal/portalApiSlice"
 import {
+  folderHasDocument,
+  INFORMATION_FOLDER
+} from "@/features/msp/occupiedFolders"
+import {
   HOME_FOLDER_TREE_WIDTH_MAX,
   HOME_FOLDER_TREE_WIDTH_MIN,
   homeFolderTreeWidthSet,
@@ -46,6 +50,71 @@ function replaceFolderChildren(
     }
     return n
   })
+}
+
+function findNodeLabel(
+  nodes: TreeNodeData[],
+  id: string
+): string | undefined {
+  for (const node of nodes) {
+    if (node.value === id) {
+      return String(node.label ?? "")
+    }
+    if (node.children?.length) {
+      const found = findNodeLabel(node.children, id)
+      if (found !== undefined) {
+        return found
+      }
+    }
+  }
+  return undefined
+}
+
+const EMPTY_UNTIL_FILES = new Set([
+  INFORMATION_FOLDER,
+  "Нормативные правовые документы",
+  "Нормативно-правовые документы"
+])
+
+async function folderOrCategoriesHaveDocuments(
+  folderId: string,
+  fetchItems: (parentId: string) => Promise<NodeType[]>
+): Promise<boolean> {
+  const nested = await fetchItems(folderId)
+  if (folderHasDocument(nested)) {
+    return true
+  }
+  for (const sub of nested) {
+    if (sub.ctype !== "folder") {
+      continue
+    }
+    const deep = await fetchItems(sub.id)
+    if (folderHasDocument(deep)) {
+      return true
+    }
+  }
+  return false
+}
+
+async function visiblePortalNodes(
+  items: NodeType[],
+  parentIsInformation: boolean,
+  fetchItems: (parentId: string) => Promise<NodeType[]>
+): Promise<NodeType[]> {
+  const kept: NodeType[] = []
+  for (const item of items) {
+    const hideEmpty =
+      item.ctype === "folder" &&
+      (parentIsInformation || EMPTY_UNTIL_FILES.has(item.title))
+    if (
+      hideEmpty &&
+      !(await folderOrCategoriesHaveDocuments(item.id, fetchItems))
+    ) {
+      continue
+    }
+    kept.push(item)
+  }
+  return kept
 }
 
 function getFlatValues(data: TreeNodeData[]): string[] {
@@ -146,8 +215,10 @@ export default function PortalFolderTree({
     )
   }, [])
   const loadedRef = useRef(new Set<string>())
+  const treeDataRef = useRef<TreeNodeData[]>([])
   const loadingRef = useRef(new Set<string>())
   const [treeData, setTreeData] = useState<TreeNodeData[]>([])
+  treeDataRef.current = treeData
   const [rootLoading, setRootLoading] = useState(true)
   const portalListingRevision = useAppSelector(state => {
     const entry = apiSlice.endpoints.getPortalNodes.select({
@@ -211,7 +282,11 @@ export default function PortalFolderTree({
       }
       loadingRef.current.add(folderId)
       try {
-        const items = await fetchAllPages(folderId)
+        const items = await visiblePortalNodes(
+          await fetchAllPages(folderId),
+          findNodeLabel(treeDataRef.current, folderId) === INFORMATION_FOLDER,
+          fetchAllPages
+        )
         loadedRef.current.add(folderId)
         const mapped = items.length > 0 ? items.map(nodeToTreeData) : undefined
         setTreeData(prev => replaceFolderChildren(prev, folderId, mapped ?? []))
