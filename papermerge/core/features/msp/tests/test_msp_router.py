@@ -166,34 +166,22 @@ async def test_create_msp_creates_default_folders(auth_api_client, db_session, u
     assert resp.status_code == 201, resp.text
     node_id = resp.json()["node_id"]
 
-    # Top level: exactly the two standard folders.
+    # Top level: only informational materials (normative acts are virtual).
     top_titles = await _folder_titles(db_session, node_id)
-    assert set(top_titles) == {
-        "Нормативные правовые документы",
-        "Информационные материалы",
-    }
+    assert set(top_titles) == {"Информационные материалы"}
 
-    # Each top folder has its subfolders.
-    folder_by_title = {}
-    for title in top_titles:
-        folder_id = (
-            await db_session.scalars(
-                select(nodes_orm.Folder).where(
-                    nodes_orm.Folder.parent_id == node_id,
-                    nodes_orm.Folder.title == title,
-                    nodes_orm.Folder.ctype == "folder",
-                    nodes_orm.Folder.deleted_at.is_(None),
-                )
+    info_id = (
+        await db_session.scalars(
+            select(nodes_orm.Folder).where(
+                nodes_orm.Folder.parent_id == node_id,
+                nodes_orm.Folder.title == "Информационные материалы",
+                nodes_orm.Folder.ctype == "folder",
+                nodes_orm.Folder.deleted_at.is_(None),
             )
-        ).one().id
-        folder_by_title[title] = folder_id
+        )
+    ).one().id
 
-    assert set(
-        await _folder_titles(db_session, folder_by_title["Нормативные правовые документы"])
-    ) == {"Федеральные", "Региональные"}
-    assert set(
-        await _folder_titles(db_session, folder_by_title["Информационные материалы"])
-    ) == {
+    assert set(await _folder_titles(db_session, info_id)) == {
         "Бланки заявлений",
         "На стенды",
         "Раздаточные материалы",

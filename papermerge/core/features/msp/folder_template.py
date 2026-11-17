@@ -1,10 +1,12 @@
 """Standard folders created inside a measure (МСП) folder on creation.
 
-Two top-level folders are always created with their subfolders:
+Only informational materials are created as real folders:
 
-- "Нормативные правовые документы" → "Федеральные", "Региональные";
 - "Информационные материалы" → "Бланки заявлений", "На стенды",
   "Раздаточные материалы", "Видеоматериалы", "Методические пособия".
+
+Normative acts are virtual (msp_normative_folders + links to the central
+registry) and are no longer mirrored as child folders of the measure.
 """
 
 from __future__ import annotations
@@ -21,12 +23,11 @@ from papermerge.core.features.nodes.db.node_titles import next_sort_index
 
 FolderSpec: TypeAlias = tuple[str, list["FolderSpec"]]
 
+# Kept for UI matching of older measures that still have this physical folder.
 NORMATIVE_FOLDER = "Нормативные правовые документы"
 INFORMATION_FOLDER = "Информационные материалы"
 
 # Central registry at the portal root: real NPA documents live here.
-# Measures only store links (msp_normative_links) into Федеральные/Региональные.
-# In-measure folder title stays NORMATIVE_FOLDER ("…документы").
 NORMATIVE_REGISTRY_FOLDER = "Нормативные правовые акты"
 # Previous root titles still recognized so ensure_* can rename them.
 NORMATIVE_REGISTRY_FOLDER_LEGACY: tuple[str, ...] = (
@@ -41,13 +42,6 @@ NORMATIVE_BUCKETS: tuple[str, ...] = (
 )
 
 MSP_DEFAULT_FOLDERS: list[FolderSpec] = [
-    (
-        NORMATIVE_FOLDER,
-        [
-            (NORMATIVE_BUCKET_FEDERAL, []),
-            (NORMATIVE_BUCKET_REGIONAL, []),
-        ],
-    ),
     (
         INFORMATION_FOLDER,
         [
