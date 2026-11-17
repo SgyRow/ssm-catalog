@@ -19,7 +19,18 @@ from papermerge.core.features.msp.htmlutil import (
 _USER_CSS = """
 h1 { font-size: 18pt; }
 h2 { font-size: 13pt; margin-top: 12pt; }
+h3 { font-size: 11.5pt; margin-top: 10pt; }
 p { margin: 0 0 6pt 0; }
+ul, ol { margin: 0 0 6pt 18pt; }
+li { margin: 1pt 0; }
+blockquote {
+  margin: 6pt 0;
+  padding-left: 10pt;
+  border-left: 2pt solid #888;
+  color: #444;
+}
+hr { border: 0; border-top: 1pt solid #666; margin: 8pt 0; }
+a { color: #0645ad; text-decoration: underline; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border: 1px solid #444; padding: 4pt; vertical-align: top; }
 img { max-width: 100%; }
