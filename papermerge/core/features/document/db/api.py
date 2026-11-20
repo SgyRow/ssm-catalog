@@ -629,6 +629,21 @@ def get_pdf_page_count(content: io.BytesIO | bytes) -> int:
     return page_count
 
 
+async def document_has_uploaded_content(
+    db_session: AsyncSession, document_id: uuid.UUID
+) -> bool:
+    """True when the document already has at least one non-empty version."""
+    stmt = (
+        select(func.count())
+        .select_from(orm.DocumentVersion)
+        .where(
+            orm.DocumentVersion.document_id == document_id,
+            orm.DocumentVersion.size > 0,
+        )
+    )
+    return bool(await db_session.scalar(stmt))
+
+
 async def create_next_version(
     db_session: AsyncSession,
     doc: orm.Document,

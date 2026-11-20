@@ -82,6 +82,7 @@ export default function useI18NText(): I18NRoleFormModal | undefined {
             delete: t("roleForm.permissionTree.delete"),
             download: t("roleForm.permissionTree.download"),
             upload: t("roleForm.permissionTree.upload"),
+            upload_version: t("roleForm.permissionTree.upload_version"),
             extract: t("roleForm.permissionTree.extract"),
             rotate: t("roleForm.permissionTree.rotate"),
             reorder: t("roleForm.permissionTree.reorder"),

@@ -254,6 +254,14 @@ async def has_node_perm(
                 auth_scopes.PORTAL_DOCUMENT_UPDATE,
             ):
                 return True
+        elif codename == auth_scopes.DOCUMENT_UPLOAD_VERSION:
+            if await _user_has_any_portal_perm_via_account_roles(
+                db_session,
+                user_id,
+                auth_scopes.PORTAL_DOCUMENT_UPDATE,
+                auth_scopes.PORTAL_DOCUMENT_UPLOAD,
+            ):
+                return True
         elif codename == auth_scopes.NODE_DELETE:
             ctype = await db_session.scalar(
                 select(orm.Node.ctype).where(orm.Node.id == node_id)

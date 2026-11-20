@@ -119,6 +119,7 @@
       "delete": "Delete",
       "download": "Download",
       "upload": "Upload",
+      "upload_version": "Upload new file version",
       "extract": "Extract",
       "rotate": "Rotate",
       "reorder": "Reorder",

@@ -27,6 +27,7 @@ from papermerge.core.tasks import send_task
 from papermerge.core.db import common as dbapi_common
 from papermerge.core.routers.common import OPEN_API_GENERIC_JSON_DETAIL
 from papermerge.core.db.engine import get_db
+from papermerge.core.features.document.db import api as doc_dbapi
 from papermerge.core.features.library_ts.db import api as lib_ts_api
 from papermerge.core.features.portal import policy as portal_policy
 from papermerge.core.features.portal.db import api as portal_dbapi
@@ -146,7 +147,10 @@ async def get_document_custom_field_values(
     "/{document_id}/upload",
     responses={
         status.HTTP_403_FORBIDDEN: {
-            "description": f"No `{scopes.DOCUMENT_UPLOAD}` permission on the node",
+            "description": (
+                f"No `{scopes.DOCUMENT_UPLOAD}` (first file) or "
+                f"`{scopes.DOCUMENT_UPLOAD_VERSION}` (new version) permission"
+            ),
             "content": OPEN_API_GENERIC_JSON_DETAIL,
         }
     },
@@ -154,9 +158,7 @@ async def get_document_custom_field_values(
 async def upload_file(
     document_id: uuid.UUID,
     file: UploadFile,
-    user: Annotated[
-        schema.User, Security(get_current_user, scopes=[scopes.DOCUMENT_UPLOAD])
-    ],
+    user: Annotated[schema.User, Security(get_current_user)],
     db_session: AsyncSession = Depends(get_db),
 ) -> schema.Document:
     """
@@ -165,6 +167,9 @@ async def upload_file(
 
     Document model must be created beforehand via `POST /nodes` endpoint
     provided with `ctype` = `document`.
+
+    First file upload requires ``document.upload``. Replacing the current
+    file with a new version requires ``document.upload.version``.
 
     In order to upload file cURL:
 
@@ -183,10 +188,21 @@ async def upload_file(
     """
     content = await file.read()
 
+    is_version_upload = await doc_dbapi.document_has_uploaded_content(
+        db_session, document_id
+    )
+    required_scope = (
+        scopes.DOCUMENT_UPLOAD_VERSION
+        if is_version_upload
+        else scopes.DOCUMENT_UPLOAD
+    )
+    if required_scope not in (user.scopes or []):
+        raise exc.HTTP403Forbidden()
+
     await dbapi_common.require_node_perm(
         db_session,
         node_id=document_id,
-        codename=scopes.DOCUMENT_UPLOAD,
+        codename=required_scope,
         user_id=user.id,
     )
     await portal_policy.require_portal_on_document_file_upload(

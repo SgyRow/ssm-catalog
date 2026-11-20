@@ -235,6 +235,10 @@ function getPermissionTree(txt?: I18NPermissionTree) {
           ]
         },
         {value: "document.upload", label: txt?.upload || "Upload"},
+        {
+          value: "document.upload.version",
+          label: txt?.upload_version || "Upload new version"
+        },
         {value: "document.view", label: txt?.view || "View"},
         {
           value: "document.update",
@@ -412,6 +416,7 @@ const PERMISSION_DEPENDENCIES = {
   "document.delete": ["folder.delete"],
   "document.update.title": ["folder.update"],
   "document.update.tags": ["tag.select"],
+  "document.upload.version": ["document.upload"],
   "document.full_version.view": ["document.view"],
   "document.full_version.manage": ["document.full_version.view", "portal.view"],
   comment: ["document.view"],
@@ -426,7 +431,12 @@ const PERMISSION_DEPENDENCIES = {
   "portal.section.update": ["portal.view", "node.update"],
   "portal.section.delete": ["portal.view", "node.delete"],
   "portal.document.upload": ["portal.view", "node.create", "document.upload"],
-  "portal.document.update": ["portal.view", "node.update", "document.upload"],
+  "portal.document.update": [
+    "portal.view",
+    "node.update",
+    "document.upload",
+    "document.upload.version"
+  ],
   "portal.document.delete": ["portal.view", "node.delete"],
   citizen_category: ["node.view"],
   "citizen_category.view": ["node.view"],
