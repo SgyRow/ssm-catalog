@@ -5,6 +5,40 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class HandbookFolderOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HandbookFolderCreateIn(BaseModel):
+    title: str = Field(..., max_length=300)
+
+    @field_validator("title")
+    @classmethod
+    def title_strip_non_empty(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("title must not be empty")
+        return s
+
+
+class HandbookFolderUpdateIn(BaseModel):
+    title: str = Field(..., max_length=300)
+
+    @field_validator("title")
+    @classmethod
+    def title_strip_non_empty(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("title must not be empty")
+        return s
+
+
 class HandbookFileOut(BaseModel):
     filename: str
     content_type: str
@@ -24,6 +58,7 @@ class HandbookArticleOut(BaseModel):
     updated_at: datetime
     kind: str = "article"
     file: HandbookFileOut | None = None
+    folder_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +66,7 @@ class HandbookArticleOut(BaseModel):
 class HandbookArticleCreateIn(BaseModel):
     title: str = Field(..., max_length=500)
     body: str = Field(default="", max_length=200_000)
+    folder_id: UUID | None = None
 
     @field_validator("title")
     @classmethod
@@ -44,6 +80,7 @@ class HandbookArticleCreateIn(BaseModel):
 class HandbookArticleUpdateIn(BaseModel):
     title: str | None = Field(None, max_length=500)
     body: str | None = Field(None, max_length=200_000)
+    folder_id: UUID | None = None
 
     @field_validator("title")
     @classmethod

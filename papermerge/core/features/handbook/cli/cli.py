@@ -54,12 +54,16 @@ async def article_add(
                 raise typer.Exit(1)
             author_id = author_user.id
         try:
-            item = await handbook_dbapi.create_article(
+            item, err = await handbook_dbapi.create_article(
                 db_session, title=title, body=article_body, author_id=author_id
             )
         except Exception as e:
             await db_session.rollback()
             console.print(f"Failed to create article: {e}", style="red")
+            raise typer.Exit(1)
+        if err or item is None:
+            await db_session.rollback()
+            console.print(f"Failed to create article: {err}", style="red")
             raise typer.Exit(1)
         await db_session.commit()
 
