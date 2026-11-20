@@ -36,6 +36,13 @@ class Settings(BaseSettings):
         default=30,
         description="Default retention window (days) before auto-purge; overridden by library_settings.",
     )
+    papermerge__main__trash_purge_interval_seconds: int = Field(
+        default=3600,
+        description=(
+            "How often the API process runs expired-trash auto-purge. "
+            "Set to 0 to disable the in-process scheduler (startup CLI purge still runs)."
+        ),
+    )
     papermerge__main__office_web_viewer_base_url: str | None = Field(
         default=None,
         description="Optional Office Web Viewer base URL for iframe previews.",
