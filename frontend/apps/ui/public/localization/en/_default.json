@@ -619,7 +619,7 @@
         "about": {
           "title": "About the project",
           "items": [
-            "Digital library, version 0.2.4",
+            "Digital library, version 0.3.0",
             "Project created for KGKU \"Khabarovsk Center for Social Support of the Population\"",
             "Developers: Sokolov Mikhail Andreevich, Razuvaev Sergey Alexandrovich"
           ]
@@ -627,22 +627,22 @@
         "intro": {
           "title": "1. About the system",
           "items": [
-            "The digital library provides access to the organization's document catalog.",
-            "Catalog, news, and document pages open after sign-in. Without an account the site shows the login page."
+            "The digital library provides access to the document catalog and social support measures.",
+            "Catalog, news, handbook, and document pages open after sign-in. Without an account the site shows the login page."
           ]
         },
         "browse": {
           "title": "2. Browsing the catalog",
           "items": [
-            "After sign-in, Home shows a summary and Library shows the list of sections and documents.",
+            "After sign-in, Home shows a summary and Library in the menu opens the catalog of sections and documents.",
             "Open a section to see subfolders and files.",
-            "Click a document to view it in the built-in viewer."
+            "Click a document or a measure to view it in the built-in viewer."
           ]
         },
         "citizen_categories": {
           "title": "3. Citizen categories",
           "items": [
-            "The Citizen categories item in the menu shows a catalog of categories — a convenient way to find materials by target audience.",
+            "Citizen categories shows a catalog of categories — a convenient way to find materials by target audience.",
             "Pick a category to see linked catalog folders you are allowed to open.",
             "Open a folder to browse documents the same way as in the main catalog."
           ]
@@ -663,7 +663,7 @@
         "about": {
           "title": "About the project",
           "items": [
-            "Digital library, version 0.2.4",
+            "Digital library, version 0.3.0",
             "Project created for KGKU \"Khabarovsk Center for Social Support of the Population\"",
             "Developers: Sokolov Mikhail Andreevich, Razuvaev Sergey Alexandrovich"
           ]
@@ -672,50 +672,77 @@
           "title": "1. Getting started",
           "items": [
             "After sign-in the working interface opens. When the session ends, the site returns to the login page.",
-            "On the left is the menu of sections your role can open. On top are search, help, feedback, the bell, the light/dark theme switch, and the user menu.",
+            "On the left: Home, Library (catalog), News, Citizen categories, Handbook, Services, Favorites, and — with permissions — Tags, Users, and Roles. Superusers also see Audit log and Backup; feedback moderators see Feedback.",
+            "On top are search, help, feedback, the notifications bell, the light/dark theme switch, and the user menu.",
             "The sidebar button in the header collapses or expands the menu.",
             "Dates and times in lists, news, and the audit log use the Vladivostok time zone (UTC+10)."
           ]
         },
         "portal": {
-          "title": "2. Portal and document catalog",
+          "title": "2. Home, catalog, and news",
           "items": [
-            "Home opens a summary: shortcuts, news, reference information, notifications, and favorites.",
-            "Library opens the catalog: a list of folders and documents, a path trail, and an optional section tree. Turn the tree on with Show folder tree.",
-            "Click a folder to open its contents and a document to open the viewer.",
+            "Home opens a summary: shortcuts (measures, categories, advanced search, services), news preview, handbook items, favorites, and alerts.",
+            "Library in the side menu opens the document catalog: folders and files, a path trail, and an optional section tree. Turn the tree on with Show folder tree.",
+            "Click a folder to open it, a document to open the viewer, or a social support measure to open its card.",
             "If your role can use the file browser, the catalog has Manage in file browser. From the browser, Browse in catalog returns to the catalog list.",
-            "News contains official posts: title, text, category, date, author, and attachments. Important posts can be pinned to the top. An attachment opens like any other document.",
+            "News contains official posts: title, text, category, date, author, and attachments. Important posts can be pinned. An attachment opens like any other document.",
             "Users who can manage news see Add news and can edit, pin, or delete a post. Attachments are picked from the portal tree with Documents…."
           ]
         },
-        "library": {
-          "title": "3. Library",
+        "handbook": {
+          "title": "3. Handbook",
           "items": [
-            "Favorites has four tabs: Favorites, Watched, Recent, and Trash.",
-            "Favorites are materials you starred in the document viewer. You can also remove the star on the Favorites tab.",
-            "Watched lists files marked with the eye icon in the viewer. You get a notification when a watched file is updated.",
+            "Handbook lists materials grouped by folders, plus uncategorized items.",
+            "Open an item to read the text or view an attached document. Files without a preview can be downloaded.",
+            "Creating folders and materials and uploading or replacing documents requires portal news management permission (or superuser)."
+          ]
+        },
+        "services": {
+          "title": "4. Services",
+          "items": [
+            "Services shows tiles for external sites (for example Gosuslugi). A click opens the link in a new tab.",
+            "Only a superuser can add or remove services: title, http(s) URL, and an optional logo URL."
+          ]
+        },
+        "favorites": {
+          "title": "5. Favorites",
+          "items": [
+            "Favorites has tabs: Favorites, Watched, Recent, and Trash.",
+            "Favorites are materials you starred. You can organize them in personal folders: New folder, Move to folder, Unfiled.",
+            "Watched lists items marked with the eye icon. You get a notification when a watched file is updated. Personal folders are available here too.",
             "Recent lists folders and documents you opened, with the view time.",
             "Trash holds deleted materials. Select rows and choose Restore or Delete permanently when your role allows it.",
             "The Trash tab shows how long files are kept. After that they are deleted automatically. Only a superuser can change the period (1 to 3650 days).",
-            "The bell in the header lists new news posts. You can mark an item read and open the news."
+            "The bell in the header lists alerts: new news, feedback replies, and other events. You can mark an item read."
           ]
         },
         "citizen_categories": {
-          "title": "4. Citizen categories",
+          "title": "6. Citizen categories",
           "items": [
             "Citizen categories opens a catalog with a name, short description, and linked folder count.",
             "Pick a category to see folders you are allowed to open.",
-            "Open a folder — navigation continues the same way as under Library.",
+            "Open a folder — navigation continues the same way as in the catalog (Library).",
             "Creating and editing categories and linking folders to them require the matching permissions."
           ]
         },
-        "documents": {
-          "title": "5. Viewing documents",
+        "msp": {
+          "title": "7. Social support measures",
           "items": [
-            "The viewer toolbar has the favorite star, Download (when permitted), About file, and, with file-browser permission, split screen.",
+            "A measure opens from the catalog as a card with text sections, a normative-acts block, and related documents.",
+            "Filled sections appear in order. Empty and hidden sections are not shown in normal view.",
+            "Download PDF builds a printable file of the measure.",
+            "Normative legal documents lists linked acts from the registry. Acts open like ordinary catalog documents.",
+            "The star and eye icons on the measure card work like in the document viewer: favorites and change watching.",
+            "Users who can update the catalog can choose Edit: change the title, section texts, hide sections, and attach normative acts."
+          ]
+        },
+        "documents": {
+          "title": "8. Viewing documents",
+          "items": [
+            "The viewer toolbar has the favorite star, the watched (eye) icon, Download (when permitted), About file, and, with file-browser permission, split screen.",
             "Split screen opens a second panel with the same material. The arrow copies one panel into the other so you can compare different folders or documents.",
             "The breadcrumb above the document returns to the parent folder.",
-            "PDFs and images open in the browser preview. Zoom and text selection, when the file contains text, use that preview.",
+            "PDFs open in the built-in viewer: zoom, page thumbnails, and text selection when the file contains text.",
             "Word documents (.docx) are shown page by page: you can jump to a page number and change the zoom.",
             "Video and audio play in the viewer. Text files and HTML are shown as text.",
             "Spreadsheets, presentations, archives, and older Word files (.doc) can be downloaded. A detailed preview may be unavailable.",
@@ -726,18 +753,20 @@
           ]
         },
         "search": {
-          "title": "6. Search",
+          "title": "9. Search",
           "items": [
             "The header search field takes a text query. Enter or the search button opens the results page.",
-            "Results include folders and documents. Limit the type to all, folders only, or documents only.",
+            "On Home, the Search shortcut opens advanced search.",
+            "Advanced search can filter by title, type (folder or document), material kind (normative, reference, measure description, methodical, form), created and updated dates, citizen categories, and tags.",
+            "Ordinary results include folders and documents. Limit the type to all, folders only, or documents only.",
             "Sort by relevance, title A–Z, or title Z–A.",
-            "A result shows its tags. There is no separate tag filter.",
+            "A result shows its tags.",
             "When a match inside a document is not on the first page, the page number is shown next to it.",
             "The Go back to library arrow on the results page opens the Favorites tab."
           ]
         },
         "tags": {
-          "title": "7. Tags",
+          "title": "10. Tags",
           "items": [
             "Tags group documents and folders by topic.",
             "The Tags menu item shows the catalog: name and description.",
@@ -745,8 +774,17 @@
             "New tags are created only in the catalog. That is limited to administrators and moderators."
           ]
         },
+        "feedback": {
+          "title": "11. Feedback",
+          "items": [
+            "The message icon in the header opens the feedback window.",
+            "Help is a persistent chat with administrators: history is kept, and replies appear in the same window and in notifications.",
+            "Wishes is a one-off request with a subject and body. No reply arrives in that tab — use Help for conversation.",
+            "Users with feedback moderation permission see Feedback in the menu and can answer chats and wishes in the inbox."
+          ]
+        },
         "profile": {
-          "title": "8. Profile",
+          "title": "12. Profile",
           "items": [
             "The user menu in the top-right corner includes Profile.",
             "In your profile you can change email, first name, last name, and password.",
@@ -755,7 +793,7 @@
           ]
         },
         "comments": {
-          "title": "9. Comments",
+          "title": "13. Comments",
           "items": [
             "Comments and the rating are in the About file panel of an open document.",
             "You can leave a comment when your role allows it. You can edit and delete your own comments.",
@@ -769,7 +807,7 @@
         "about": {
           "title": "About the project",
           "items": [
-            "Digital library, version 0.2.4",
+            "Digital library, version 0.3.0",
             "Project created for KGKU \"Khabarovsk Center for Social Support of the Population\"",
             "Developers: Sokolov Mikhail Andreevich, Razuvaev Sergey Alexandrovich"
           ]
@@ -781,7 +819,7 @@
             "Create adds a user: username, email, first name, last name, and an initial password.",
             "Select one row to edit the account, change the password (Change Password), or delete it. Several rows can be deleted together.",
             "The account form assigns one or more roles. Roles decide which menu sections and catalog actions are available.",
-            "Clear Active to block sign-in and keep the data. Superuser opens the audit log, backup, and the trash retention setting."
+            "Clear Active to block sign-in and keep the data. Superuser opens the audit log, backup, trash retention, and services management."
           ]
         },
         "roles": {
@@ -790,9 +828,10 @@
             "Roles lists every role. A role can be created, edited (its permissions), and deleted.",
             "Built-in roles are shown as Administrator, Moderator, and Employee.",
             "Employee can browse the catalog and feed, download documents, pick existing tags, comment, and rate. That role cannot change the catalog, publish news, write private notes, or manage users.",
-            "Administrator and Moderator receive the full application permission set. The audit log and backup stay limited to the superuser.",
+            "Administrator and Moderator receive the full application permission set. The audit log, backup, and services list stay limited to the superuser.",
             "The permission tree includes Citizen categories: view, create, update, delete, and assign folders.",
-            "Separate permissions control viewing and editing the Full file version block.",
+            "Separate permissions control viewing and editing the Full file version block, and feedback moderation (Feedback menu item).",
+            "Portal news management also allows creating and editing Handbook materials.",
             "For a new role, grant only the permissions that are needed."
           ]
         },
@@ -807,20 +846,48 @@
         "portal": {
           "title": "4. Portal and news",
           "items": [
-            "The catalog is edited in the file browser, not in the Home list: use Manage in file browser.",
+            "The catalog is edited in the file browser, not in the Library list: use Manage in file browser.",
             "In the browser you can Upload, create a New Folder, and drop files from the computer into the current folder.",
             "On Feed, Add news creates a post with a title, text, and attachments. An existing post can be edited or deleted.",
             "Attachments and Full file version are chosen with Documents… from the portal tree."
           ]
         },
+        "handbook": {
+          "title": "5. Handbook (editing)",
+          "items": [
+            "With news-management permission, Handbook offers New folder, Create material, and Upload document.",
+            "A material can be a text article or an uploaded file. The file can be replaced without creating a new entry.",
+            "A folder can be renamed or deleted. Deleting a folder leaves its materials under Uncategorized.",
+            "Deleting a material is permanent — confirm in the dialog."
+          ]
+        },
+        "services": {
+          "title": "6. Services (editing)",
+          "items": [
+            "Only a superuser sees Add service.",
+            "Provide a title, an http(s) URL, and optionally a logo URL. The Gosuslugi tile may use a built-in logo.",
+            "Deleting a service removes the tile for everyone."
+          ]
+        },
+        "feedback": {
+          "title": "7. Feedback inbox",
+          "items": [
+            "Feedback in the menu is available to the superuser and roles with feedback moderation permission.",
+            "The inbox has two tabs: Help chats and Wishes.",
+            "Pick a chat on the left to reply. New messages and wishes also appear in the notifications bell.",
+            "A chat, a single message, or a wish can be deleted permanently after confirmation."
+          ]
+        },
         "commander": {
-          "title": "5. File manager",
+          "title": "8. File manager and measures",
           "items": [
             "The file browser opens from Manage in file browser in the catalog. The bottom of the list has page numbers and a page size.",
-            "When nothing is selected: Upload, New Folder, and, if you can create folders, Create MSP template.",
-            "Create MSP template adds a folder named by you, with the sections «1. Прием документов», «2. Назначение», and «3. Информационный материал», plus the nested folders inside them. If a folder with that name already exists, the template is not created.",
+            "When nothing is selected: Upload, New Folder, and, if you can create folders, Create measure.",
+            "Create measure opens a dialog: choose a measure type, set a title, and fill the sections you need. Empty sections are omitted. You can paste from Word — tables and images are kept.",
+            "A superuser uses the Measure types tab in the same dialog to create and edit types: name, description, and section list.",
+            "On a measure card, Edit lets you change texts, hide sections, and attach normative acts from the central registry (Attach).",
             "One selected item: Change title, tags, and Visibility. For one folder, the users-group icon assigns citizen categories.",
-            "Delete moves the selected items to trash. Restore and permanent delete are on the Trash tab in Library.",
+            "Delete moves the selected items to trash. Restore and permanent delete are on the Trash tab in Favorites.",
             "The superuser sets how long trash is kept on that same tab.",
             "The sort icon orders the list by title, type, modified date, or created date, ascending or descending. Quick search keeps name matches in the list.",
             "Arrange turns on a manual order. Start from the current sort, then drag individual folders and files. Done saves the order for everyone; Cancel leaves without saving.",
@@ -829,7 +896,7 @@
           ]
         },
         "citizen_categories": {
-          "title": "6. Citizen category catalog",
+          "title": "9. Citizen category catalog",
           "items": [
             "Citizen categories opens the catalog. With create permission you can add a category with a name and description.",
             "A row can be edited or deleted. Deleting a category does not delete folders — only the link is removed.",
@@ -838,7 +905,7 @@
           ]
         },
         "visibility": {
-          "title": "7. Document and folder visibility",
+          "title": "10. Document and folder visibility",
           "items": [
             "Visibility is available when one item is selected and you can change it.",
             "Modes: Inherit from parent folder, Owner and moderators only, Everyone (including guests), and Selected roles only.",
@@ -848,21 +915,21 @@
           ]
         },
         "backup": {
-          "title": "8. Backup",
+          "title": "11. Backup",
           "items": [
             "Backup in the menu is available only to the superuser.",
-            "Export everything builds a portable archive: the database (users, roles, permissions, documents, folders, news, citizen categories, settings) and every uploaded file.",
+            "Export everything builds a portable archive: the database (users, roles, permissions, documents, folders, news, citizen categories, measures, handbook, services, settings) and every uploaded file.",
             "The archive is saved as papermerge-backup.pmgbackup. Keep the tab open until the export finishes.",
             "Restore from archive replaces the current database and files with the selected archive. Make a fresh copy and confirm before restoring.",
             "Database address, media path, and the token signing secret are not carried over. Users may need to sign in again after import."
           ]
         },
         "audit": {
-          "title": "9. Audit log",
+          "title": "12. Audit log",
           "items": [
             "Audit log in the menu is available only to the superuser.",
             "The table shows time, user, action, resource type, identifier, and detail.",
-            "It records sign-in and sign-out, views and downloads, search, catalog changes, tags, visibility, comments, ratings, notes, favorites, users, roles, and feed posts.",
+            "It records sign-in and sign-out, views and downloads, search, catalog changes, measures, tags, visibility, comments, ratings, notes, favorites, users, roles, feed posts, and feedback.",
             "A long history is split into pages."
           ]
         }

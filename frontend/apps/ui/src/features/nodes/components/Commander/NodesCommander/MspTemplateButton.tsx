@@ -19,7 +19,7 @@ export default function MspTemplateButton() {
 
   return (
     <>
-      <Tooltip label={t("mspTemplate.button")} withArrow>
+      <Tooltip label={t("msp.button")} withArrow>
         <ActionIcon size={"lg"} variant="default" onClick={open}>
           <IconTemplate stroke={1.4} />
         </ActionIcon>
