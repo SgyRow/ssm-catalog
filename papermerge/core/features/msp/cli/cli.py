@@ -72,6 +72,103 @@ async def ensure_normative_registry():
     )
 
 
+@app.command("npa-reorg")
+@async_command
+async def npa_reorg(
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Apply changes (default is dry-run)",
+    ),
+    rebind_only: bool = typer.Option(
+        False,
+        "--rebind-only",
+        help="Only rebuild measure virtual folders (skip physical moves)",
+    ),
+):
+    """Move NPA docs into type subfolders and rebind measure virtual folders."""
+    from papermerge.core.features.msp.npa_reorg import (
+        rebind_measure_folders,
+        reorganize_registry,
+        run_full_reorg,
+    )
+
+    dry_run = not apply
+    async with AsyncSessionLocal() as db_session:
+        if rebind_only:
+            phys = None
+            virt = await rebind_measure_folders(db_session, dry_run=dry_run)
+            if not dry_run:
+                await db_session.commit()
+        else:
+            phys, virt = await run_full_reorg(db_session, dry_run=dry_run)
+
+    mode = "DRY-RUN" if dry_run else "APPLIED"
+    if phys is not None:
+        console.print(
+            f"[bold]{mode}[/bold] physical moves={len(phys.moved)} "
+            f"already_typed={phys.already_typed} "
+            f"new_type_folders={len(phys.created_type_folders)}"
+        )
+        for line in phys.moved[:20]:
+            console.print(f"  move: {line}")
+        if len(phys.moved) > 20:
+            console.print(f"  ... +{len(phys.moved) - 20} more")
+        for err in phys.errors:
+            console.print(f"[red]{err}[/red]")
+    console.print(
+        f"[bold]{mode}[/bold] rebound_links={virt.rebound_links} "
+        f"created_virtual={len(set(virt.created_virtual))} "
+        f"deleted_virtual={len(virt.deleted_virtual)}"
+    )
+    for title in sorted(set(virt.created_virtual))[:30]:
+        console.print(f"  +virtual: {title}")
+    for err in virt.errors:
+        console.print(f"[red]{err}[/red]")
+    errs = list(virt.errors)
+    if phys is not None:
+        errs.extend(phys.errors)
+    if errs:
+        raise typer.Exit(1)
+
+
+@app.command("npa-dedupe")
+@async_command
+async def npa_dedupe(
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Apply changes (default is dry-run)",
+    ),
+):
+    """Keep newest NPA edition per act; soft-delete older duplicates."""
+    from papermerge.core.features.msp.npa_aktual import dedupe_editions
+
+    dry_run = not apply
+    async with AsyncSessionLocal() as db_session:
+        report = await dedupe_editions(db_session, dry_run=dry_run)
+
+    mode = "DRY-RUN" if dry_run else "APPLIED"
+    console.print(
+        f"[bold]{mode}[/bold] groups={report.groups} kept={report.kept} "
+        f"retire={report.retired} links_repointed={report.links_repointed} "
+        f"ambiguous={len(report.skipped_ambiguous)}"
+    )
+    for title in report.retired_titles[:25]:
+        console.print(f"  retire: {title}")
+    if len(report.retired_titles) > 25:
+        console.print(f"  ... +{len(report.retired_titles) - 25} more")
+    console.print(
+        f"external_check_candidates={len(report.check_candidates)}"
+    )
+    for title in report.check_candidates[:20]:
+        console.print(f"  check: {title}")
+    for err in report.errors:
+        console.print(f"[red]{err}[/red]")
+    if report.errors:
+        raise typer.Exit(1)
+
+
 @app.command("pdf")
 @async_command
 async def msp_pdf_render(
