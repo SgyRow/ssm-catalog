@@ -57,6 +57,7 @@ class Scopes:
 
     # Document permissions
     DOCUMENT_UPLOAD = "document.upload"
+    DOCUMENT_UPLOAD_VERSION = "document.upload.version"
     DOCUMENT_DOWNLOAD = "document.download"
     DOCUMENT_DOWNLOAD_ALL_VERSIONS = "document.download.all_versions"
     DOCUMENT_DOWNLOAD_LAST_VERSION_ONLY = "document.download.last_version_only"

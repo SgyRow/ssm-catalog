@@ -29,6 +29,7 @@ export interface I18NPermissionTree {
   delete: string
   download: string
   upload: string
+  upload_version?: string
   extract: string
   rotate: string
   reorder: string
