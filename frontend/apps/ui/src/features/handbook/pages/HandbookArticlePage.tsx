@@ -4,6 +4,7 @@ import articleClasses from "@/features/handbook/Handbook.module.css"
 import HandbookEditor from "@/features/handbook/components/HandbookEditor"
 import {
   useGetHandbookArticleQuery,
+  useGetHandbookFoldersQuery,
   useReplaceHandbookDocumentMutation,
   useUpdateHandbookArticleMutation
 } from "@/features/handbook/handbookApiSlice"
@@ -17,6 +18,7 @@ import {
   Button,
   Group,
   Loader,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -57,12 +59,14 @@ export default function HandbookArticlePage() {
   const {data, isLoading, error} = useGetHandbookArticleQuery(articleId ?? "", {
     skip: !articleId
   })
+  const {data: folders = []} = useGetHandbookFoldersQuery()
   const [updateArticle, {isLoading: saving}] =
     useUpdateHandbookArticleMutation()
   const [replaceDocument, {isLoading: replacing}] =
     useReplaceHandbookDocumentMutation()
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
+  const [folderId, setFolderId] = useState<string | null>(null)
   const bodyRef = useRef("")
   const replaceInput = useRef<HTMLInputElement>(null)
   const flashTimer = useRef<number | null>(null)
@@ -73,8 +77,29 @@ export default function HandbookArticlePage() {
       setTitle(data.title)
       setBody(data.body)
       bodyRef.current = data.body
+      setFolderId(data.folder_id)
     }
   }, [data])
+
+  const folderOptions = [
+    {value: "", label: t("handbook.folder_none")},
+    ...folders.map(folder => ({value: folder.id, label: folder.title}))
+  ]
+  const folderSelect =
+    canManage && folders.length > 0 ? (
+      <Select
+        label={t("handbook.folder_label")}
+        data={folderOptions}
+        value={folderId ?? ""}
+        onChange={value => {
+          setFolderId(value || null)
+          setSavedFlash(false)
+        }}
+        clearable={false}
+        allowDeselect={false}
+        style={{minWidth: 220}}
+      />
+    ) : null
 
   if (isLoading) {
     return <Loader />
@@ -94,12 +119,17 @@ export default function HandbookArticlePage() {
     }
     try {
       if (data.kind === "file") {
-        await updateArticle({id: articleId, title}).unwrap()
+        await updateArticle({
+          id: articleId,
+          title,
+          folder_id: folderId
+        }).unwrap()
       } else {
         await updateArticle({
           id: articleId,
           title,
-          body: bodyRef.current
+          body: bodyRef.current,
+          folder_id: folderId
         }).unwrap()
       }
       setSavedFlash(true)
@@ -219,6 +249,20 @@ export default function HandbookArticlePage() {
               )}
             </Group>
             <Group gap={4} wrap="nowrap" style={{flexShrink: 0}}>
+              {canManage && folders.length > 0 ? (
+                <Select
+                  size="xs"
+                  data={folderOptions}
+                  value={folderId ?? ""}
+                  onChange={value => {
+                    setFolderId(value || null)
+                    setSavedFlash(false)
+                  }}
+                  clearable={false}
+                  allowDeselect={false}
+                  w={180}
+                />
+              ) : null}
               {canManage ? (
                 <Button
                   size="compact-xs"
@@ -301,6 +345,7 @@ export default function HandbookArticlePage() {
         ) : (
           <Title order={3}>{data.title}</Title>
         )}
+        {folderSelect}
         <Text size="sm" c="dimmed">
           {formatApiDateTimeCompact(data.updated_at)}
           {data.author_username ? ` · ${data.author_username}` : ""}
