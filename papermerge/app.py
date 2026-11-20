@@ -64,7 +64,19 @@ async def lifespan(_app: FastAPI):
         from papermerge.core.startup_migrations import run_pending_migrations
 
         run_pending_migrations()
-    yield
+
+    # Entrypoint also runs purge-trash once at container start; this loop keeps
+    # retention enforcement alive between restarts (native + Docker).
+    from papermerge.core.features.library_ts.trash_purge_scheduler import (
+        start_trash_purge_scheduler,
+        stop_trash_purge_scheduler,
+    )
+
+    start_trash_purge_scheduler()
+    try:
+        yield
+    finally:
+        await stop_trash_purge_scheduler()
 
 
 app = FastAPI(
