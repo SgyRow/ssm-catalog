@@ -9,6 +9,14 @@ export type HandbookFile = {
   url: string
 }
 
+export type HandbookFolder = {
+  id: string
+  title: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
 export type HandbookArticle = {
   id: string
   title: string
@@ -19,6 +27,7 @@ export type HandbookArticle = {
   updated_at: string
   kind: "article" | "file"
   file: HandbookFile | null
+  folder_id: string | null
 }
 
 export type HandbookAsset = {
@@ -36,13 +45,46 @@ const injected = apiSlice.injectEndpoints({
       query: () => "/handbook",
       providesTags: [{type: "Handbook", id: "LIST"}]
     }),
+    getHandbookFolders: builder.query<HandbookFolder[], void>({
+      query: () => "/handbook/folders",
+      providesTags: [{type: "Handbook", id: "FOLDERS"}]
+    }),
+    createHandbookFolder: builder.mutation<HandbookFolder, {title: string}>({
+      query: body => ({
+        url: "/handbook/folders",
+        method: "POST",
+        body
+      }),
+      invalidatesTags: [{type: "Handbook", id: "FOLDERS"}]
+    }),
+    updateHandbookFolder: builder.mutation<
+      HandbookFolder,
+      {id: string; title: string}
+    >({
+      query: ({id, ...body}) => ({
+        url: `/handbook/folders/${id}`,
+        method: "PATCH",
+        body
+      }),
+      invalidatesTags: [{type: "Handbook", id: "FOLDERS"}]
+    }),
+    deleteHandbookFolder: builder.mutation<void, string>({
+      query: id => ({
+        url: `/handbook/folders/${id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: [
+        {type: "Handbook", id: "FOLDERS"},
+        {type: "Handbook", id: "LIST"}
+      ]
+    }),
     getHandbookArticle: builder.query<HandbookArticle, string>({
       query: id => `/handbook/${id}`,
       providesTags: (_r, _e, id) => [{type: "Handbook", id}]
     }),
     createHandbookArticle: builder.mutation<
       HandbookArticle,
-      {title: string; body?: string}
+      {title: string; body?: string; folder_id?: string | null}
     >({
       query: body => ({
         url: "/handbook",
@@ -53,7 +95,7 @@ const injected = apiSlice.injectEndpoints({
     }),
     updateHandbookArticle: builder.mutation<
       HandbookArticle,
-      {id: string; title?: string; body?: string}
+      {id: string; title?: string; body?: string; folder_id?: string | null}
     >({
       query: ({id, ...body}) => ({
         url: `/handbook/${id}`,
@@ -72,11 +114,17 @@ const injected = apiSlice.injectEndpoints({
       }),
       invalidatesTags: [{type: "Handbook", id: "LIST"}]
     }),
-    createHandbookDocument: builder.mutation<HandbookArticle, File>({
-      queryFn: async file => {
+    createHandbookDocument: builder.mutation<
+      HandbookArticle,
+      {file: File; folder_id?: string | null}
+    >({
+      queryFn: async ({file, folder_id}) => {
         const token = Cookies.get("access_token")
         const form = new FormData()
         form.append("file", file)
+        if (folder_id) {
+          form.append("folder_id", folder_id)
+        }
         const headers: Record<string, string> = {}
         if (token) {
           headers.Authorization = `Bearer ${token}`
@@ -130,6 +178,10 @@ const injected = apiSlice.injectEndpoints({
 
 export const {
   useGetHandbookArticlesQuery,
+  useGetHandbookFoldersQuery,
+  useCreateHandbookFolderMutation,
+  useUpdateHandbookFolderMutation,
+  useDeleteHandbookFolderMutation,
   useGetHandbookArticleQuery,
   useCreateHandbookArticleMutation,
   useUpdateHandbookArticleMutation,

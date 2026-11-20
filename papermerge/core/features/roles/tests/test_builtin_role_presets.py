@@ -22,6 +22,7 @@ def test_employee_is_read_only_for_nodes_and_documents():
         Scopes.NODE_DELETE,
         Scopes.NODE_MOVE,
         Scopes.DOCUMENT_UPLOAD,
+        Scopes.DOCUMENT_UPLOAD_VERSION,
         Scopes.PAGE_UPDATE,
         Scopes.PAGE_MOVE,
         Scopes.PAGE_EXTRACT,

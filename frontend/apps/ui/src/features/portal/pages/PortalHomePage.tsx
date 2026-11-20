@@ -42,6 +42,7 @@ import {Link} from "react-router-dom"
 import {useTranslation} from "react-i18next"
 
 const NEWS_PREVIEW = 3
+const HANDBOOK_PREVIEW = 8
 const FAVORITES_PREVIEW = 4
 const ALERTS_PREVIEW = 4
 
@@ -281,7 +282,7 @@ export default function PortalHomePage() {
             {(handbook ?? []).length === 0 ? (
               <div className={classes.handbookBody} />
             ) : (
-              (handbook ?? []).slice(0, 4).map(item => (
+              (handbook ?? []).slice(0, HANDBOOK_PREVIEW).map(item => (
                 <Link
                   key={item.id}
                   className={classes.row}

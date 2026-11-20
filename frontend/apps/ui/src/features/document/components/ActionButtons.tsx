@@ -18,7 +18,7 @@ import UploadNewVersionButton from "@/features/document/components/UploadNewVers
 import RotateButton from "@/features/document/components/RotateButton"
 import RotateCCButton from "@/features/document/components/RotateCCButton"
 import {VIEWER_FILE_EDITING_ENABLED} from "@/features/document/constants"
-import {canOpenCommander} from "@/scopes"
+import {canOpenCommander, canUploadNewDocumentVersion} from "@/scopes"
 import {selectCurrentUser} from "@/slices/currentUser"
 import {
   useCurrentDoc,
@@ -47,7 +47,9 @@ export default function ActionButtons({
   const {docVer} = useCurrentDocVer()
   const selectedPages = useSelectedPages({mode, docVerID: docVer?.id})
   const user = useAppSelector(selectCurrentUser)
-  const showCommanderControls = canOpenCommander(user?.scopes ?? [])
+  const userScopes = user?.scopes ?? []
+  const showCommanderControls = canOpenCommander(userScopes)
+  const showUploadNewVersion = canUploadNewDocumentVersion(userScopes)
 
   useEffect(() => {
     if (ref?.current) {
@@ -71,7 +73,9 @@ export default function ActionButtons({
         {doc?.id ? <LibraryFavoriteToggle nodeId={doc.id} /> : null}
         {doc?.id ? <LibraryWatchToggle nodeId={doc.id} /> : null}
         {doc?.id ? <DocumentVersionSelector docId={doc.id} /> : null}
-        {doc?.id ? <UploadNewVersionButton docId={doc.id} /> : null}
+        {doc?.id && showUploadNewVersion ? (
+          <UploadNewVersionButton docId={doc.id} />
+        ) : null}
         <DownloadButton />
         {VIEWER_FILE_EDITING_ENABLED && selectedPages.length > 0 && (
           <RotateButton onClick={onRotateCWClicked} />

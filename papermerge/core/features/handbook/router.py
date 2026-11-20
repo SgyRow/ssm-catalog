@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Security, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Security, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,16 @@ def _can_manage(user: schema.User) -> bool:
     if user.is_superuser:
         return True
     return scopes.PORTAL_FEED_MANAGE in (user.scopes or [])
+
+
+def _folder_http_error(err: str) -> None:
+    if err == "duplicate_title":
+        raise HTTPException(status_code=409, detail="Folder title already exists")
+    if err == "invalid_title":
+        raise HTTPException(status_code=400, detail="Invalid folder title")
+    if err == "folder_not_found":
+        raise exc.HTTP404NotFound()
+    raise HTTPException(status_code=400, detail=err)
 
 
 async def _prepare_document_upload(
@@ -64,6 +74,65 @@ async def list_handbook(
     return [hb_schema.HandbookArticleOut(**row) for row in rows]
 
 
+@router.get("/folders", response_model=list[hb_schema.HandbookFolderOut])
+async def list_handbook_folders(
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> list[hb_schema.HandbookFolderOut]:
+    _ = user
+    rows = await hb_api.list_folders(db_session)
+    return [hb_schema.HandbookFolderOut(**row) for row in rows]
+
+
+@router.post("/folders", response_model=hb_schema.HandbookFolderOut)
+async def create_handbook_folder(
+    payload: hb_schema.HandbookFolderCreateIn,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> hb_schema.HandbookFolderOut:
+    if not _can_manage(user):
+        raise exc.HTTP403Forbidden()
+    row, err = await hb_api.create_folder(db_session, title=payload.title)
+    if err:
+        _folder_http_error(err)
+    assert row is not None
+    await db_session.commit()
+    return hb_schema.HandbookFolderOut(**row)
+
+
+@router.patch("/folders/{folder_id}", response_model=hb_schema.HandbookFolderOut)
+async def update_handbook_folder(
+    folder_id: UUID,
+    payload: hb_schema.HandbookFolderUpdateIn,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> hb_schema.HandbookFolderOut:
+    if not _can_manage(user):
+        raise exc.HTTP403Forbidden()
+    row, err = await hb_api.update_folder(
+        db_session, folder_id, title=payload.title
+    )
+    if err:
+        _folder_http_error(err)
+    assert row is not None
+    await db_session.commit()
+    return hb_schema.HandbookFolderOut(**row)
+
+
+@router.delete("/folders/{folder_id}", status_code=204)
+async def delete_handbook_folder(
+    folder_id: UUID,
+    user: Annotated[schema.User, Security(get_current_user)],
+    db_session: AsyncSession = Depends(get_db),
+) -> None:
+    if not _can_manage(user):
+        raise exc.HTTP403Forbidden()
+    ok = await hb_api.delete_folder(db_session, folder_id)
+    if not ok:
+        raise exc.HTTP404NotFound()
+    await db_session.commit()
+
+
 @router.post("", response_model=hb_schema.HandbookArticleOut)
 async def create_handbook(
     payload: hb_schema.HandbookArticleCreateIn,
@@ -72,12 +141,16 @@ async def create_handbook(
 ) -> hb_schema.HandbookArticleOut:
     if not _can_manage(user):
         raise exc.HTTP403Forbidden()
-    row = await hb_api.create_article(
+    row, err = await hb_api.create_article(
         db_session,
         title=payload.title,
         body=payload.body,
         author_id=user.id,
+        folder_id=payload.folder_id,
     )
+    if err:
+        _folder_http_error(err)
+    assert row is not None
     await db_session.commit()
     return hb_schema.HandbookArticleOut(**row)
 
@@ -87,18 +160,23 @@ async def create_handbook_document(
     user: Annotated[schema.User, Security(get_current_user)],
     db_session: AsyncSession = Depends(get_db),
     file: UploadFile = File(...),
+    folder_id: UUID | None = Form(None),
 ) -> hb_schema.HandbookArticleOut:
     if not _can_manage(user):
         raise exc.HTTP403Forbidden()
     data, filename, content_type = await _prepare_document_upload(file)
-    row = await hb_api.create_file_document(
+    row, err = await hb_api.create_file_document(
         db_session,
         title=filename,
         author_id=user.id,
         filename=filename,
         content_type=content_type,
         data=data,
+        folder_id=folder_id,
     )
+    if err:
+        _folder_http_error(err)
+    assert row is not None
     await db_session.commit()
     return hb_schema.HandbookArticleOut(**row)
 
@@ -189,14 +267,20 @@ async def update_handbook(
 ) -> hb_schema.HandbookArticleOut:
     if not _can_manage(user):
         raise exc.HTTP403Forbidden()
-    row = await hb_api.update_article(
+    fields = payload.model_dump(exclude_unset=True)
+    row, err = await hb_api.update_article(
         db_session,
         article_id,
-        title=payload.title,
-        body=payload.body,
+        title=fields.get("title"),
+        body=fields.get("body"),
+        folder_id=fields.get("folder_id"),
+        set_folder_id="folder_id" in fields,
     )
-    if row is None:
+    if err == "not_found":
         raise exc.HTTP404NotFound()
+    if err:
+        _folder_http_error(err)
+    assert row is not None
     await db_session.commit()
     return hb_schema.HandbookArticleOut(**row)
 

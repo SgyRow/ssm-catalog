@@ -3,9 +3,36 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from papermerge.core.db.base import Base
+
+
+class HandbookFolder(Base):
+    __tablename__ = "handbook_folders"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, insert_default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, unique=True)
+    sort_order: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        insert_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        insert_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    articles: Mapped[list["HandbookArticle"]] = relationship(
+        "HandbookArticle",
+        back_populates="folder",
+        passive_deletes=True,
+    )
 
 
 class HandbookArticle(Base):
@@ -22,6 +49,11 @@ class HandbookArticle(Base):
     file_size_bytes: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    folder_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("handbook_folders.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     author_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -36,6 +68,11 @@ class HandbookArticle(Base):
         insert_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    folder: Mapped[HandbookFolder | None] = relationship(
+        "HandbookFolder",
+        back_populates="articles",
     )
 
 

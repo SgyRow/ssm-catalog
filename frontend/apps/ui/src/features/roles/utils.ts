@@ -31,6 +31,7 @@ const FOLDER_DOCUMENT_NODE_MAP: Record<string, string> = {
 const DOCUMENT_FIELD_SCOPES = new Set([
   "document.update.title",
   "document.update.tags",
+  "document.upload.version",
   "document.full_version.view",
   "document.full_version.manage"
 ])

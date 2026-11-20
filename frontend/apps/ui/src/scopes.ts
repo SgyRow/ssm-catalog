@@ -25,6 +25,7 @@ export const DOCUMENT_UPDATE_TAGS = "document.update.tags"
 export const DOCUMENT_FULL_VERSION_VIEW = "document.full_version.view"
 export const DOCUMENT_FULL_VERSION_MANAGE = "document.full_version.manage"
 export const DOCUMENT_UPLOAD = "document.upload"
+export const DOCUMENT_UPLOAD_VERSION = "document.upload.version"
 export const DOCUMENT_DOWNLOAD = "document.download"
 export const TAG_CREATE = "tag.create"
 export const TAG_VIEW = "tag.view"
@@ -97,6 +98,11 @@ export function canUploadInCommander(
     return scopes.includes(PORTAL_DOCUMENT_UPLOAD)
   }
   return scopes.includes(DOCUMENT_UPLOAD)
+}
+
+/** Replace the current file with a new document version. */
+export function canUploadNewDocumentVersion(scopes: string[]): boolean {
+  return scopes.includes(DOCUMENT_UPLOAD_VERSION)
 }
 
 export function canCreateFolderInCommander(
@@ -175,6 +181,7 @@ export function canMutateInCommander(
 export const ALL_PERMS = [
   DOCUMENT_DOWNLOAD,
   DOCUMENT_UPLOAD,
+  DOCUMENT_UPLOAD_VERSION,
   PAGE_VIEW,
   PAGE_MOVE,
   PAGE_UPDATE,

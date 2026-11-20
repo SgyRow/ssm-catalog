@@ -46,6 +46,112 @@ def _safe_filename(name: str) -> str:
     return cleaned[:180] or "file"
 
 
+def _folder_dict(folder: hb_orm.HandbookFolder) -> dict:
+    return {
+        "id": folder.id,
+        "title": folder.title,
+        "sort_order": folder.sort_order,
+        "created_at": folder.created_at,
+        "updated_at": folder.updated_at,
+    }
+
+
+def _article_dict(article: hb_orm.HandbookArticle, username: str | None) -> dict:
+    return {
+        "id": article.id,
+        "title": article.title,
+        "body": article.body,
+        "author_id": article.author_id,
+        "author_username": username or "",
+        "created_at": article.created_at,
+        "updated_at": article.updated_at,
+        "kind": article.kind,
+        "file": _file_dict(article),
+        "folder_id": article.folder_id,
+    }
+
+
+async def _ensure_folder(
+    db_session: AsyncSession, folder_id: UUID | None
+) -> str | None:
+    if folder_id is None:
+        return None
+    folder = await db_session.get(hb_orm.HandbookFolder, folder_id)
+    if folder is None:
+        return "folder_not_found"
+    return None
+
+
+async def list_folders(db_session: AsyncSession) -> list[dict]:
+    stmt = select(hb_orm.HandbookFolder).order_by(
+        hb_orm.HandbookFolder.sort_order,
+        hb_orm.HandbookFolder.title,
+    )
+    folders = (await db_session.execute(stmt)).scalars().all()
+    return [_folder_dict(folder) for folder in folders]
+
+
+async def create_folder(
+    db_session: AsyncSession, *, title: str
+) -> tuple[dict | None, str | None]:
+    title = title.strip()
+    if not title:
+        return None, "invalid_title"
+    dup = (
+        await db_session.execute(
+            select(hb_orm.HandbookFolder).where(
+                hb_orm.HandbookFolder.title == title
+            )
+        )
+    ).scalar_one_or_none()
+    if dup is not None:
+        return None, "duplicate_title"
+    max_order = (
+        await db_session.execute(
+            select(func.coalesce(func.max(hb_orm.HandbookFolder.sort_order), -1))
+        )
+    ).scalar_one()
+    folder = hb_orm.HandbookFolder(title=title, sort_order=int(max_order) + 1)
+    db_session.add(folder)
+    await db_session.flush()
+    await db_session.refresh(folder)
+    return _folder_dict(folder), None
+
+
+async def update_folder(
+    db_session: AsyncSession, folder_id: UUID, *, title: str
+) -> tuple[dict | None, str | None]:
+    title = title.strip()
+    if not title:
+        return None, "invalid_title"
+    folder = await db_session.get(hb_orm.HandbookFolder, folder_id)
+    if folder is None:
+        return None, "folder_not_found"
+    dup = (
+        await db_session.execute(
+            select(hb_orm.HandbookFolder).where(
+                hb_orm.HandbookFolder.title == title,
+                hb_orm.HandbookFolder.id != folder_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if dup is not None:
+        return None, "duplicate_title"
+    folder.title = title
+    await db_session.flush()
+    await db_session.refresh(folder)
+    return _folder_dict(folder), None
+
+
+async def delete_folder(db_session: AsyncSession, folder_id: UUID) -> bool:
+    folder = await db_session.get(hb_orm.HandbookFolder, folder_id)
+    if folder is None:
+        return False
+    await db_session.delete(folder)
+    await db_session.flush()
+    return True
+
+
 async def list_articles(db_session: AsyncSession) -> list[dict]:
     author = orm.User
     stmt = (
@@ -57,22 +163,7 @@ async def list_articles(db_session: AsyncSession) -> list[dict]:
         .order_by(hb_orm.HandbookArticle.updated_at.desc())
     )
     rows = (await db_session.execute(stmt)).all()
-    items = []
-    for article, username in rows:
-        items.append(
-            {
-                "id": article.id,
-                "title": article.title,
-                "body": article.body,
-                "author_id": article.author_id,
-                "author_username": username or "",
-                "created_at": article.created_at,
-                "updated_at": article.updated_at,
-                "kind": article.kind,
-                "file": _file_dict(article),
-            }
-        )
-    return items
+    return [_article_dict(article, username) for article, username in rows]
 
 
 async def get_article(db_session: AsyncSession, article_id: UUID) -> dict | None:
@@ -86,17 +177,7 @@ async def get_article(db_session: AsyncSession, article_id: UUID) -> dict | None
     if row is None:
         return None
     article, username = row
-    return {
-        "id": article.id,
-        "title": article.title,
-        "body": article.body,
-        "author_id": article.author_id,
-        "author_username": username or "",
-        "created_at": article.created_at,
-        "updated_at": article.updated_at,
-        "kind": article.kind,
-        "file": _file_dict(article),
-    }
+    return _article_dict(article, username)
 
 
 async def create_file_document(
@@ -107,12 +188,17 @@ async def create_file_document(
     filename: str,
     content_type: str,
     data: bytes,
-) -> dict:
+    folder_id: UUID | None = None,
+) -> tuple[dict | None, str | None]:
+    err = await _ensure_folder(db_session, folder_id)
+    if err:
+        return None, err
     article = hb_orm.HandbookArticle(
         title=title,
         body="",
         kind="file",
         author_id=author_id,
+        folder_id=folder_id,
         file_filename=filename,
         file_content_type=content_type or "application/octet-stream",
         file_size_bytes=len(data),
@@ -124,7 +210,7 @@ async def create_file_document(
     row = await get_article(db_session, article.id)
     if row is None:
         raise RuntimeError("handbook file document was not stored")
-    return row
+    return row, None
 
 
 async def replace_file_document(
@@ -162,37 +248,53 @@ async def get_file_document(
 
 
 async def create_article(
-    db_session: AsyncSession, *, title: str, body: str, author_id: UUID | None
-) -> dict:
+    db_session: AsyncSession,
+    *,
+    title: str,
+    body: str,
+    author_id: UUID | None,
+    folder_id: UUID | None = None,
+) -> tuple[dict | None, str | None]:
+    err = await _ensure_folder(db_session, folder_id)
+    if err:
+        return None, err
     article = hb_orm.HandbookArticle(
         title=title,
         body=sanitize_html(body),
         author_id=author_id,
+        folder_id=folder_id,
     )
     db_session.add(article)
     await db_session.flush()
     row = await get_article(db_session, article.id)
     if row is None:
         raise RuntimeError("handbook article was not stored")
-    return row
+    return row, None
 
 
 async def update_article(
     db_session: AsyncSession,
     article_id: UUID,
     *,
-    title: str | None,
-    body: str | None,
-) -> dict | None:
+    title: str | None = None,
+    body: str | None = None,
+    folder_id: UUID | None = None,
+    set_folder_id: bool = False,
+) -> tuple[dict | None, str | None]:
     article = await db_session.get(hb_orm.HandbookArticle, article_id)
     if article is None:
-        return None
+        return None, "not_found"
     if title is not None:
         article.title = title
     if body is not None:
         article.body = sanitize_html(body)
+    if set_folder_id:
+        err = await _ensure_folder(db_session, folder_id)
+        if err:
+            return None, err
+        article.folder_id = folder_id
     await db_session.flush()
-    return await get_article(db_session, article_id)
+    return await get_article(db_session, article_id), None
 
 
 async def delete_article(db_session: AsyncSession, article_id: UUID) -> bool:
