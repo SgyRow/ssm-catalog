@@ -66,7 +66,7 @@ export default function PublicDocumentPreviewBody({
     setTextContent(null)
     setHtmlContent(null)
 
-    fetch(downloadUrl)
+    fetch(downloadUrl, {cache: "no-store"})
       .then(response => {
         if (!response.ok) {
           throw new Error(String(response.status))

@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
@@ -33,11 +34,20 @@ def _article_file_path(article_id: UUID) -> Path:
 def _file_dict(article: hb_orm.HandbookArticle) -> dict | None:
     if article.kind != "file":
         return None
+    # Cache-bust so replace swaps the preview/download URL even when the
+    # path stays /documents/{id}/download (browsers and the SPA both cache).
+    # Milliseconds: second resolution collides when create+replace share a second.
+    stamp = ""
+    if article.updated_at is not None:
+        stamp = str(int(article.updated_at.timestamp() * 1000))
+    url = f"/api/handbook/documents/{article.id}/download"
+    if stamp:
+        url = f"{url}?v={stamp}"
     return {
         "filename": article.file_filename or article.title,
         "content_type": article.file_content_type or "application/octet-stream",
         "size_bytes": article.file_size_bytes or 0,
-        "url": f"/api/handbook/documents/{article.id}/download",
+        "url": url,
     }
 
 
@@ -256,6 +266,11 @@ async def replace_file_document(
     article.file_filename = filename
     article.file_content_type = content_type or "application/octet-stream"
     article.file_size_bytes = len(data)
+    # Always bump updated_at: same name/size leaves the ORM "clean" and
+    # onupdate would not run, so the download URL stamp would stay stale.
+    # Use wall-clock time — Postgres now()/func.now() is fixed for the
+    # whole transaction and would match create_file_document's stamp.
+    article.updated_at = datetime.now(timezone.utc)
     await db_session.flush()
     return await get_article(db_session, article_id)
 

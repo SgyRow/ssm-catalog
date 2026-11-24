@@ -302,6 +302,7 @@ export default function HandbookArticlePage() {
         </div>
         <div className={articleClasses.filePreview}>
           <PublicDocumentPreviewBody
+            key={`${file.url}:${data.updated_at}`}
             fill
             downloadUrl={file.url}
             fileName={file.filename}
