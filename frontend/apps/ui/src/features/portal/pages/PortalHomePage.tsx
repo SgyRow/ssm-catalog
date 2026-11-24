@@ -42,7 +42,7 @@ import {Link} from "react-router-dom"
 import {useTranslation} from "react-i18next"
 
 const NEWS_PREVIEW = 3
-const HANDBOOK_PREVIEW = 8
+const HANDBOOK_PREVIEW = 6
 const FAVORITES_PREVIEW = 4
 const ALERTS_PREVIEW = 4
 
@@ -269,7 +269,7 @@ export default function PortalHomePage() {
             )}
           </section>
 
-          <section className={classes.card}>
+          <section className={`${classes.card} ${classes.cardFill}`}>
             <div className={classes.cardHead}>
               <h2>
                 <IconNotebook size={20} stroke={1.8} />
@@ -282,20 +282,22 @@ export default function PortalHomePage() {
             {(handbook ?? []).length === 0 ? (
               <div className={classes.handbookBody} />
             ) : (
-              (handbook ?? []).slice(0, HANDBOOK_PREVIEW).map(item => (
-                <Link
-                  key={item.id}
-                  className={classes.row}
-                  to={`/handbook/${item.id}`}
-                >
-                  <span className={classes.grow}>
-                    {item.title}
-                    <span className={classes.sub}>
-                      {formatApiDateTimeCompact(item.updated_at)}
+              <div className={classes.listBody}>
+                {(handbook ?? []).slice(0, HANDBOOK_PREVIEW).map(item => (
+                  <Link
+                    key={item.id}
+                    className={classes.row}
+                    to={`/handbook/${item.id}`}
+                  >
+                    <span className={classes.grow}>
+                      {item.title}
+                      <span className={classes.sub}>
+                        {formatApiDateTimeCompact(item.updated_at)}
+                      </span>
                     </span>
-                  </span>
-                </Link>
-              ))
+                  </Link>
+                ))}
+              </div>
             )}
           </section>
 
