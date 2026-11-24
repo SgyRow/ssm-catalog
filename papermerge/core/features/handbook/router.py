@@ -167,7 +167,7 @@ async def create_handbook_document(
     data, filename, content_type = await _prepare_document_upload(file)
     row, err = await hb_api.create_file_document(
         db_session,
-        title=filename,
+        title=hb_api.title_from_filename(filename),
         author_id=user.id,
         filename=filename,
         content_type=content_type,
