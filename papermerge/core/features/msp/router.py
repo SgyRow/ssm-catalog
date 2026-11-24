@@ -30,6 +30,7 @@ from papermerge.core.features.msp.schema import (
     MspNormativeFolderCreate,
     MspNormativeFolderRead,
     MspNormativeFolderUpdate,
+    DocumentMeasureRef,
     MspNormativeLinkCreate,
     MspNormativeLinkRead,
     MspRead,
@@ -669,6 +670,62 @@ async def create_msp(
         message = error.messages[0] if error and error.messages else "Could not create measure"
         raise HTTPException(status_code=400, detail=message)
     return _msp_read(msp, title=payload.title)
+
+
+@router.get(
+    "/by-document/{document_id}",
+    responses={
+        status.HTTP_403_FORBIDDEN: {
+            "description": "No permission",
+            "content": OPEN_API_GENERIC_JSON_DETAIL,
+        }
+    },
+)
+async def list_measures_for_document(
+    document_id: UUID,
+    user: Annotated[
+        core_schema.User, Security(get_current_user, scopes=[scopes.NODE_VIEW])
+    ],
+    db_session: AsyncSession = Depends(get_db),
+) -> list[DocumentMeasureRef]:
+    """Measures that link this document, so the viewer can open them."""
+    doc = (
+        await db_session.execute(
+            select(nodes_orm.Node).where(
+                nodes_orm.Node.id == document_id,
+                nodes_orm.Node.ctype == "document",
+                nodes_orm.Node.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    await dbapi_common.require_node_perm(
+        db_session,
+        node_id=document_id,
+        codename=scopes.NODE_VIEW,
+        user_id=user.id,
+    )
+    rows = await api.list_measures_for_document(db_session, document_id)
+    visible: list[DocumentMeasureRef] = []
+    for msp_id, node_id, title, type_name, folder_title in rows:
+        if not await dbapi_common.has_node_perm(
+            db_session,
+            node_id=node_id,
+            codename=scopes.NODE_VIEW,
+            user_id=user.id,
+        ):
+            continue
+        visible.append(
+            DocumentMeasureRef(
+                msp_id=msp_id,
+                node_id=node_id,
+                title=title,
+                msp_type_name=type_name,
+                folder_title=folder_title,
+            )
+        )
+    return visible
 
 
 @router.get(

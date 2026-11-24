@@ -482,6 +482,15 @@ async def test_normative_registry_and_links(
     assert link["title"] == "ФЗ-тест.pdf"
     link_id = link["id"]
 
+    resp = await client.get(f"/msp/by-document/{doc.id}")
+    assert resp.status_code == 200, resp.text
+    refs = resp.json()
+    assert len(refs) == 1
+    assert refs[0]["msp_id"] == msp_id
+    assert refs[0]["title"] == "Мера со ссылками НПА"
+    assert refs[0]["folder_title"] == "Федеральные"
+    assert refs[0]["node_id"]
+
     resp = await client.get(f"/msp/{msp_id}/normative-folders")
     assert resp.status_code == 200, resp.text
     federal = next(f for f in resp.json() if f["id"] == federal_folder_id)

@@ -435,6 +435,7 @@
   "msp.view.item_document": "Document",
   "msp.view.pdf_error": "Failed to build the PDF",
   "msp.normative.section_title": "Normative legal documents",
+  "msp.normative.used_in": "Linked measures",
   "msp.normative.attach": "Attach",
   "msp.normative.unlink": "Unlink",
   "msp.normative.already_linked": "Already linked",

@@ -435,6 +435,7 @@
   "msp.view.item_document": "Документ",
   "msp.view.pdf_error": "Не удалось сформировать PDF",
   "msp.normative.section_title": "Нормативные правовые документы",
+  "msp.normative.used_in": "Привязано к мерам",
   "msp.normative.attach": "Привязать",
   "msp.normative.unlink": "Отвязать",
   "msp.normative.already_linked": "Уже привязан",
