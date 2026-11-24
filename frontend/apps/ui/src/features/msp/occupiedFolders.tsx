@@ -31,8 +31,10 @@ function FolderOccupancyProbe({
 }
 
 /**
- * Drops folders that do not contain a document yet. Documents and every
- * node stay visible when `enabled` is false.
+ * Drops folders that do not contain a document. Unresolved folders stay
+ * visible (optimistic) so callers can render immediately; `pending` is
+ * true until every folder probe finishes. When `enabled` is false every
+ * node stays visible.
  */
 export function HideEmptyFolders({
   items,
@@ -53,9 +55,11 @@ export function HideEmptyFolders({
   const folders = enabled ? items.filter(item => item.ctype === "folder") : []
   const pending =
     enabled && folders.some(folder => occupied[folder.id] === undefined)
+  // Optimistic: keep unresolved folders visible so the section can render
+  // immediately; hide only after a probe confirms the folder is empty.
   const visible = enabled
     ? items.filter(
-        item => item.ctype !== "folder" || occupied[item.id] === true
+        item => item.ctype !== "folder" || occupied[item.id] !== false
       )
     : items
 
