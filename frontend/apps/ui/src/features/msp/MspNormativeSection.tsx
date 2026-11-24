@@ -283,7 +283,12 @@ export default function MspNormativeSection({
     ? folders
     : folders.filter(folder => folder.links.length > 0)
 
-  if (!canEdit && (isLoading || visibleFolders.length === 0)) {
+  // Keep the section visible while loading when the physical folder exists,
+  // so the measure view does not pop the block in after the API returns.
+  if (!canEdit && !isLoading && visibleFolders.length === 0) {
+    return null
+  }
+  if (!canEdit && isLoading && !folderNode) {
     return null
   }
 

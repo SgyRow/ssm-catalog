@@ -204,9 +204,9 @@ function InfoCategoryFolder({
 }
 
 /**
- * Informational materials: the section and each category folder appear in
- * the measure view only when they already contain a file. Category folders
- * expand inline (same pattern as normative folders) to reveal documents.
+ * Informational materials: the section shell is shown immediately; empty
+ * category folders are dropped once occupancy probes finish. Category
+ * folders expand inline (same pattern as normative folders).
  */
 function MspFolderSection({
   node,
@@ -224,7 +224,9 @@ function MspFolderSection({
   return (
     <HideEmptyFolders items={items} enabled={!isError}>
       {({pending, visible}) => {
-        if (isLoading || pending || visible.length === 0) {
+        // Show the section shell as soon as the measure folder is known;
+        // occupancy probes may still be running for category folders.
+        if (!isLoading && !pending && visible.length === 0) {
           return null
         }
         const categoryFolders = visible.filter(row => row.ctype === "folder")
@@ -255,27 +257,31 @@ function MspFolderSection({
                 </div>
               </div>
               <Accordion.Panel>
-                <Stack gap="xs">
-                  {categoryFolders.length > 0 ? (
-                    <Accordion
-                      multiple
-                      chevronPosition="left"
-                      variant="separated"
-                      defaultValue={[]}
-                    >
-                      {categoryFolders.map(folder => (
-                        <InfoCategoryFolder
-                          key={folder.id}
-                          folder={folder}
-                          childNav={childNav}
-                        />
-                      ))}
-                    </Accordion>
-                  ) : null}
-                  {directDocuments.map(row => (
-                    <NodeRow key={row.id} row={row} childNav={childNav} />
-                  ))}
-                </Stack>
+                {isLoading ? (
+                  <Loader size="sm" my="xs" />
+                ) : (
+                  <Stack gap="xs">
+                    {categoryFolders.length > 0 ? (
+                      <Accordion
+                        multiple
+                        chevronPosition="left"
+                        variant="separated"
+                        defaultValue={[]}
+                      >
+                        {categoryFolders.map(folder => (
+                          <InfoCategoryFolder
+                            key={folder.id}
+                            folder={folder}
+                            childNav={childNav}
+                          />
+                        ))}
+                      </Accordion>
+                    ) : null}
+                    {directDocuments.map(row => (
+                      <NodeRow key={row.id} row={row} childNav={childNav} />
+                    ))}
+                  </Stack>
+                )}
               </Accordion.Panel>
             </Accordion.Item>
           </Accordion>
