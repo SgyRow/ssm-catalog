@@ -1,5 +1,5 @@
 #!/bin/sh
-# Entry point for the monolithic Papermerge image.
+# Entry point for the monolithic SSM-Catalog image.
 # Commands:
 #   server   Р Р†Р вЂљРІР‚Сњ default. Run init (migrations + bootstrap admin/roles) then supervisord.
 #   init     Р Р†Р вЂљРІР‚Сњ just the init steps (useful for one-shot jobs).
@@ -133,8 +133,8 @@ EOF
 
     # Inject the <script> tag that loads the runtime config into each SPA's
     # index.html. We match on `</title>` because UI/auth-server titles can be
-    # customised (previous rule used "Papermerge" which silently broke for
-    # branded builds).
+    # customised (previous rule used a fixed brand string which silently
+    # broke for branded builds).
     for html_dir in /usr/share/nginx/html/ui /usr/share/nginx/html/auth_server; do
         html="${html_dir}/index.html"
         [ -f "$html" ] || continue
@@ -153,6 +153,7 @@ EOF
       \( -name '*.html' -o -name '*.js' -o -name '*.json' \) 2>/dev/null \
       | while IFS= read -r file; do
             sed -i "s|Papermerge DMS|${AUTH_BRAND_TITLE_SED}|g" "$file"
+            sed -i "s|SSM-Catalog|${AUTH_BRAND_TITLE_SED}|g" "$file"
             sed -i "s|Open Source Document Management System for Digital Archives|${AUTH_LOGIN_SUBTITLE_SED}|g" "$file"
 
             # Auth errors first — label replacements below turn "Username" in

@@ -15,7 +15,7 @@ import {expect, test, type Page} from "@playwright/test"
  * Goal: After viewing a non-OCR or non-selectable preview, returning to the same
  * searchable PDF should still allow text selection without a full browser reload.
  *
- * Real app (Papermerge UI) — steps:
+ * Real app (SSM-Catalog UI) — steps:
  * 1. Open a PDF with extractable text (OCR or native text). Confirm you can select text.
  * 2. Open a document that uses raster-only preview (e.g. scanned PDF with no text
  *    layer, or a non-PDF image) in the same viewer area / same tab flow your users use.

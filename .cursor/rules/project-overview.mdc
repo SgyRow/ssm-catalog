@@ -1,9 +1,9 @@
 ---
-description: High-level map of the Papermerge DMS repository — deployment mode, code layout, bootstrapping rules, and non-obvious pitfalls. Read before reasoning about changes.
+description: High-level map of the SSM-Catalog repository — deployment mode, code layout, bootstrapping rules, and non-obvious pitfalls. Read before reasoning about changes.
 alwaysApply: true
 ---
 
-# Papermerge DMS — project overview
+# SSM-Catalog — project overview
 
 This rule is the cheat-sheet for this repo. It deliberately covers the
 things you cannot deduce from a single file: deployment shape, cross-
@@ -178,8 +178,8 @@ the uniform `orm.Foo` path.
   (auth-server defaults mirror the old `roco` behaviour; UI exposes
   `timezone` from `PAPERMERGE__MAIN__TIMEZONE`, default `Asia/Vladivostok`).
   The script-tag injection into each SPA's
-  `index.html` matches on `</title>` (NOT on the literal word
-  "Papermerge") so that branded/customised titles still work.
+  `index.html` matches on `</title>` (NOT on a fixed brand string)
+  so that branded/customised titles still work.
 - **Timezone (UTC+10)**: every compose service sets `TZ=Asia/Vladivostok`.
   Postgres `PGTZ` must stay `UTC`, and the app asyncpg engine must force
   `server_settings.timezone=UTC` — otherwise the session inherits the

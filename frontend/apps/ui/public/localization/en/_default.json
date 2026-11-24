@@ -920,7 +920,7 @@
           "items": [
             "Backup in the menu is available only to the superuser.",
             "Export everything builds a portable archive: the database (users, roles, permissions, documents, folders, news, citizen categories, measures, handbook, services, settings) and every uploaded file.",
-            "The archive is saved as papermerge-backup.pmgbackup. Keep the tab open until the export finishes.",
+            "The archive is saved as ssm-catalog-backup.pmgbackup. Keep the tab open until the export finishes.",
             "Restore from archive replaces the current database and files with the selected archive. Make a fresh copy and confirm before restoring.",
             "Database address, media path, and the token signing secret are not carried over. Users may need to sign in again after import."
           ]

@@ -21,7 +21,7 @@ import {selectCurrentUser} from "@/slices/currentUser"
 import type {UserDetails} from "@/types"
 import AccessForbidden from "@/pages/errors/AccessForbidden"
 
-const BACKUP_FILENAME = "papermerge-backup.pmgbackup"
+const BACKUP_FILENAME = "ssm-catalog-backup.pmgbackup"
 
 type SaveFilePicker = (options: {
   suggestedName?: string

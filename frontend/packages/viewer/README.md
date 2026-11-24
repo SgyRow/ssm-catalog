@@ -10,7 +10,7 @@ yarn workspace @papermerge/viewer dev
 
 ## Where it is used?
 
-This package is used by Papermerge UI: `<monorepo-root>/apps/ui`
+This package is used by SSM-Catalog UI: `<monorepo-root>/apps/ui`
 
 ## Requirements
 

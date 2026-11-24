@@ -382,7 +382,7 @@ async def update_user(
 async def get_user_scopes_from_db_roles(
     db_session: AsyncSession, user_id: uuid.UUID
 ) -> list[str]:
-    """Scopes from roles assigned in Papermerge (``users_roles`` table).
+    """Scopes from roles assigned in SSM-Catalog (``users_roles`` table).
 
     JWT ``roles`` claims may be stale or empty; local role links are the
     source of truth for UI/API permission checks after admin edits.

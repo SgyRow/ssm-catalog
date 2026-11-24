@@ -88,7 +88,7 @@ services:
           cpus: "0.1"
           memory: 64M
 
-  # Monolithic Papermerge container: nginx + core API + auth-server under
+  # Monolithic SSM-Catalog container: nginx + core API + auth-server under
   # supervisord. On first boot the entrypoint runs migrations, syncs
   # permissions, creates the admin superuser, seeds default roles
   # (admin / moderator / employee) and assigns the admin role to the superuser —

@@ -11,5 +11,5 @@ router = APIRouter(
 
 @router.get("/")
 async def get_version() -> schema.Version:
-    """Papermerge REST API version"""
+    """SSM-Catalog REST API version"""
     return schema.Version(version=__version__)
