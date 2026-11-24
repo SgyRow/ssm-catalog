@@ -1,4 +1,5 @@
 import {ERRORS_403_ACCESS_FORBIDDEN} from "@/cconstants"
+import classes from "@/components/ViewportPage.module.css"
 import {useGetPaginatedUsersQuery} from "@/features/users/apiSlice"
 import {
   clearSelection,
@@ -68,20 +69,24 @@ export default function UsersList() {
 
   if (isLoading || !data) {
     return (
-      <Stack>
-        <ActionButtons />
-        <Center>
-          <Loader type="bars" />
-        </Center>
-      </Stack>
+      <div className={classes.page}>
+        <Stack className={classes.scroll}>
+          <ActionButtons />
+          <Center>
+            <Loader type="bars" />
+          </Center>
+        </Stack>
+      </div>
     )
   }
 
   if (data.items.length == 0) {
     return (
-      <div>
-        <ActionButtons />
-        <Empty />
+      <div className={classes.page}>
+        <Stack className={classes.scroll}>
+          <ActionButtons />
+          <Empty />
+        </Stack>
       </div>
     )
   }
@@ -89,37 +94,39 @@ export default function UsersList() {
   const userRows = data.items.map(u => <UserRow key={u.id} user={u} />)
 
   return (
-    <Stack>
-      <Group>
-        <ActionButtons /> {isFetching && <Loader size="sm" />}
-      </Group>
-      <Table>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>
-              <Checkbox
-                checked={data.items.length == selectedIds.length}
-                onChange={e => onCheckAll(e.currentTarget.checked)}
-              />
-            </Table.Th>
-            <Table.Th>Username</Table.Th>
-            <Table.Th>Email</Table.Th>
-            <Table.Th>ID</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>{userRows}</Table.Tbody>
-      </Table>
-      <Pagination
-        pagination={{
-          pageNumber: page,
-          pageSize: pageSize,
-          numPages: data.num_pages
-        }}
-        onPageNumberChange={onPageNumberChange}
-        onPageSizeChange={onPageSizeChange}
-        lastPageSize={lastPageSize}
-      />
-    </Stack>
+    <div className={classes.page}>
+      <Stack className={classes.scroll} style={{overflow: "auto"}} gap="sm">
+        <Group>
+          <ActionButtons /> {isFetching && <Loader size="sm" />}
+        </Group>
+        <Table stickyHeader>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>
+                <Checkbox
+                  checked={data.items.length == selectedIds.length}
+                  onChange={e => onCheckAll(e.currentTarget.checked)}
+                />
+              </Table.Th>
+              <Table.Th>Username</Table.Th>
+              <Table.Th>Email</Table.Th>
+              <Table.Th>ID</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>{userRows}</Table.Tbody>
+        </Table>
+        <Pagination
+          pagination={{
+            pageNumber: page,
+            pageSize: pageSize,
+            numPages: data.num_pages
+          }}
+          onPageNumberChange={onPageNumberChange}
+          onPageSizeChange={onPageSizeChange}
+          lastPageSize={lastPageSize}
+        />
+      </Stack>
+    </div>
   )
 }
 
