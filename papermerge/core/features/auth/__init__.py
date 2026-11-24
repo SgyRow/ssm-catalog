@@ -17,7 +17,13 @@ from papermerge.core.features.auth.dev_session import (
     requested_dev_username_from_request,
     resolve_dev_bypass_user,
 )
-from papermerge.core.features.auth.jwt_tokens import verify_access_token
+from papermerge.core.features.auth.jwt_tokens import (
+    PASSWORD_STAMP_CLAIM,
+    SESSION_VERSION_CLAIM,
+    token_matches_password,
+    token_matches_session,
+    verify_access_token,
+)
 from papermerge.core.db.engine import get_db
 
 oauth2_scheme = OAuth2PasswordBearer(
@@ -56,6 +62,8 @@ def extract_token_data(token: str = Depends(oauth2_scheme)) -> types.TokenData |
         email=data.get("email"),
         groups=data.get("groups", []),
         roles=data.get("roles", []),
+        password_stamp=data.get(PASSWORD_STAMP_CLAIM),
+        session_version=data.get(SESSION_VERSION_CLAIM),
     )
 
 
@@ -98,6 +106,19 @@ async def get_current_user(
             user_id=UUID(token_data.user_id),
             password="-",
         )
+
+    if token_data.password_stamp or token_data.session_version is not None:
+        password_hash, session_version = await usr_dbapi.get_user_auth_state(
+            db_session, user.id
+        )
+        claims = {
+            PASSWORD_STAMP_CLAIM: token_data.password_stamp,
+            SESSION_VERSION_CLAIM: token_data.session_version,
+        }
+        if not token_matches_password(claims, password_hash):
+            raise exc.HTTP401Unauthorized()
+        if not token_matches_session(claims, session_version):
+            raise exc.HTTP401Unauthorized()
 
     total_scopes = list(token_data.scopes)
     # Baseline read access for authenticated users so they can load Home.

@@ -21,6 +21,7 @@ import {
 import type {PanelMode} from "@/types"
 import DocumentLibraryPanel from "@/features/library/components/DocumentLibraryPanel"
 import DocumentFullVersionField from "@/features/document/components/DocumentFullVersionField"
+import DocumentMeasureLinks from "@/features/document/components/DocumentMeasureLinks"
 
 interface Args {
   doc?: DocumentType
@@ -61,6 +62,7 @@ export default function DocumentDetails({doc, docID, isLoading}: Args) {
               mt="md"
             />
           </Group>
+          {docID ? <DocumentMeasureLinks documentId={docID} /> : null}
           {docID ? <DocumentFullVersionField documentId={docID} /> : null}
           {docID ? <DocumentLibraryPanel documentId={docID} /> : null}
         </Stack>

@@ -37,6 +37,8 @@ class TokenData(BaseModel):
     scopes: list[str] = []
     groups: list[str] = []
     roles: list[str] = []
+    password_stamp: str | None = None
+    session_version: int | None = None
 
 
 CFValueType: TypeAlias = str | int | date | bool | float | None

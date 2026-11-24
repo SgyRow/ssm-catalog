@@ -54,10 +54,20 @@ export function navigateToLogin(): void {
 
 /** End the session and open the login page (full page navigation). */
 export function navigateToLogout(): void {
-  void recordAuthSessionEvent("logout").finally(() => {
+  void (async () => {
+    await recordAuthSessionEvent("logout")
+    try {
+      const base = import.meta.env.VITE_BASE_URL || window.location.origin
+      await fetch(`${base}/api/users/me/logout`, {
+        method: "POST",
+        credentials: "include"
+      })
+    } catch {
+      // cookie clear below still ends this browser session
+    }
     clearAuthCookie()
     window.location.replace("/login")
-  })
+  })()
 }
 
 /** Routes where PostAuthRedirect owns the /api/users/me fetch after login. */

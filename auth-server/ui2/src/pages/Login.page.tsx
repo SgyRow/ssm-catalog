@@ -11,7 +11,7 @@ export function LoginPage() {
   return (
     <Container size={480} my={100}>
       <Title ta="center">
-        Papermerge DMS
+        SSM-Catalog
       </Title>
       <Text c="dimmed" size="sm" ta="center" mt={5}>
         Open Source Document Management System for Digital Archives

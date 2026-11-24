@@ -1,5 +1,5 @@
 {
-  "name": "Papermerge DMS UI",
+  "name": "SSM-Catalog UI",
   "packageManager": "yarn@4.9.2",
   "workspaces": [
     "packages/*",

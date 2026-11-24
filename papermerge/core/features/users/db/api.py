@@ -39,6 +39,26 @@ async def get_user(db_session: AsyncSession, user_id_or_username: str) -> schema
     return model_user
 
 
+async def get_user_auth_state(
+    db_session: AsyncSession, user_id: uuid.UUID
+) -> tuple[str | None, int]:
+    stmt = select(User.password, User.session_version).where(User.id == user_id)
+    row = (await db_session.execute(stmt)).one_or_none()
+    if row is None:
+        return None, 0
+    password_hash, session_version = row
+    return password_hash, int(session_version or 0)
+
+
+async def bump_user_session(db_session: AsyncSession, user_id: uuid.UUID) -> None:
+    """Invalidate every token issued for this user (logout or password change)."""
+    stmt = select(User).where(User.id == user_id)
+    db_user = (await db_session.execute(stmt)).scalar_one_or_none()
+    if db_user is None:
+        return
+    db_user.session_version = int(db_user.session_version or 0) + 1
+
+
 async def get_user_group_homes(
     db_session: AsyncSession, user_id: uuid.UUID
 ) -> Tuple[list[schema.UserHome] | None, str | None]:
@@ -382,7 +402,7 @@ async def update_user(
 async def get_user_scopes_from_db_roles(
     db_session: AsyncSession, user_id: uuid.UUID
 ) -> list[str]:
-    """Scopes from roles assigned in Papermerge (``users_roles`` table).
+    """Scopes from roles assigned in SSM-Catalog (``users_roles`` table).
 
     JWT ``roles`` claims may be stale or empty; local role links are the
     source of truth for UI/API permission checks after admin edits.
@@ -502,6 +522,7 @@ async def change_own_password(
         return None, err_schema.Error(messages=["Current password is incorrect"])
 
     db_user.password = pbkdf2_sha256.hash(password)
+    db_user.session_version = int(db_user.session_version or 0) + 1
 
     try:
         await db_session.commit()
@@ -522,6 +543,7 @@ async def change_password(
         orm.User.id == user_id)
     db_user = (await db_session.execute(stmt)).scalar()
     db_user.password = pbkdf2_sha256.hash(password)
+    db_user.session_version = int(db_user.session_version or 0) + 1
 
     try:
         await db_session.commit()

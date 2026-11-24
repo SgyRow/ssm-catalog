@@ -43,6 +43,8 @@ import classes from "./MspView.module.css"
 import {
   clipboardImages,
   fileToDataUrl,
+  normalizeRichHtml,
+  normalizeRichRoot,
   sanitizePastedHtml
 } from "./sanitizePaste"
 
@@ -215,20 +217,23 @@ function findPaintedAncestor(
   return styled
 }
 
+const BLOCK_STOP =
+  /^(P|DIV|H[1-6]|LI|PRE|BLOCKQUOTE|TD|TH|TR|TABLE|TBODY|THEAD|TFOOT|UL|OL)$/
+
 function liftOutOfPaint(
   editor: HTMLElement,
   marker: HTMLElement,
   props: readonly string[]
 ) {
-  // Split every ancestor until the marker sits outside painted wrappers,
-  // including intermediate unstyled tags like <b>/<i>.
+  // Split inline wrappers only. Splitting a paragraph here inserts a
+  // visible line break, which is what the color buttons used to do.
   for (let guard = 0; guard < 32; guard++) {
     const painted = findPaintedAncestor(marker, editor, props)
     if (!painted) {
       break
     }
     const parent = marker.parentElement
-    if (!parent || parent === editor) {
+    if (!parent || parent === editor || BLOCK_STOP.test(parent.tagName)) {
       break
     }
     splitAroundNode(parent, marker)
@@ -254,25 +259,11 @@ function placeCaretInMarker(marker: HTMLElement) {
   sel.addRange(range)
 }
 
-function resetBrowserPaintState(props: readonly string[]) {
+function resetBrowserPaintState() {
   try {
     document.execCommand("styleWithCSS", false, "true")
   } catch {
     /* optional */
-  }
-  if (props.includes("background-color")) {
-    try {
-      document.execCommand("hiliteColor", false, "transparent")
-    } catch {
-      /* ignore */
-    }
-  }
-  if (props.includes("color")) {
-    try {
-      document.execCommand("foreColor", false, "#000000")
-    } catch {
-      /* ignore */
-    }
   }
 }
 
@@ -292,6 +283,298 @@ function pruneOldCaretMarkers(editor: HTMLElement, keep?: HTMLElement) {
   }
 }
 
+const SPLITTABLE_BLOCK = /^(P|DIV|H[1-6]|LI|PRE|BLOCKQUOTE)$/
+
+function cssColorToHex(value: string): string {
+  const v = value.trim().toLowerCase()
+  if (!v || /^(inherit|initial|unset|revert|currentcolor)$/.test(v)) {
+    return ""
+  }
+  if (v.startsWith("#")) {
+    if (v.length === 4) {
+      return `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`
+    }
+    return v.slice(0, 7)
+  }
+  const match = v.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/)
+  if (!match) {
+    return v
+  }
+  const hex = (part: string) => Number(part).toString(16).padStart(2, "0")
+  return `#${hex(match[1])}${hex(match[2])}${hex(match[3])}`
+}
+
+function explicitPaint(
+  node: Node | null,
+  editor: HTMLElement
+): {color: string; highlight: string} {
+  let color = ""
+  let highlight = ""
+  let el: HTMLElement | null =
+    node && node.nodeType === Node.ELEMENT_NODE
+      ? (node as HTMLElement)
+      : (node?.parentElement ?? null)
+  while (el && el !== editor) {
+    if (!color) {
+      const raw =
+        el.style.color ||
+        (el.tagName === "FONT" ? el.getAttribute("color") || "" : "")
+      color = cssColorToHex(raw)
+    }
+    if (!highlight) {
+      const bg = el.style.backgroundColor || ""
+      if (
+        bg &&
+        !/^(transparent|inherit|initial|unset|revert)$/i.test(bg) &&
+        !/^rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$/i.test(bg)
+      ) {
+        highlight = cssColorToHex(bg)
+      }
+    }
+    el = el.parentElement
+  }
+  return {color, highlight}
+}
+
+function readTextAlign(editor: HTMLElement): string {
+  const sel = window.getSelection()
+  const node = sel?.anchorNode
+  if (!node || !editor.contains(node)) {
+    return ""
+  }
+  let el: HTMLElement | null =
+    node instanceof Element ? (node as HTMLElement) : node.parentElement
+  while (el && el !== editor) {
+    const align = (el.style.textAlign || el.getAttribute("align") || "")
+      .trim()
+      .toLowerCase()
+    if (align) {
+      return align
+    }
+    el = el.parentElement
+  }
+  return ""
+}
+
+function blockElement(node: Node | null, editor: HTMLElement): HTMLElement | null {
+  let el: HTMLElement | null =
+    node && node.nodeType === Node.ELEMENT_NODE
+      ? (node as HTMLElement)
+      : (node?.parentElement ?? null)
+  while (el && el !== editor) {
+    if (SPLITTABLE_BLOCK.test(el.tagName)) {
+      return el
+    }
+    el = el.parentElement
+  }
+  return null
+}
+
+function textOverlap(range: Range, text: Text): [number, number] | null {
+  const len = text.data.length
+  if (!len || !range.intersectsNode(text)) {
+    return null
+  }
+  let start = 0
+  let end = len
+  if (range.startContainer === text) {
+    start = range.startOffset
+  }
+  if (range.endContainer === text) {
+    end = range.endOffset
+  }
+  if (end <= start) {
+    return null
+  }
+  return [start, end]
+}
+
+function textsInRange(
+  editor: HTMLElement,
+  range: Range,
+  scope?: Node
+): Text[] {
+  const root =
+    scope ??
+    (range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer.parentNode)
+  if (!root || !editor.contains(root)) {
+    return []
+  }
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      try {
+        if (!editor.contains(node) || !range.intersectsNode(node)) {
+          return NodeFilter.FILTER_REJECT
+        }
+      } catch {
+        return NodeFilter.FILTER_REJECT
+      }
+      return NodeFilter.FILTER_ACCEPT
+    }
+  })
+  const nodes: Text[] = []
+  let current = walker.nextNode()
+  while (current) {
+    nodes.push(current as Text)
+    current = walker.nextNode()
+  }
+  return nodes
+}
+
+function isolateTextSlice(text: Text, start: number, end: number): Text {
+  let node = text
+  if (start > 0) {
+    node = node.splitText(start)
+  }
+  const size = end - start
+  if (node.length > size) {
+    node.splitText(size)
+  }
+  return node
+}
+
+function nearestPaintedBlock(
+  node: Node,
+  editor: HTMLElement,
+  props: readonly string[]
+): HTMLElement | null {
+  let el: HTMLElement | null = node.parentElement
+  while (el && el !== editor) {
+    if (SPLITTABLE_BLOCK.test(el.tagName) && hasPaintStyle(el, props)) {
+      return el
+    }
+    el = el.parentElement
+  }
+  return null
+}
+
+function coversContents(block: HTMLElement, range: Range): boolean {
+  const full = document.createRange()
+  full.selectNodeContents(block)
+  return (
+    range.compareBoundaryPoints(Range.START_TO_START, full) <= 0 &&
+    range.compareBoundaryPoints(Range.END_TO_END, full) >= 0
+  )
+}
+
+function stripElementPaint(el: HTMLElement, props: readonly string[]) {
+  for (const prop of props) {
+    el.style.removeProperty(prop)
+  }
+  if (props.includes("color")) {
+    el.removeAttribute("color")
+  }
+  cleanupStyleShell(el)
+}
+
+function stripPaintDeep(root: HTMLElement, props: readonly string[]) {
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>("*")).reverse()
+  for (const el of nodes) {
+    stripElementPaint(el, props)
+  }
+  stripElementPaint(root, props)
+}
+
+function peelInline(
+  text: Text,
+  editor: HTMLElement,
+  props: readonly string[]
+) {
+  let node: Node = text
+  for (let guard = 0; guard < 24; guard++) {
+    const parent = node.parentElement
+    if (!parent || parent === editor || BLOCK_STOP.test(parent.tagName)) {
+      break
+    }
+    if (parent.childNodes.length !== 1) {
+      splitAroundNode(parent, node)
+      continue
+    }
+    if (hasPaintStyle(parent, props) || parent.tagName === "FONT") {
+      stripElementPaint(parent, props)
+      continue
+    }
+    node = parent
+  }
+}
+
+function applyStyleToSlice(
+  text: Text,
+  start: number,
+  end: number,
+  styles: Record<string, string>
+): HTMLElement {
+  const slice = isolateTextSlice(text, start, end)
+  const parent = slice.parentElement
+  if (
+    parent &&
+    parent.tagName === "SPAN" &&
+    parent.childNodes.length === 1 &&
+    parent.firstChild === slice
+  ) {
+    Object.assign(parent.style, styles)
+    return parent
+  }
+  const span = document.createElement("span")
+  Object.assign(span.style, styles)
+  slice.parentNode?.insertBefore(span, slice)
+  span.appendChild(slice)
+  return span
+}
+
+function paintTextRange(editor: HTMLElement, styles: Record<string, string>) {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !selectionInside(editor)) {
+    return
+  }
+  const range = sel.getRangeAt(0)
+  if (range.collapsed) {
+    const container = range.startContainer
+    const el =
+      container instanceof HTMLElement ? container : container.parentElement
+    let host: HTMLElement | null = null
+    if (el && el.tagName === "SPAN" && (el.textContent || "") === "\u200b") {
+      host = el
+    }
+    if (!host) {
+      host = document.createElement("span")
+      host.appendChild(document.createTextNode("\u200b"))
+      range.insertNode(host)
+    }
+    Object.assign(host.style, styles)
+    const next = document.createRange()
+    const text = host.firstChild
+    if (text && text.nodeType === Node.TEXT_NODE) {
+      next.setStart(text, text.textContent?.length ?? 0)
+    } else {
+      next.selectNodeContents(host)
+    }
+    next.collapse(false)
+    sel.removeAllRanges()
+    sel.addRange(next)
+    return
+  }
+
+  const wrapped: HTMLElement[] = []
+  for (const text of textsInRange(editor, range).reverse()) {
+    const overlap = textOverlap(range, text)
+    if (!overlap) {
+      continue
+    }
+    wrapped.push(applyStyleToSlice(text, overlap[0], overlap[1], styles))
+  }
+  if (wrapped.length === 0) {
+    return
+  }
+  const next = document.createRange()
+  next.setStartBefore(wrapped[wrapped.length - 1])
+  next.setEndAfter(wrapped[0])
+  sel.removeAllRanges()
+  sel.addRange(next)
+}
+
 /** Remove color/highlight from selection and stop it leaking into next typed chars. */
 function clearPaintInSelection(
   editor: HTMLElement,
@@ -305,33 +588,61 @@ function clearPaintInSelection(
   pruneOldCaretMarkers(editor)
 
   if (!range.collapsed) {
-    // Pull selected HTML out, strip paint, then lift the clean block out of
-    // any still-painted ancestors (otherwise parent background keeps showing).
-    const holder = document.createElement("span")
-    holder.setAttribute("data-msp-caret", "")
-    const frag = range.extractContents()
-    stripPaintFromTree(frag, props)
-    holder.appendChild(frag)
-    if (!holder.hasChildNodes()) {
-      holder.appendChild(document.createTextNode("\u200b"))
-    }
-    range.insertNode(holder)
-    liftOutOfPaint(editor, holder, props)
-    stripPaintFromTree(holder, props)
-
-    // Unwrap holder but keep a clean caret marker for further typing.
-    const marker = document.createElement("span")
-    marker.setAttribute("data-msp-caret", "")
-    marker.appendChild(document.createTextNode("\u200b"))
-    const parent = holder.parentNode
-    if (parent) {
-      parent.insertBefore(marker, holder.nextSibling)
-      while (holder.firstChild) {
-        parent.insertBefore(holder.firstChild, marker)
+    const paintedBlocks: HTMLElement[] = []
+    for (const text of textsInRange(editor, range)) {
+      const block = nearestPaintedBlock(text, editor, props)
+      if (block && !paintedBlocks.includes(block)) {
+        paintedBlocks.push(block)
       }
-      parent.removeChild(holder)
     }
-    placeCaretInMarker(marker)
+    const inlineTexts = textsInRange(editor, range).filter(
+      text => !nearestPaintedBlock(text, editor, props)
+    )
+    const inlineSlices = inlineTexts
+      .map(text => {
+        const overlap = textOverlap(range, text)
+        return overlap ? {text, start: overlap[0], end: overlap[1]} : null
+      })
+      .filter((item): item is {text: Text; start: number; end: number} => !!item)
+
+    const partialMask = getComputedStyle(editor)
+    const mask: Record<string, string> = {}
+    if (props.includes("color")) {
+      mask.color = partialMask.color
+    }
+    if (props.includes("background-color") || props.includes("background")) {
+      mask.backgroundColor = partialMask.backgroundColor
+    }
+
+    for (const block of paintedBlocks) {
+      let full = false
+      try {
+        full = coversContents(block, range)
+      } catch {
+        full = false
+      }
+      if (full) {
+        stripPaintDeep(block, props)
+        continue
+      }
+      // Keep the paragraph intact. A span with the editor color hides the
+      // inherited paint without splitting the block into new lines.
+      for (const text of textsInRange(editor, range, block).reverse()) {
+        const overlap = textOverlap(range, text)
+        if (!overlap) {
+          continue
+        }
+        applyStyleToSlice(text, overlap[0], overlap[1], mask)
+      }
+    }
+
+    for (const slice of [...inlineSlices].reverse()) {
+      if (!slice.text.isConnected) {
+        continue
+      }
+      const isolated = isolateTextSlice(slice.text, slice.start, slice.end)
+      peelInline(isolated, editor, props)
+    }
   } else {
     const marker = document.createElement("span")
     marker.setAttribute("data-msp-caret", "")
@@ -341,7 +652,78 @@ function clearPaintInSelection(
     placeCaretInMarker(marker)
   }
 
-  resetBrowserPaintState(props)
+  resetBrowserPaintState()
+}
+
+const INDENT_STEP = 40
+const MAX_INDENT = 320
+
+function blocksInSelection(editor: HTMLElement): HTMLElement[] {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) {
+    return []
+  }
+  const range = sel.getRangeAt(0)
+  const nodes = Array.from(
+    editor.querySelectorAll<HTMLElement>(
+      "p, div, h1, h2, h3, h4, h5, h6, li, pre, blockquote"
+    )
+  )
+  const hits = nodes.filter(el => {
+    if (el === editor) {
+      return false
+    }
+    try {
+      return range.intersectsNode(el)
+    } catch {
+      return false
+    }
+  })
+  const innermost = hits.filter(
+    el => !hits.some(other => other !== el && el.contains(other))
+  )
+  if (innermost.length > 0) {
+    return innermost
+  }
+  const single = blockElement(range.startContainer, editor)
+  return single ? [single] : []
+}
+
+function changeIndent(editor: HTMLElement, direction: 1 | -1) {
+  const sel = window.getSelection()
+  const anchor = sel?.anchorNode
+  const anchorEl =
+    anchor instanceof Element ? anchor : anchor?.parentElement ?? null
+  if (anchorEl?.closest("li")) {
+    document.execCommand(direction > 0 ? "indent" : "outdent")
+    normalizeRichRoot(editor)
+    return
+  }
+  let blocks = blocksInSelection(editor)
+  if (blocks.length === 0) {
+    const cell = anchorEl?.closest("td, th")
+    if (cell instanceof HTMLElement && editor.contains(cell)) {
+      blocks = [cell]
+    } else if (!anchorEl?.closest("table")) {
+      document.execCommand("formatBlock", false, "p")
+      blocks = blocksInSelection(editor)
+    }
+  }
+  for (const block of blocks) {
+    const current = parseFloat(block.style.marginLeft) || 0
+    const next = Math.max(
+      0,
+      Math.min(MAX_INDENT, current + direction * INDENT_STEP)
+    )
+    if (next <= 0) {
+      block.style.removeProperty("margin-left")
+    } else {
+      block.style.marginLeft = `${Math.round(next)}px`
+    }
+    if (block.style.length === 0) {
+      block.removeAttribute("style")
+    }
+  }
 }
 
 type CmdState = {
@@ -572,9 +954,11 @@ function ColorMenu({
   onPick
 }: ColorMenuProps) {
   const barColor =
-    value === CLEAR_HIGHLIGHT || value === "transparent"
-      ? "transparent"
-      : value
+    mode === "highlight"
+      ? !value || value === CLEAR_HIGHLIGHT || value === "transparent"
+        ? "transparent"
+        : value
+      : value || "var(--mantine-color-text)"
 
   return (
     <Menu
@@ -632,7 +1016,11 @@ function ColorMenu({
               key={color}
               className={classes.swatch}
               style={{backgroundColor: color}}
-              data-active={value === color ? "true" : undefined}
+              data-active={
+                value && value.toLowerCase() === color.toLowerCase()
+                  ? "true"
+                  : undefined
+              }
               aria-label={color}
               onMouseDown={e => {
                 e.preventDefault()
@@ -660,10 +1048,11 @@ export function MspRichTextEditor({
   const ref = useRef<HTMLDivElement>(null)
   const imageInput = useRef<HTMLInputElement>(null)
   const savedRange = useRef<Range | null>(null)
+  const lastEmitted = useRef<string | null>(null)
   const [cmd, setCmd] = useState<CmdState>(EMPTY_STATE)
   const [empty, setEmpty] = useState(true)
-  const [textColor, setTextColor] = useState("#000000")
-  const [highlightColor, setHighlightColor] = useState("#fff3bf")
+  const [textColor, setTextColor] = useState("")
+  const [highlightColor, setHighlightColor] = useState(CLEAR_HIGHLIGHT)
 
   const syncEmpty = useCallback(() => {
     const el = ref.current
@@ -675,15 +1064,28 @@ export function MspRichTextEditor({
     if (!el) {
       return
     }
-    onChange(el.innerHTML)
+    const html = el.innerHTML
+    lastEmitted.current = html
+    onChange(html)
     syncEmpty()
   }, [onChange, syncEmpty])
 
   const refreshCmd = useCallback(() => {
-    if (!selectionInside(ref.current)) {
+    const editor = ref.current
+    if (!selectionInside(editor) || !editor) {
       return
     }
-    setCmd(readCmdState())
+    const align = readTextAlign(editor)
+    const next = readCmdState()
+    next.justifyLeft = align === "left" || align === "start"
+    next.justifyCenter = align === "center"
+    next.justifyRight = align === "right" || align === "end"
+    next.justifyFull = align === "justify"
+    setCmd(next)
+    const sel = window.getSelection()
+    const paint = explicitPaint(sel?.anchorNode ?? null, editor)
+    setTextColor(paint.color)
+    setHighlightColor(paint.highlight || CLEAR_HIGHLIGHT)
   }, [])
 
   const rememberSelection = useCallback(() => {
@@ -769,11 +1171,21 @@ export function MspRichTextEditor({
 
   useEffect(() => {
     const el = ref.current
-    if (!el || el.innerHTML === value) {
+    if (!el) {
+      return
+    }
+    if (value === lastEmitted.current) {
       syncEmpty()
       return
     }
-    el.innerHTML = value || ""
+    const next = normalizeRichHtml(value || "")
+    if (el.innerHTML === next) {
+      lastEmitted.current = value
+      syncEmpty()
+      return
+    }
+    el.innerHTML = next
+    lastEmitted.current = value
     syncEmpty()
   }, [value, syncEmpty])
 
@@ -876,46 +1288,13 @@ export function MspRichTextEditor({
     })
   }
 
-  const wrapSelectionStyle = (styles: Record<string, string>): boolean => {
-    const sel = window.getSelection()
-    if (!sel || sel.rangeCount === 0) {
-      return false
-    }
-    const range = sel.getRangeAt(0)
-    if (range.collapsed) {
-      return false
-    }
-
-    const span = document.createElement("span")
-    Object.assign(span.style, styles)
-
-    try {
-      range.surroundContents(span)
-    } catch {
-      const fragment = range.extractContents()
-      span.appendChild(fragment)
-      range.insertNode(span)
-    }
-
-    sel.removeAllRanges()
-    const next = document.createRange()
-    next.selectNodeContents(span)
-    sel.addRange(next)
-    savedRange.current = next.cloneRange()
-    return true
-  }
-
   const applyForeColor = (color: string) => {
-    if (!color) {
-      return
-    }
     const editor = ref.current
     if (!editor) {
       return
     }
-    if (color === "#000000") {
-      // "Automatic": strip color and leave caret outside painted spans.
-      setTextColor(color)
+    if (!color) {
+      setTextColor("")
       run(() => {
         clearPaintInSelection(editor, COLOR_PROPS)
         const sel = window.getSelection()
@@ -927,27 +1306,17 @@ export function MspRichTextEditor({
     }
     setTextColor(color)
     run(() => {
-      try {
-        document.execCommand("styleWithCSS", false, "true")
-      } catch {
-        /* optional */
-      }
-      const ok = document.execCommand("foreColor", false, color)
-      if (!ok) {
-        wrapSelectionStyle({color})
-      }
+      paintTextRange(editor, {color})
     })
   }
 
   const applyHilite = (color: string) => {
-    if (!color) {
-      return
-    }
     const editor = ref.current
     if (!editor) {
       return
     }
-    if (color === CLEAR_HIGHLIGHT) {
+    if (!color || color === CLEAR_HIGHLIGHT) {
+      setHighlightColor(CLEAR_HIGHLIGHT)
       run(() => {
         clearPaintInSelection(editor, HIGHLIGHT_PROPS)
         const sel = window.getSelection()
@@ -959,21 +1328,7 @@ export function MspRichTextEditor({
     }
     setHighlightColor(color)
     run(() => {
-      try {
-        document.execCommand("styleWithCSS", false, "true")
-      } catch {
-        /* optional */
-      }
-      // Prefer hiliteColor: backColor often paints the whole editor in Chrome.
-      let ok = false
-      try {
-        ok = document.execCommand("hiliteColor", false, color)
-      } catch {
-        ok = false
-      }
-      if (!ok) {
-        wrapSelectionStyle({backgroundColor: color})
-      }
+      paintTextRange(editor, {backgroundColor: color})
     })
   }
 
@@ -1062,10 +1417,14 @@ export function MspRichTextEditor({
                   >
                     {cmd.block === "h1" ? (
                       <IconH1 size={16} />
+                    ) : cmd.block === "h2" ? (
+                      <IconH2 size={16} />
                     ) : cmd.block === "h3" ? (
                       <IconH3 size={16} />
                     ) : (
-                      <IconH2 size={16} />
+                      <span style={{fontSize: 13, fontWeight: 700, lineHeight: 1}}>
+                        P
+                      </span>
                     )}
                   </ActionIcon>
                 </Tooltip>
@@ -1138,13 +1497,25 @@ export function MspRichTextEditor({
             </ToolBtn>
             <ToolBtn
               label={t("handbook.fmt.outdent")}
-              onClick={() => exec("outdent")}
+              onClick={() => {
+                const editor = ref.current
+                if (!editor) {
+                  return
+                }
+                run(() => changeIndent(editor, -1))
+              }}
             >
               <IconIndentDecrease size={16} />
             </ToolBtn>
             <ToolBtn
               label={t("handbook.fmt.indent")}
-              onClick={() => exec("indent")}
+              onClick={() => {
+                const editor = ref.current
+                if (!editor) {
+                  return
+                }
+                run(() => changeIndent(editor, 1))
+              }}
             >
               <IconIndentIncrease size={16} />
             </ToolBtn>
@@ -1184,7 +1555,7 @@ export function MspRichTextEditor({
               mode="text"
               colors={TEXT_COLORS}
               value={textColor}
-              clearValue="#000000"
+              clearValue=""
               clearLabel={t("handbook.fmt.color_auto")}
               onOpen={rememberSelection}
               onPick={applyForeColor}
@@ -1204,7 +1575,36 @@ export function MspRichTextEditor({
 
             <ToolBtn
               label={t("handbook.fmt.clear")}
-              onClick={() => exec("removeFormat")}
+              onClick={() => {
+                const editor = ref.current
+                if (!editor) {
+                  return
+                }
+                run(() => {
+                  const sel = window.getSelection()
+                  const range =
+                    sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
+                  if (range && !range.collapsed) {
+                    for (const block of blocksInSelection(editor)) {
+                      try {
+                        if (coversContents(block, range)) {
+                          block.style.removeProperty("margin-left")
+                          if (block.style.length === 0) {
+                            block.removeAttribute("style")
+                          }
+                        }
+                      } catch {
+                        /* keep the rest of the clear */
+                      }
+                    }
+                  }
+                  document.execCommand("removeFormat")
+                  clearPaintInSelection(editor, [
+                    ...COLOR_PROPS,
+                    ...HIGHLIGHT_PROPS
+                  ])
+                })
+              }}
             >
               <IconClearFormatting size={16} />
             </ToolBtn>
@@ -1269,6 +1669,9 @@ export function MspRichTextView({html}: {html: string}) {
     )
   }
   return (
-    <div className={classes.rich} dangerouslySetInnerHTML={{__html: html}} />
+    <div
+      className={classes.rich}
+      dangerouslySetInnerHTML={{__html: normalizeRichHtml(html)}}
+    />
   )
 }

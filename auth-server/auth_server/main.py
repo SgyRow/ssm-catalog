@@ -6,7 +6,12 @@ from fastapi import FastAPI, HTTPException, Response, Request, status, APIRouter
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 
-from auth_server.auth import authenticate, create_token
+from auth_server.auth import (
+    authenticate,
+    create_token,
+    token_matches_password,
+    token_matches_session,
+)
 from auth_server.backends.oidc import introspect_token
 from auth_server import schema
 from auth_server.config import get_settings
@@ -23,9 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 def _set_access_token(response: Response, access_token: str) -> schema.Token:
-    # Match the JWT lifetime. A session cookie outlives the token and the
-    # login SPA then reloads forever on the next visit.
-    max_age = int(settings.papermerge__security__token_expire_minutes) * 60
+    # Persistent cookie. Lifetime is slid forward on every successful /verify
+    # (nginx copies this Set-Cookie onto the real response). The JWT itself
+    # has no exp; /verify rejects it after a password change.
+    max_age = int(settings.papermerge__security__cookie_max_age_seconds)
     response.set_cookie(
         settings.papermerge__security__cookie_name,
         access_token,
@@ -172,7 +178,9 @@ async def verify_endpoint(request: Request) -> Response:
         )
         if valid_token:
             logger.debug("Introspect: token valid")
-            return Response(status_code=status.HTTP_200_OK)
+            response = Response(status_code=status.HTTP_200_OK)
+            _set_access_token(response, token)
+            return response
         else:
             logger.debug("Introspect: token NOT valid!")
             raise HTTPException(
@@ -227,4 +235,18 @@ async def verify_endpoint(request: Request) -> Response:
             detail=f"User with ID {user_id} not found in DB",
         )
 
-    return Response(status_code=status.HTTP_200_OK)
+    if not token_matches_password(decoded_token, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Password changed",
+        )
+
+    if not token_matches_session(decoded_token, user.session_version):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session ended",
+        )
+
+    response = Response(status_code=status.HTTP_200_OK)
+    _set_access_token(response, token)
+    return response

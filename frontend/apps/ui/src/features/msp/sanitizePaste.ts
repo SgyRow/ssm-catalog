@@ -129,6 +129,11 @@ function cleanStyle(value: string): string {
       if (/expression|javascript:|url\s*\(\s*['"]?\s*javascript/i.test(val)) {
         return ""
       }
+      // Word/HTML paste often uses a negative offset and the table
+      // (or its wrapper) slides off the left edge of the article.
+      if (isNegativeOffset(name, val)) {
+        return ""
+      }
       return `${name}: ${val}`
     })
     .filter(Boolean)
@@ -199,6 +204,176 @@ function walk(node: Node, dest: ParentNode) {
   dest.appendChild(next)
 }
 
+const OFFSET_PROPS = [
+  "margin",
+  "margin-left",
+  "margin-right",
+  "margin-top",
+  "margin-bottom",
+  "left",
+  "right",
+  "top",
+  "bottom",
+  "text-indent"
+]
+
+function isNegativeOffset(name: string, value: string): boolean {
+  if (!OFFSET_PROPS.includes(name)) {
+    return false
+  }
+  return /(^|\s)-(?=\d|\.)/.test(value)
+}
+
+function parseMarginLeft(el: HTMLElement): number {
+  const raw = el.style.marginLeft
+  if (!raw) {
+    return 0
+  }
+  const n = parseFloat(raw)
+  return Number.isFinite(n) ? n : 0
+}
+
+/**
+ * Browser indent wraps a block in a quote whose style is only a left margin
+ * (Chrome also sets border:none and padding:0). The quote command stores no style.
+ */
+function isBrowserIndentQuote(el: HTMLElement): boolean {
+  if (el.tagName !== "BLOCKQUOTE") {
+    return false
+  }
+  const compact = (el.getAttribute("style") || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+  if (!compact || !compact.includes("margin")) {
+    return false
+  }
+  const stripped = compact
+    .replace(/margin(-left|-right|-top|-bottom|-inline-start|-inline-end)?:[^;]*;?/g, "")
+    .replace(/margin:[^;]*;?/g, "")
+    .replace(/border(-left|-right|-top|-bottom|-color|-style|-width)?:[^;]*;?/g, "")
+    .replace(/border:[^;]*;?/g, "")
+    .replace(/padding(-left|-right|-top|-bottom)?:[^;]*;?/g, "")
+    .replace(/padding:[^;]*;?/g, "")
+  if (stripped.length > 0) {
+    return false
+  }
+  if (parseMarginLeft(el) > 0) {
+    return true
+  }
+  const left = compact.match(/margin-(?:left|inline-start):([\d.]+)/)
+  if (left && parseFloat(left[1]) > 0) {
+    return true
+  }
+  const shorthand = compact.match(/margin:([^;]+)/)
+  if (!shorthand) {
+    return false
+  }
+  const parts = shorthand[1].match(/-?[\d.]+[a-z%]*/g) || []
+  const side =
+    parts.length === 1 ? parts[0] : parts.length === 4 ? parts[3] : ""
+  return !!side && parseFloat(side) > 0
+}
+
+const INDENT_TARGET = /^(P|DIV|H[1-6]|LI|PRE|BLOCKQUOTE|UL|OL|TABLE)$/
+
+function addIndent(el: HTMLElement, extra: number) {
+  const next = Math.max(0, parseMarginLeft(el) + extra)
+  if (next === 0) {
+    el.style.removeProperty("margin-left")
+  } else {
+    el.style.marginLeft = `${Math.round(next)}px`
+  }
+  if (el.style.length === 0) {
+    el.removeAttribute("style")
+  }
+}
+
+function unwrapIndentQuote(quote: HTMLElement) {
+  const extra = parseMarginLeft(quote) || 40
+  const parent = quote.parentNode
+  if (!parent) {
+    return
+  }
+  const meaningful = Array.from(quote.childNodes).filter(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return !!(node.textContent || "").replace(/\u00a0/g, " ").trim()
+    }
+    return node.nodeType === Node.ELEMENT_NODE
+  })
+  const allBlocks =
+    meaningful.length > 0 &&
+    meaningful.every(
+      node => node instanceof HTMLElement && INDENT_TARGET.test(node.tagName)
+    )
+  if (allBlocks) {
+    for (const node of Array.from(quote.childNodes)) {
+      if (node instanceof HTMLElement && INDENT_TARGET.test(node.tagName)) {
+        addIndent(node, extra)
+      }
+      parent.insertBefore(node, quote)
+    }
+  } else {
+    const wrapper = document.createElement("div")
+    addIndent(wrapper, extra)
+    while (quote.firstChild) {
+      wrapper.appendChild(quote.firstChild)
+    }
+    parent.insertBefore(wrapper, quote)
+  }
+  parent.removeChild(quote)
+}
+
+function clampNegativeOffsets(root: HTMLElement) {
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>("*"))
+  for (const el of nodes) {
+    for (const prop of OFFSET_PROPS) {
+      const value = el.style.getPropertyValue(prop)
+      if (value && isNegativeOffset(prop, value)) {
+        el.style.removeProperty(prop)
+      }
+    }
+    if (
+      (el.tagName === "TD" || el.tagName === "TH") &&
+      /nowrap/i.test(el.style.whiteSpace)
+    ) {
+      el.style.whiteSpace = "normal"
+    }
+    if (el.style.length === 0) {
+      el.removeAttribute("style")
+    }
+  }
+}
+
+/** Turn browser indent-quotes into margin and drop offsets that escape the page. */
+export function normalizeRichRoot(root: HTMLElement) {
+  for (let guard = 0; guard < 40; guard++) {
+    const quotes = Array.from(root.querySelectorAll("blockquote"))
+    let target: HTMLElement | null = null
+    for (let i = quotes.length - 1; i >= 0; i--) {
+      const el = quotes[i] as HTMLElement
+      if (isBrowserIndentQuote(el)) {
+        target = el
+        break
+      }
+    }
+    if (!target) {
+      break
+    }
+    unwrapIndentQuote(target)
+  }
+  clampNegativeOffsets(root)
+}
+
+export function normalizeRichHtml(raw: string): string {
+  const trimmed = raw || ""
+  if (!trimmed.trim()) {
+    return ""
+  }
+  const doc = new DOMParser().parseFromString(trimmed, "text/html")
+  normalizeRichRoot(doc.body)
+  return doc.body.innerHTML
+}
+
 export function sanitizePastedHtml(raw: string): string {
   const trimmed = (raw || "").replace(/<!--[\s\S]*?-->/g, "")
   if (!trimmed.trim()) {
@@ -209,6 +384,7 @@ export function sanitizePastedHtml(raw: string): string {
   for (const child of Array.from(doc.body.childNodes)) {
     walk(child, out)
   }
+  normalizeRichRoot(out)
   return out.innerHTML
 }
 

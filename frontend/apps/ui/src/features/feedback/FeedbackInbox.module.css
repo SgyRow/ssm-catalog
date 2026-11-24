@@ -79,6 +79,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   border: 1px solid
     light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
   border-radius: 8px;
@@ -87,13 +88,20 @@
 }
 
 .wish {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px;
+  overflow: hidden;
 }
 
 .wishBody {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
 }

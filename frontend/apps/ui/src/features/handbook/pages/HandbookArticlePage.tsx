@@ -8,6 +8,7 @@ import {
   useReplaceHandbookDocumentMutation,
   useUpdateHandbookArticleMutation
 } from "@/features/handbook/handbookApiSlice"
+import {normalizeRichHtml} from "@/features/msp/sanitizePaste"
 import PublicDocumentPreviewBody from "@/features/public/components/PublicDocumentPreviewBody"
 import {PORTAL_FEED_MANAGE} from "@/scopes"
 import {selectCurrentUser} from "@/slices/currentUser"
@@ -367,7 +368,7 @@ export default function HandbookArticlePage() {
         ) : (
           <div
             className={articleClasses.article}
-            dangerouslySetInnerHTML={{__html: data.body || ""}}
+            dangerouslySetInnerHTML={{__html: normalizeRichHtml(data.body || "")}}
           />
         )}
       </Stack>

@@ -114,6 +114,9 @@
 .editor {
   line-height: 1.55;
   word-break: break-word;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .rich :global(p),
@@ -201,7 +204,10 @@
 .editor :global(table) {
   border-collapse: collapse;
   width: 100%;
+  max-width: 100%;
   margin: 0.5em 0;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 .rich :global(th),
@@ -211,6 +217,8 @@
   border: 1px solid light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-3));
   padding: 6px 8px;
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .sectionHead {

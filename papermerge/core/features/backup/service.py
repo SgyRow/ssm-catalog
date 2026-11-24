@@ -546,7 +546,7 @@ def restore_backup(archive_path: Path) -> dict:
             except Exception as exc:
                 raise RuntimeError("Invalid backup: manifest.json is missing or invalid") from exc
             if manifest.get("format") != "papermerge-backup" or manifest.get("format_version") != BACKUP_FORMAT_VERSION:
-                raise RuntimeError("Unsupported Papermerge backup format")
+                raise RuntimeError("Unsupported SSM-Catalog backup format")
             target_db_kind = _database_parts()["kind"]
             if manifest.get("database", {}).get("kind") != target_db_kind:
                 raise RuntimeError(

@@ -129,8 +129,8 @@ async def list_threads(
         )
         .join(User, User.id == fb_orm.FeedbackThread.user_id)
         .order_by(
-            fb_orm.FeedbackThread.unread_for_staff.desc(),
             fb_orm.FeedbackThread.last_message_at.desc(),
+            fb_orm.FeedbackThread.id.desc(),
         )
     )
     rows = (await db_session.execute(stmt)).all()
@@ -279,8 +279,8 @@ async def list_wishes(
         )
         .outerjoin(User, User.id == fb_orm.FeedbackWish.author_id)
         .order_by(
-            fb_orm.FeedbackWish.read_at.asc().nulls_first(),
             fb_orm.FeedbackWish.created_at.desc(),
+            fb_orm.FeedbackWish.id.desc(),
         )
     )
     rows = (await db_session.execute(stmt)).all()

@@ -18,7 +18,7 @@ from papermerge.core.features.tags.cli import cli as tags_cli
 from papermerge.core.features.users.cli import cli as usr_cli
 from papermerge.search.cli import index, index_schema, search
 
-app = typer.Typer(help="Papermerge DMS command line management tool")
+app = typer.Typer(help="SSM-Catalog command line management tool")
 app.add_typer(usr_cli.app, name="users")
 app.add_typer(groups_cli.app, name="groups")
 app.add_typer(roles_cli.app, name="roles")

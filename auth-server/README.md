@@ -2,7 +2,7 @@
 
 Auth server is standalone microservice that provides
 authentication capabilities, and it is used as default authentication service
-for Papermerge DMS.
+for SSM-Catalog.
 
 Following authentication methods are supported:
 

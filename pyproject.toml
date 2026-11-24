@@ -1,12 +1,14 @@
 [project]
 name = "papermerge"
-version = "0.3.0"
+version = "0.3.5"
 description = "Open source document management system for digital archives"
 authors = [
-    { name = "Eugen Ciur", email = "eugen@papermerge.com" }
+    { name = "Sokolov" },
+    { name = "Razuvaev" }
 ]
 maintainers = [
-    { name = "Eugen Ciur", email = "eugen@papermerge.com" }
+    { name = "Sokolov" },
+    { name = "Razuvaev" }
 ]
 license = "Apache-2.0"
 readme = "README.md"
@@ -56,10 +58,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://www.papermerge.com/"
-Documentation = "https://docs.papermerge.io/"
-Tracker = "https://github.com/ciur/papermerge/issues"
-Source = "https://github.com/papermerge/papermerge-core"
+Source = "https://github.com/SgyRow/ssm-catalog"
 
 [tool.setuptools.packages.find]
 where = ["."]

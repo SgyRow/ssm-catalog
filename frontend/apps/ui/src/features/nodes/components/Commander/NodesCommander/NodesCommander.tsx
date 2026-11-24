@@ -173,6 +173,10 @@ export default function Commander() {
     setPage(1)
   }, [currentNodeID])
 
+  useEffect(() => {
+    setPage(1)
+  }, [filter])
+
   const {data, isLoading, isFetching, isError, refetch, error} =
     useGetPaginatedNodesQuery(
       {

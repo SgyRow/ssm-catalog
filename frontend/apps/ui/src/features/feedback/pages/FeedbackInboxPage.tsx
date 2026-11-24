@@ -76,8 +76,14 @@ export default function FeedbackInboxPage() {
     return <Loader />
   }
 
-  const items = threads ?? []
-  const wishItems = wishes ?? []
+  const byNewest = (left: string, right: string) =>
+    right.localeCompare(left)
+  const items = [...(threads ?? [])].sort((a, b) =>
+    byNewest(a.last_message_at, b.last_message_at)
+  )
+  const wishItems = [...(wishes ?? [])].sort((a, b) =>
+    byNewest(a.created_at, b.created_at)
+  )
   const unreadWishes = wishItems.filter(item => !item.read_at).length
 
   const setTab = (value: string | null) => {

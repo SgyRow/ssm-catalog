@@ -21,7 +21,7 @@ from papermerge.core.features.users import schema as users_schema
 router = APIRouter(prefix="/admin/backup", tags=["admin-backup"])
 
 _EXPORT_HEADERS = {
-    "Content-Disposition": 'attachment; filename="papermerge-backup.pmgbackup"',
+    "Content-Disposition": 'attachment; filename="ssm-catalog-backup.pmgbackup"',
     "Cache-Control": "no-store",
     "X-Accel-Buffering": "no",
 }

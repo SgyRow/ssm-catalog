@@ -1533,9 +1533,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"Papermerge DMS UI@workspace:.":
+"SSM-Catalog UI@workspace:.":
   version: 0.0.0-use.local
-  resolution: "Papermerge DMS UI@workspace:."
+  resolution: "SSM-Catalog UI@workspace:."
   dependencies:
     "@typescript-eslint/eslint-plugin": "npm:^8.38.0"
     "@typescript-eslint/parser": "npm:^8.38.0"

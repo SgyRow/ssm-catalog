@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "auth-server"
 version = "1.1.5"
-description = "Papermerge auth server"
-authors = ["Eugen Ciur <eugen@papermerge.com>"]
+description = "SSM-Catalog auth server"
+authors = ["Sokolov, Razuvaev"]
 readme = "README.md"
 packages = [{include = "auth_server"}]
 

@@ -435,6 +435,7 @@
   "msp.view.item_document": "Document",
   "msp.view.pdf_error": "Failed to build the PDF",
   "msp.normative.section_title": "Normative legal documents",
+  "msp.normative.used_in": "Linked measures",
   "msp.normative.attach": "Attach",
   "msp.normative.unlink": "Unlink",
   "msp.normative.already_linked": "Already linked",
@@ -620,7 +621,7 @@
         "about": {
           "title": "About the project",
           "items": [
-            "Digital library, version 0.3.0",
+            "Digital library, version 0.3.5",
             "Project created for KGKU \"Khabarovsk Center for Social Support of the Population\"",
             "Developers: Sokolov Mikhail Andreevich, Razuvaev Sergey Alexandrovich"
           ]
@@ -664,7 +665,7 @@
         "about": {
           "title": "About the project",
           "items": [
-            "Digital library, version 0.3.0",
+            "Digital library, version 0.3.5",
             "Project created for KGKU \"Khabarovsk Center for Social Support of the Population\"",
             "Developers: Sokolov Mikhail Andreevich, Razuvaev Sergey Alexandrovich"
           ]
@@ -673,7 +674,7 @@
           "title": "1. Getting started",
           "items": [
             "After sign-in the working interface opens. When the session ends, the site returns to the login page.",
-            "On the left: Home, Library (catalog), News, Citizen categories, Handbook, Services, Favorites, and — with permissions — Tags, Users, and Roles. Superusers also see Audit log and Backup; feedback moderators see Feedback.",
+            "On the left: Home, Library (catalog), News, Citizen categories, Handbook, Services, Favorites, and — with permissions — Tags, Users, and Roles. If the catalog root contains a folder named \"Спрашивали - Отвечаем\", it appears as its own menu item and opens that folder. Superusers also see Audit log and Backup; feedback moderators see Feedback.",
             "On top are search, help, feedback, the notifications bell, the light/dark theme switch, and the user menu.",
             "The sidebar button in the header collapses or expands the menu.",
             "Dates and times in lists, news, and the audit log use the Vladivostok time zone (UTC+10)."
@@ -686,7 +687,7 @@
             "Library in the side menu opens the document catalog: folders and files, a path trail, and an optional section tree. Turn the tree on with Show folder tree.",
             "Click a folder to open it, a document to open the viewer, or a social support measure to open its card.",
             "If your role can use the file browser, the catalog has Manage in file browser. From the browser, Browse in catalog returns to the catalog list.",
-            "News contains official posts: title, text, category, date, author, and attachments. Important posts can be pinned. An attachment opens like any other document.",
+            "News contains official posts: title, text, category, date, author, and attachments. Important posts can be pinned. An attachment opens like any other document. When posts have categories, chips above the list offer All and each category name.",
             "Users who can manage news see Add news and can edit, pin, or delete a post. Attachments are picked from the portal tree with Documents…."
           ]
         },
@@ -711,6 +712,7 @@
             "Favorites has tabs: Favorites, Watched, Recent, and Trash.",
             "Favorites are materials you starred. You can organize them in personal folders: New folder, Move to folder, Unfiled.",
             "Watched lists items marked with the eye icon. You get a notification when a watched file is updated. Personal folders are available here too.",
+            "The star and the eye can mark a document, a whole measure, or a single measure section. Those entries appear in Favorites and Watched.",
             "Recent lists folders and documents you opened, with the view time.",
             "Trash holds deleted materials. Select rows and choose Restore or Delete permanently when your role allows it.",
             "The Trash tab shows how long files are kept. After that they are deleted automatically. Only a superuser can change the period (1 to 3650 days).",
@@ -730,11 +732,12 @@
           "title": "7. Social support measures",
           "items": [
             "A measure opens from the catalog as a card with text sections, a normative-acts block, and related documents.",
-            "Filled sections appear in order. Empty and hidden sections are not shown in normal view.",
+            "Filled sections appear in order and open one at a time. Empty and hidden sections are not shown in normal view. A filled section has its own star and eye icons.",
             "Download PDF builds a printable file of the measure.",
-            "Normative legal documents lists linked acts from the registry. Acts open like ordinary catalog documents.",
-            "The star and eye icons on the measure card work like in the document viewer: favorites and change watching.",
-            "Users who can update the catalog can choose Edit: change the title, section texts, hide sections, and attach normative acts."
+            "Normative legal documents groups acts into folders. In normal view a folder appears only when it has linked acts. An act opens like an ordinary catalog document.",
+            "Below the sections a measure can show the Informational materials folder and a Documents and folders list — files and folders stored inside the measure. Empty folders stay hidden in view.",
+            "The star and eye icons in the card header mark the whole measure: favorites and change watching.",
+            "Users who can update the catalog can choose Edit: change the measure title and section titles, edit texts, and hide sections. In the normative-acts block you can create, rename, and delete a folder, and Attach adds a registry act to the chosen folder. Deleting a folder removes the links; the registry documents stay."
           ]
         },
         "documents": {
@@ -808,7 +811,7 @@
         "about": {
           "title": "About the project",
           "items": [
-            "Digital library, version 0.3.0",
+            "Digital library, version 0.3.5",
             "Project created for KGKU \"Khabarovsk Center for Social Support of the Population\"",
             "Developers: Sokolov Mikhail Andreevich, Razuvaev Sergey Alexandrovich"
           ]
@@ -886,7 +889,7 @@
             "When nothing is selected: Upload, New Folder, and, if you can create folders, Create measure.",
             "Create measure opens a dialog: choose a measure type, set a title, and fill the sections you need. Empty sections are omitted. You can paste from Word — tables and images are kept.",
             "A superuser uses the Measure types tab in the same dialog to create and edit types: name, description, and section list.",
-            "On a measure card, Edit lets you change texts, hide sections, and attach normative acts from the central registry (Attach).",
+            "On a measure card, Edit lets you change the measure title and section titles, edit texts, and hide sections. In the normative-acts block, Folder creates a group, Attach adds a registry act to the chosen folder, and a folder can be renamed or deleted. Deleting a folder removes the links; the registry acts stay.",
             "One selected item: Change title, tags, and Visibility. For one folder, the users-group icon assigns citizen categories.",
             "Delete moves the selected items to trash. Restore and permanent delete are on the Trash tab in Favorites.",
             "The superuser sets how long trash is kept on that same tab.",
@@ -920,7 +923,7 @@
           "items": [
             "Backup in the menu is available only to the superuser.",
             "Export everything builds a portable archive: the database (users, roles, permissions, documents, folders, news, citizen categories, measures, handbook, services, settings) and every uploaded file.",
-            "The archive is saved as papermerge-backup.pmgbackup. Keep the tab open until the export finishes.",
+            "The archive is saved as ssm-catalog-backup.pmgbackup. Keep the tab open until the export finishes.",
             "Restore from archive replaces the current database and files with the selected archive. Make a fresh copy and confirm before restoring.",
             "Database address, media path, and the token signing secret are not carried over. Users may need to sign in again after import."
           ]

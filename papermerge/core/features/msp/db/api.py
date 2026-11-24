@@ -623,6 +623,42 @@ async def delete_normative_folder(
     return True
 
 
+async def list_measures_for_document(
+    db_session: AsyncSession, document_id: UUID
+) -> list[tuple[UUID, UUID, str, str, str]]:
+    """Measures that link ``document_id``.
+
+    Each row is ``(msp_id, node_id, measure_title, type_name, folder_title)``.
+    Deleted measure folders are omitted.
+    """
+    stmt = (
+        select(
+            orm.Msp.id,
+            orm.Msp.node_id,
+            nodes_orm.Node.title,
+            orm.MspType.name,
+            orm.MspNormativeFolder.title,
+        )
+        .join(orm.MspNormativeLink, orm.MspNormativeLink.msp_id == orm.Msp.id)
+        .join(nodes_orm.Node, nodes_orm.Node.id == orm.Msp.node_id)
+        .join(orm.MspType, orm.MspType.id == orm.Msp.msp_type_id)
+        .join(
+            orm.MspNormativeFolder,
+            orm.MspNormativeFolder.id == orm.MspNormativeLink.folder_id,
+        )
+        .where(
+            orm.MspNormativeLink.document_id == document_id,
+            nodes_orm.Node.deleted_at.is_(None),
+        )
+        .order_by(nodes_orm.Node.title, orm.MspNormativeFolder.title)
+    )
+    rows = (await db_session.execute(stmt)).all()
+    return [
+        (msp_id, node_id, title or "", type_name or "", folder_title or "")
+        for msp_id, node_id, title, type_name, folder_title in rows
+    ]
+
+
 async def list_normative_links(
     db_session: AsyncSession, msp_id: UUID
 ) -> list[tuple[orm.MspNormativeLink, str]]:

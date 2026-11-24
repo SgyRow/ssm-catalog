@@ -105,6 +105,14 @@ export type MspNormativeLinkCreate = {
   folder_id: string
 }
 
+export type DocumentMeasureRef = {
+  msp_id: string
+  node_id: string
+  title: string
+  msp_type_name: string
+  folder_title: string
+}
+
 export type MspNormativeFolderCreate = {
   title: string
 }
@@ -223,7 +231,12 @@ const injected = apiSlice.injectEndpoints({
         url: `/msp/${mspId}`,
         method: "DELETE"
       }),
-      invalidatesTags: ["Node", "Folder", {type: "Msp", id: "LIST"}]
+      invalidatesTags: [
+        "Node",
+        "Folder",
+        {type: "Msp", id: "LIST"},
+        {type: "MspNormativeLinks", id: "BY_DOCUMENT"}
+      ]
     }),
 
     getNormativeRegistry: builder.query<NormativeRegistry, void>({
@@ -269,7 +282,8 @@ const injected = apiSlice.injectEndpoints({
         method: "DELETE"
       }),
       invalidatesTags: (_r, _e, {msp_id}) => [
-        {type: "MspNormativeLinks", id: msp_id}
+        {type: "MspNormativeLinks", id: msp_id},
+        {type: "MspNormativeLinks", id: "BY_DOCUMENT"}
       ]
     }),
     createMspNormativeLink: builder.mutation<
@@ -281,8 +295,10 @@ const injected = apiSlice.injectEndpoints({
         method: "POST",
         body
       }),
-      invalidatesTags: (_r, _e, {msp_id}) => [
-        {type: "MspNormativeLinks", id: msp_id}
+      invalidatesTags: (_r, _e, {msp_id, document_id}) => [
+        {type: "MspNormativeLinks", id: msp_id},
+        {type: "MspNormativeLinks", id: "BY_DOCUMENT"},
+        {type: "MspNormativeLinks", id: `doc-${document_id}`}
       ]
     }),
     deleteMspNormativeLink: builder.mutation<
@@ -294,7 +310,15 @@ const injected = apiSlice.injectEndpoints({
         method: "DELETE"
       }),
       invalidatesTags: (_r, _e, {msp_id}) => [
-        {type: "MspNormativeLinks", id: msp_id}
+        {type: "MspNormativeLinks", id: msp_id},
+        {type: "MspNormativeLinks", id: "BY_DOCUMENT"}
+      ]
+    }),
+    listDocumentMeasures: builder.query<DocumentMeasureRef[], string>({
+      query: documentId => `/msp/by-document/${documentId}`,
+      providesTags: (_r, _e, documentId) => [
+        {type: "MspNormativeLinks", id: "BY_DOCUMENT"},
+        {type: "MspNormativeLinks", id: `doc-${documentId}`}
       ]
     })
   })
@@ -319,7 +343,8 @@ export const {
   useUpdateMspNormativeFolderMutation,
   useDeleteMspNormativeFolderMutation,
   useCreateMspNormativeLinkMutation,
-  useDeleteMspNormativeLinkMutation
+  useDeleteMspNormativeLinkMutation,
+  useListDocumentMeasuresQuery
 } = injected
 
 // --------------------------------------------------------------------------- #

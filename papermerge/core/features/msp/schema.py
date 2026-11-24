@@ -173,3 +173,13 @@ class MspNormativeFolderRead(BaseModel):
 class MspNormativeLinkCreate(BaseModel):
     document_id: UUID
     folder_id: UUID
+
+
+class DocumentMeasureRef(BaseModel):
+    """A measure that links this normative document."""
+
+    msp_id: UUID
+    node_id: UUID
+    title: str
+    msp_type_name: str
+    folder_title: str

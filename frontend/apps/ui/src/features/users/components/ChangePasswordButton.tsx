@@ -1,9 +1,12 @@
 import {useChangePasswordMutation} from "@/features/users/apiSlice"
+import {navigateToLogin} from "@/features/public/guestMode"
+import {selectCurrentUser} from "@/slices/currentUser"
 import {Box, Button, Group, Loader, Modal, PasswordInput} from "@mantine/core"
 import {useForm} from "@mantine/form"
 import {useDisclosure} from "@mantine/hooks"
 import {IconPassword} from "@tabler/icons-react"
 import {useEffect} from "react"
+import {useSelector} from "react-redux"
 import {useTranslation} from "react-i18next"
 
 interface ChangePasswordButtonArgs {
@@ -68,6 +71,7 @@ function ChangeUserPasswordModal({
   opened
 }: ChangePasswordModalArgs) {
   const {t} = useTranslation()
+  const currentUser = useSelector(selectCurrentUser)
   const [changePassword, {isLoading, isSuccess}] = useChangePasswordMutation()
 
   const form = useForm({
@@ -90,7 +94,14 @@ function ChangeUserPasswordModal({
   }, [opened])
 
   const onLocalSubmit = async ({password}: {password: string}) => {
-    await changePassword({userId, password})
+    const result = await changePassword({userId, password})
+    if ("error" in result) {
+      return
+    }
+    if (currentUser?.id === userId) {
+      navigateToLogin()
+      return
+    }
     onSubmit()
   }
   const onClose = () => {
