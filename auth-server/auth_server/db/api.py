@@ -287,6 +287,7 @@ def set_user_password(db_session: Session, username: str, password: str) -> orm.
 
     db_session.add(db_user)
     db_user.password = pbkdf2_sha256.hash(password)
+    db_user.session_version = int(db_user.session_version or 0) + 1
     db_session.commit()
 
     return db_user

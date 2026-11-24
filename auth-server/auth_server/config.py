@@ -24,8 +24,12 @@ class Algs(str, Enum):
 class Settings(BaseSettings):
     papermerge__security__secret_key: str
     papermerge__security__token_algorithm: Algs = Algs.HS256
+    # Kept so existing env files still load. Session length is not time-based:
+    # the access token has no exp, and the cookie is refreshed on each /verify.
     papermerge__security__token_expire_minutes: int = 360
     papermerge__security__cookie_name: str = "access_token"
+    # Chrome caps persistent cookies at 400 days. /verify slides this window.
+    papermerge__security__cookie_max_age_seconds: int = 60 * 60 * 24 * 400
 
     # database where to read user table from
     papermerge__database__url: str

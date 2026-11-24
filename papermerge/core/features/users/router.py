@@ -2,7 +2,7 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, HTTPException, Response, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from papermerge.core import schema, dbapi
@@ -145,6 +145,18 @@ async def change_current_user_password(
 
     user_details.scopes = user.scopes
     return user_details
+
+
+@router.post("/me/logout", status_code=204)
+async def logout_current_user(
+    user: Annotated[schema.User, Depends(auth.get_current_user)],
+    response: Response,
+    db_session: AsyncSession = Depends(get_db),
+) -> None:
+    """End every session for this user. The browser cookie is cleared too."""
+    await dbapi.bump_user_session(db_session, user.id)
+    await db_session.commit()
+    response.delete_cookie("access_token", path="/", samesite="lax")
 
 
 @router.get("/")

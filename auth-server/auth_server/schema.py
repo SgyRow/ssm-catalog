@@ -12,6 +12,7 @@ class User(BaseModel):
     inbox_folder_id: UUID
     is_superuser: bool = False
     scopes: list[str] = []
+    session_version: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

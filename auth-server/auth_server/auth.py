@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 from sqlalchemy.orm import Session
@@ -19,6 +20,39 @@ from auth_server.utils import raise_on_empty
 
 logger = logging.getLogger(__name__)
 settings = Settings()
+
+# Short claim embedded in the JWT. Must match papermerge.core.features.auth.jwt_tokens.
+PASSWORD_STAMP_CLAIM = "pv"
+SESSION_VERSION_CLAIM = "sv"
+
+
+def password_stamp(password_hash: str) -> str:
+    """Fingerprint of the stored password hash.
+
+    Changing the password changes the hash, so previously issued tokens stop
+    verifying. The hash itself is not put in the token.
+    """
+    return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:16]
+
+
+def token_matches_password(claims: dict, password_hash: str | None) -> bool:
+    """Tokens without a stamp are legacy (they still carry exp)."""
+    stamp = claims.get(PASSWORD_STAMP_CLAIM)
+    if not stamp:
+        return True
+    if not password_hash:
+        return False
+    return stamp == password_stamp(password_hash)
+
+
+def token_matches_session(claims: dict, session_version: int | None) -> bool:
+    """Tokens without sv were issued before logout invalidation existed."""
+    if SESSION_VERSION_CLAIM not in claims or claims.get(SESSION_VERSION_CLAIM) is None:
+        return True
+    try:
+        return int(claims[SESSION_VERSION_CLAIM]) == int(session_version or 0)
+    except (TypeError, ValueError):
+        return False
 
 
 async def authenticate(
@@ -65,11 +99,10 @@ def create_access_token(
     logger.debug(f"create access token for data={data}")
 
     to_encode = data.model_dump()
-    if expires_delta:
-        expire = datetime.now(UTC) + expires_delta
-    else:
-        expire = datetime.now(UTC) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+    # No expires_delta means the token does not expire by time. Logout and a
+    # password change are the only ways a session ends.
+    if expires_delta is not None:
+        to_encode["exp"] = datetime.now(UTC) + expires_delta
 
     try:
         encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algorithm)
@@ -158,21 +191,24 @@ async def oidc_auth(
 
 
 def create_token(user: schema.User) -> str:
-    access_token_expires = timedelta(
-        minutes=settings.papermerge__security__token_expire_minutes
-    )
     data = schema.TokenData(
         sub=str(user.id),
         preferred_username=user.username,
         email=user.email,
         scopes=user.scopes,
     )
+    to_encode = data.model_dump()
+    to_encode[PASSWORD_STAMP_CLAIM] = password_stamp(user.password)
+    to_encode[SESSION_VERSION_CLAIM] = int(user.session_version or 0)
 
-    access_token = create_access_token(
-        data=data,
-        expires_delta=access_token_expires,
-        secret_key=settings.papermerge__security__secret_key,
-        algorithm=settings.papermerge__security__token_algorithm,
-    )
+    try:
+        encoded_jwt = jwt.encode(
+            to_encode,
+            settings.papermerge__security__secret_key,
+            algorithm=settings.papermerge__security__token_algorithm,
+        )
+    except Exception as exc:
+        logger.error(exc)
+        raise
 
-    return access_token
+    return encoded_jwt

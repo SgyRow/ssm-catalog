@@ -1,4 +1,5 @@
 import {useChangeOwnPasswordMutation} from "@/features/users/apiSlice"
+import {navigateToLogin} from "@/features/public/guestMode"
 import {Box, Button, Group, Loader, Modal, PasswordInput} from "@mantine/core"
 import {useForm} from "@mantine/form"
 import {useDisclosure} from "@mantine/hooks"
@@ -85,7 +86,7 @@ function ChangeOwnPasswordModal({opened, onClose}: ChangeOwnPasswordModalArgs) {
         title: t("profile.password_changed"),
         color: "green"
       })
-      handleClose()
+      navigateToLogin()
     } catch {
       notifications.show({
         title: t("profile.password_change_error"),

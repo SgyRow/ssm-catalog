@@ -63,6 +63,7 @@ class User(Base):
     is_superuser: Mapped[bool] = mapped_column(default=False)
     is_staff: Mapped[bool] = mapped_column(default=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    session_version: Mapped[int] = mapped_column(default=0, server_default="0")
     nodes: Mapped[List["Node"]] = relationship(
         back_populates="user", primaryjoin="User.id == Node.user_id"
     )
