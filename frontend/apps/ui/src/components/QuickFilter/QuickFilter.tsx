@@ -1,7 +1,6 @@
 import {TextInput} from "@mantine/core"
-import {useThrottledCallback} from "@mantine/hooks"
 import {IconSearch, IconX} from "@tabler/icons-react"
-import {useState} from "react"
+import {useEffect, useRef, useState} from "react"
 import {useTranslation} from "react-i18next"
 
 interface Args {
@@ -10,36 +9,48 @@ interface Args {
   filterText?: string
 }
 
+const FILTER_DEBOUNCE_MS = 250
+
 export default function QuickFilter({onChange, onClear, filterText}: Args) {
   const {t} = useTranslation()
-  const [localFilterText, setLocalFilterText] = useState<string>()
-  const throttledSetValue = useThrottledCallback(
-    value => onLocalChange(value),
-    1500
-  )
+  const [localFilterText, setLocalFilterText] = useState(filterText ?? "")
+  const debounceRef = useRef<number | undefined>(undefined)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
-  const onLocalClear = () => {
-    setLocalFilterText(undefined)
-    onClear()
+  useEffect(() => {
+    return () => window.clearTimeout(debounceRef.current)
+  }, [])
+
+  const scheduleChange = (value: string) => {
+    window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(() => {
+      onChangeRef.current(value.trim())
+    }, FILTER_DEBOUNCE_MS)
   }
 
-  const onLocalChange = (value: string) => {
-    const trimmedValue = value.trim() || ""
-    setLocalFilterText(trimmedValue)
-    onChange(trimmedValue)
+  const onLocalClear = () => {
+    window.clearTimeout(debounceRef.current)
+    setLocalFilterText("")
+    onClear()
   }
 
   return (
     <TextInput
       rightSection={
-        filterText ? <IconX onClick={onLocalClear} /> : <IconSearch />
+        localFilterText ? (
+          <IconX onClick={onLocalClear} style={{cursor: "pointer"}} />
+        ) : (
+          <IconSearch />
+        )
       }
       onChange={event => {
-        throttledSetValue(event.currentTarget.value)
-        setLocalFilterText(event.currentTarget.value)
+        const value = event.currentTarget.value
+        setLocalFilterText(value)
+        scheduleChange(value)
       }}
       placeholder={t("common.quick_search")}
-      value={localFilterText || filterText || ""}
+      value={localFilterText}
     />
   )
 }
