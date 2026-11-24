@@ -91,6 +91,12 @@
   outline: none;
 }
 
+.editorTall {
+  min-height: 320px;
+  max-height: none;
+  padding: 12px 14px;
+}
+
 .editor:focus {
   border-color: var(--mantine-color-pmg-6);
 }

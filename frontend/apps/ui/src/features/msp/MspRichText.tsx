@@ -499,11 +499,26 @@ function isEditorVisuallyEmpty(el: HTMLElement): boolean {
   return !(el.textContent || "").replace(/\u00a0/g, " ").trim()
 }
 
+type UploadedImage = {
+  src: string
+  alt?: string
+}
+
+type EditorHelpers = {
+  insertHtml: (html: string) => void
+}
+
 type EditorArgs = {
   value: string
   onChange: (html: string) => void
   placeholder?: string
   disabled?: boolean
+  /** Taller editor without max-height (handbook articles). */
+  tall?: boolean
+  /** If set, toolbar image picks call this instead of embedding a data URL. */
+  uploadImage?: (file: File) => Promise<UploadedImage | null>
+  /** Extra toolbar controls after the built-in ones (receives insert helpers). */
+  extraToolbar?: (helpers: EditorHelpers) => ReactNode
 }
 
 type ToolBtnProps = {
@@ -636,7 +651,10 @@ export function MspRichTextEditor({
   value,
   onChange,
   placeholder,
-  disabled
+  disabled,
+  tall,
+  uploadImage,
+  extraToolbar
 }: EditorArgs) {
   const {t} = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
@@ -800,6 +818,16 @@ export function MspRichTextEditor({
 
   const insertImageFile = async (file: File) => {
     if (file.size > MAX_IMAGE_BYTES) {
+      return
+    }
+    if (uploadImage) {
+      const uploaded = await uploadImage(file)
+      if (!uploaded?.src) {
+        return
+      }
+      insertHtml(
+        `<img src="${escapeAttr(uploaded.src)}" alt="${escapeAttr(uploaded.alt || "")}" />`
+      )
       return
     }
     const src = await fileToDataUrl(file)
@@ -1181,6 +1209,13 @@ export function MspRichTextEditor({
               <IconClearFormatting size={16} />
             </ToolBtn>
 
+            {extraToolbar ? (
+              <>
+                <ToolSep />
+                {extraToolbar({insertHtml})}
+              </>
+            ) : null}
+
             <input
               ref={imageInput}
               type="file"
@@ -1197,7 +1232,7 @@ export function MspRichTextEditor({
       ) : null}
       <div
         ref={ref}
-        className={classes.editor}
+        className={tall ? `${classes.editor} ${classes.editorTall}` : classes.editor}
         contentEditable={!disabled}
         data-placeholder={placeholder}
         data-empty={empty ? "true" : "false"}
