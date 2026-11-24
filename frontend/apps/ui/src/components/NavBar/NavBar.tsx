@@ -1,5 +1,8 @@
 import {useGetFeedbackUnreadQuery} from "@/features/feedback/feedbackApiSlice"
-import {useGetPortalRootQuery} from "@/features/portal/portalApiSlice"
+import {
+  useGetPortalNodesQuery,
+  useGetPortalRootQuery
+} from "@/features/portal/portalApiSlice"
 import {selectNavBarCollapsed} from "@/features/ui/uiSlice"
 import {
   FEEDBACK_MANAGE,
@@ -29,6 +32,7 @@ import {
   IconBook2,
   IconHome,
   IconMessages,
+  IconMessageQuestion,
   IconNotebook,
   IconUsersGroup,
   IconApps
@@ -40,12 +44,20 @@ import {useGetVersionQuery} from "@/features/version/apiSlice"
 import type {UserDetails} from "@/types.ts"
 import {useTranslation} from "react-i18next"
 
-function useNavActive() {
+/** Exact title of the Q&A folder under the portal library root. */
+const QA_FOLDER_TITLE = "Спрашивали - Отвечаем"
+
+function useNavActive(qaFolderId?: string | null) {
   const {pathname} = useLocation()
+  const qaPath = qaFolderId ? `/portal/folder/${qaFolderId}` : null
+  const onQa = Boolean(qaPath && pathname === qaPath)
   return {
     home: pathname === "/portal",
     catalog:
-      pathname.startsWith("/portal/folder/") || pathname === "/portal/folder",
+      (pathname.startsWith("/portal/folder/") ||
+        pathname === "/portal/folder") &&
+      !onQa,
+    qa: onQa,
     citizenCategories:
       pathname === "/citizen-categories" ||
       pathname.startsWith("/citizen-categories/"),
@@ -54,6 +66,25 @@ function useNavActive() {
     library: pathname === "/library" || pathname.startsWith("/library/"),
     feedback: pathname === "/feedback" || pathname.startsWith("/feedback/")
   }
+}
+
+function useQaFolder() {
+  const user = useSelector(selectCurrentUser) as UserDetails | null
+  const status = useSelector(selectCurrentUserStatus)
+  const scopes = user?.scopes ?? []
+  const canBrowse =
+    status === "succeeded" && scopes.includes(PORTAL_VIEW)
+  const {data: portalRoot} = useGetPortalRootQuery(undefined, {
+    skip: !canBrowse
+  })
+  const {data: rootNodes} = useGetPortalNodesQuery(
+    {parentId: portalRoot?.id ?? "", page_size: 100},
+    {skip: !canBrowse || !portalRoot?.id}
+  )
+  const qaFolder = (rootNodes?.items ?? []).find(
+    row => row.ctype === "folder" && row.title === QA_FOLDER_TITLE
+  )
+  return qaFolder ?? null
 }
 
 function canOpenFeedbackInbox(user: UserDetails | null): boolean {
@@ -65,7 +96,6 @@ function canOpenFeedbackInbox(user: UserDetails | null): boolean {
 
 function NavBarFull() {
   const {t} = useTranslation()
-  const active = useNavActive()
   const {data, isLoading} = useGetVersionQuery()
 
   const user = useSelector(selectCurrentUser) as UserDetails
@@ -75,7 +105,10 @@ function NavBarFull() {
   const {data: portalRoot} = useGetPortalRootQuery(undefined, {
     skip: status !== "succeeded" || !scopes.includes(PORTAL_VIEW)
   })
+  const qaFolder = useQaFolder()
+  const active = useNavActive(qaFolder?.id)
   const catalogPath = portalRoot ? `/portal/folder/${portalRoot.id}` : "/portal"
+  const qaPath = qaFolder ? `/portal/folder/${qaFolder.id}` : null
 
   if (status == "loading" || isLoading) {
     return <>{t("common.loading")}</>
@@ -108,6 +141,14 @@ function NavBarFull() {
             <Group wrap="nowrap" gap="xs">
               <IconBook2 />
               {t("portal.catalog_nav")}
+            </Group>
+          </Link>
+        )}
+        {scopes.includes(PORTAL_VIEW) && qaPath && (
+          <Link to={qaPath} className={active.qa ? "active" : undefined}>
+            <Group wrap="nowrap" gap="xs">
+              <IconMessageQuestion />
+              {t("portal.qa_nav")}
             </Group>
           </Link>
         )}
@@ -196,7 +237,6 @@ function NavBarFull() {
 
 function NavBarCollapsed() {
   const {t} = useTranslation()
-  const active = useNavActive()
   const {data, isLoading} = useGetVersionQuery()
 
   const user = useSelector(selectCurrentUser) as UserDetails
@@ -206,7 +246,10 @@ function NavBarCollapsed() {
   const {data: portalRoot} = useGetPortalRootQuery(undefined, {
     skip: status !== "succeeded" || !scopes.includes(PORTAL_VIEW)
   })
+  const qaFolder = useQaFolder()
+  const active = useNavActive(qaFolder?.id)
   const catalogPath = portalRoot ? `/portal/folder/${portalRoot.id}` : "/portal"
+  const qaPath = qaFolder ? `/portal/folder/${qaFolder.id}` : null
 
   if (status == "loading" || isLoading) {
     return <>{t("common.loading")}</>
@@ -237,6 +280,13 @@ function NavBarCollapsed() {
           >
             <Group>
               <IconBook2 />
+            </Group>
+          </Link>
+        )}
+        {scopes.includes(PORTAL_VIEW) && qaPath && (
+          <Link to={qaPath} className={active.qa ? "active" : undefined}>
+            <Group>
+              <IconMessageQuestion />
             </Group>
           </Link>
         )}

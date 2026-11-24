@@ -50,14 +50,14 @@ body {
 
 .navbar a {
   color: light-dark(var(--mantine-color-pmg-9), var(--mantine-color-pmg-2));
-  padding: 0.5625rem;
+  padding: 0.45rem 0.5rem;
   text-decoration: none;
 }
 
 .navbar {
   margin: 0;
   padding: 0;
-  padding-top: 0.75rem;
+  padding-top: 0.25rem;
   display: flex;
   flex-direction: column;
   background-color: light-dark(
@@ -92,5 +92,5 @@ a:not(.mantine-Menu-item):not(.mantine-Button-root):hover {
 .navbar > a.active:hover {
   background-color: var(--mantine-color-pmg-9);
   color: var(--mantine-color-white);
-  padding: 0.5625rem;
+  padding: 0.45rem 0.5rem;
 }
