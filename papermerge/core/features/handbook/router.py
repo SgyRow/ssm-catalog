@@ -218,12 +218,16 @@ async def download_handbook_document(
         raise exc.HTTP404NotFound()
     article, path = found
     content_type = article.file_content_type or "application/octet-stream"
+    # Replaced bytes share the same path; never let proxies/browsers keep
+    # the previous body under this URL.
+    headers = {"Cache-Control": "no-store"}
     if inline:
-        return FileResponse(path, media_type=content_type)
+        return FileResponse(path, media_type=content_type, headers=headers)
     return FileResponse(
         path,
         media_type=content_type,
         filename=article.file_filename or article.title,
+        headers=headers,
     )
 
 

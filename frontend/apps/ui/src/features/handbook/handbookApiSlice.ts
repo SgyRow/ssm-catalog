@@ -168,6 +168,16 @@ const injected = apiSlice.injectEndpoints({
         const data = (await res.json()) as HandbookArticle
         return {data}
       },
+      async onQueryStarted({id}, {dispatch, queryFulfilled}) {
+        try {
+          const {data} = await queryFulfilled
+          dispatch(
+            injected.util.updateQueryData("getHandbookArticle", id, () => data)
+          )
+        } catch {
+          /* keep previous cache; invalidatesTags will refetch */
+        }
+      },
       invalidatesTags: (_r, _e, {id}) => [
         {type: "Handbook", id},
         {type: "Handbook", id: "LIST"}

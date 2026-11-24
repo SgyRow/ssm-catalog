@@ -92,3 +92,53 @@ def test_title_from_filename_strips_extension():
     assert hb_api.title_from_filename("notes.docx") == "notes"
     assert hb_api.title_from_filename("noext") == "noext"
     assert hb_api.title_from_filename(".gitignore") == ".gitignore"
+
+
+@pytest.mark.asyncio
+async def test_replace_file_document_bumps_url_stamp(db_session, make_user, tmp_path, monkeypatch):
+    """Replace must rewrite bytes and change the download URL stamp.
+
+    Same filename/size used to leave updated_at untouched (ORM stayed clean),
+    so the SPA kept showing the previous preview from a cached URL.
+    """
+    monkeypatch.setattr(
+        "papermerge.core.features.handbook.db.api.get_settings",
+        lambda: type(
+            "S",
+            (),
+            {"papermerge__main__media_root": str(tmp_path)},
+        )(),
+    )
+    user = await make_user("hb-replace-file")
+    created, err = await hb_api.create_file_document(
+        db_session,
+        title="Правила",
+        author_id=user.id,
+        filename="rules.pdf",
+        content_type="application/pdf",
+        data=b"%PDF-1.4 old-content-xx",
+    )
+    assert err is None
+    assert created is not None
+    article_id = created["id"]
+    old_url = created["file"]["url"]
+    old_updated = created["updated_at"]
+
+    replaced = await hb_api.replace_file_document(
+        db_session,
+        article_id,
+        filename="rules.pdf",
+        content_type="application/pdf",
+        data=b"%PDF-1.4 new-content-xx",
+    )
+    assert replaced is not None
+    assert replaced["file"]["filename"] == "rules.pdf"
+    assert replaced["file"]["size_bytes"] == len(b"%PDF-1.4 new-content-xx")
+    assert replaced["updated_at"] != old_updated
+    assert replaced["file"]["url"] != old_url
+    assert "?v=" in replaced["file"]["url"]
+
+    stored = await hb_api.get_file_document(db_session, article_id)
+    assert stored is not None
+    _, path = stored
+    assert path.read_bytes() == b"%PDF-1.4 new-content-xx"
