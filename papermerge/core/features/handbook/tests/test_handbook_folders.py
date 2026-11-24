@@ -63,3 +63,32 @@ async def test_create_article_rejects_missing_folder(db_session, make_user):
     )
     assert row is None
     assert err == "folder_not_found"
+
+
+@pytest.mark.asyncio
+async def test_handbook_author_uses_display_name(db_session, make_user):
+    user = await make_user("hb-author-login")
+    user.first_name = "Иван"
+    user.last_name = "Петров"
+    await db_session.flush()
+
+    article, err = await hb_api.create_article(
+        db_session,
+        title="Статья",
+        body="",
+        author_id=user.id,
+    )
+    assert err is None
+    assert article is not None
+    assert article["author_username"] == "Иван Петров"
+
+    listed = await hb_api.list_articles(db_session)
+    match = next(item for item in listed if item["id"] == article["id"])
+    assert match["author_username"] == "Иван Петров"
+
+
+def test_title_from_filename_strips_extension():
+    assert hb_api.title_from_filename("Регламент.pdf") == "Регламент"
+    assert hb_api.title_from_filename("notes.docx") == "notes"
+    assert hb_api.title_from_filename("noext") == "noext"
+    assert hb_api.title_from_filename(".gitignore") == ".gitignore"

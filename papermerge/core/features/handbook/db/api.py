@@ -10,6 +10,7 @@ from papermerge.core import orm
 from papermerge.core.config import get_settings
 from papermerge.core.features.handbook.db import orm as hb_orm
 from papermerge.core.features.handbook.sanitize import sanitize_html
+from papermerge.core.features.users.schema import user_display_name
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -46,6 +47,12 @@ def _safe_filename(name: str) -> str:
     return cleaned[:180] or "file"
 
 
+def title_from_filename(filename: str) -> str:
+    """Display title without the last extension segment (keep storage name intact)."""
+    stem = Path(filename or "").stem.strip()
+    return stem or (filename or "file").strip() or "file"
+
+
 def _folder_dict(folder: hb_orm.HandbookFolder) -> dict:
     return {
         "id": folder.id,
@@ -56,13 +63,21 @@ def _folder_dict(folder: hb_orm.HandbookFolder) -> dict:
     }
 
 
-def _article_dict(article: hb_orm.HandbookArticle, username: str | None) -> dict:
+def _author_label(
+    username: str | None, first_name: str | None, last_name: str | None
+) -> str:
+    if not username:
+        return ""
+    return user_display_name(first_name, last_name, username)
+
+
+def _article_dict(article: hb_orm.HandbookArticle, author_label: str | None) -> dict:
     return {
         "id": article.id,
         "title": article.title,
         "body": article.body,
         "author_id": article.author_id,
-        "author_username": username or "",
+        "author_username": author_label or "",
         "created_at": article.created_at,
         "updated_at": article.updated_at,
         "kind": article.kind,
@@ -158,26 +173,36 @@ async def list_articles(db_session: AsyncSession) -> list[dict]:
         select(
             hb_orm.HandbookArticle,
             author.username,
+            author.first_name,
+            author.last_name,
         )
         .outerjoin(author, author.id == hb_orm.HandbookArticle.author_id)
         .order_by(hb_orm.HandbookArticle.updated_at.desc())
     )
     rows = (await db_session.execute(stmt)).all()
-    return [_article_dict(article, username) for article, username in rows]
+    return [
+        _article_dict(article, _author_label(username, first_name, last_name))
+        for article, username, first_name, last_name in rows
+    ]
 
 
 async def get_article(db_session: AsyncSession, article_id: UUID) -> dict | None:
     author = orm.User
     stmt = (
-        select(hb_orm.HandbookArticle, author.username)
+        select(
+            hb_orm.HandbookArticle,
+            author.username,
+            author.first_name,
+            author.last_name,
+        )
         .outerjoin(author, author.id == hb_orm.HandbookArticle.author_id)
         .where(hb_orm.HandbookArticle.id == article_id)
     )
     row = (await db_session.execute(stmt)).one_or_none()
     if row is None:
         return None
-    article, username = row
-    return _article_dict(article, username)
+    article, username, first_name, last_name = row
+    return _article_dict(article, _author_label(username, first_name, last_name))
 
 
 async def create_file_document(
