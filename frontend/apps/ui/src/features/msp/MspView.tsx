@@ -25,6 +25,7 @@ import {
   Anchor,
   Button,
   Group,
+  Loader,
   Paper,
   Skeleton,
   Stack,
@@ -143,8 +144,69 @@ function NodeRow({
 }
 
 /**
+ * Category folder under informational materials: expands in place (like
+ * normative folders) and lists documents inside instead of navigating away.
+ */
+function InfoCategoryFolder({
+  folder,
+  childNav
+}: {
+  folder: NodeType
+  childNav?: (node: NodeType) => ChildNav
+}) {
+  const {t} = useTranslation()
+  const {data, isLoading} = useGetPortalNodesQuery({
+    parentId: folder.id,
+    page_size: 100
+  })
+  const documents = (data?.items ?? []).filter(item => item.ctype === "document")
+
+  return (
+    <Accordion.Item value={folder.id}>
+      <div className={classes.sectionHead}>
+        <Accordion.Control>
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon
+              variant="light"
+              color="yellow"
+              size="sm"
+              radius="md"
+              aria-hidden
+            >
+              <IconFolder size={14} stroke={1.5} />
+            </ThemeIcon>
+            <Text size="sm" fw={600}>
+              {folder.title}
+            </Text>
+          </Group>
+        </Accordion.Control>
+        <div className={classes.sectionActions}>
+          <LibraryBookmarkButtons nodeId={folder.id} size="sm" />
+        </div>
+      </div>
+      <Accordion.Panel>
+        {isLoading ? (
+          <Loader size="sm" my="xs" />
+        ) : documents.length === 0 ? (
+          <Text size="xs" c="dimmed">
+            {t("msp.view.folder_empty")}
+          </Text>
+        ) : (
+          <Stack gap="xs">
+            {documents.map(row => (
+              <NodeRow key={row.id} row={row} childNav={childNav} />
+            ))}
+          </Stack>
+        )}
+      </Accordion.Panel>
+    </Accordion.Item>
+  )
+}
+
+/**
  * Informational materials: the section and each category folder appear in
- * the measure view only when they already contain a file.
+ * the measure view only when they already contain a file. Category folders
+ * expand inline (same pattern as normative folders) to reveal documents.
  */
 function MspFolderSection({
   node,
@@ -161,8 +223,14 @@ function MspFolderSection({
 
   return (
     <HideEmptyFolders items={items} enabled={!isError}>
-      {({pending, visible}) =>
-        isLoading || pending || visible.length === 0 ? null : (
+      {({pending, visible}) => {
+        if (isLoading || pending || visible.length === 0) {
+          return null
+        }
+        const categoryFolders = visible.filter(row => row.ctype === "folder")
+        const directDocuments = visible.filter(row => row.ctype === "document")
+
+        return (
           <Accordion chevronPosition="left" variant="separated">
             <Accordion.Item value={node.id}>
               <div className={classes.sectionHead}>
@@ -188,7 +256,23 @@ function MspFolderSection({
               </div>
               <Accordion.Panel>
                 <Stack gap="xs">
-                  {visible.map(row => (
+                  {categoryFolders.length > 0 ? (
+                    <Accordion
+                      multiple
+                      chevronPosition="left"
+                      variant="separated"
+                      defaultValue={[]}
+                    >
+                      {categoryFolders.map(folder => (
+                        <InfoCategoryFolder
+                          key={folder.id}
+                          folder={folder}
+                          childNav={childNav}
+                        />
+                      ))}
+                    </Accordion>
+                  ) : null}
+                  {directDocuments.map(row => (
                     <NodeRow key={row.id} row={row} childNav={childNav} />
                   ))}
                 </Stack>
@@ -196,7 +280,7 @@ function MspFolderSection({
             </Accordion.Item>
           </Accordion>
         )
-      }
+      }}
     </HideEmptyFolders>
   )
 }
